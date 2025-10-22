@@ -1,0 +1,8 @@
+{
+    "livePreview.defaultPreviewPath": "/source/acceleration_time_history_differences.html",
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
+}

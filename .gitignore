@@ -1,0 +1,8 @@
+# Ignore examples
+examples/
+
+# Ignore test_results 
+test_results/
+
+# Ignore data txt 
+*.txt
