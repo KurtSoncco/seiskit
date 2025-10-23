@@ -24,6 +24,7 @@ dependencies = [
 dev = [
     "ruff",
     "pytest",
+    "pytest-cov",
 ]
 
 [tool.setuptools]
@@ -35,6 +36,11 @@ pythonpath = ["."]
 
 [tool.uv]
 package = true
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.0.0",
+]
 
 [project.urls]
 "Homepage" = "https://example.invalid/"
