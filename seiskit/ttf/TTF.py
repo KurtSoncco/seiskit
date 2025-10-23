@@ -48,6 +48,12 @@ def TTF(surface_acc, base_acc, dt=1e-4, n_points=1000, Vsmin=None, dz: float = 5
     freq = np.logspace(np.log10(0.1), np.log10(fmax), n_points)
 
     # get TF
-    TF = kohmachi(FAS_s, freq, 150) / kohmachi(FAS_b, freq, 150)
-
+    kohmachi_s = kohmachi(FAS_s, freq, 150)
+    kohmachi_b = kohmachi(FAS_b, freq, 150)
+    
+    # Handle division by zero by adding a small epsilon
+    epsilon = 1e-12
+    TF = np.divide(kohmachi_s, kohmachi_b + epsilon, out=np.zeros_like(kohmachi_s), where=(kohmachi_b + epsilon)!=0)
+    # TF = kohmachi(FAS_s, freq, 150) / kohmachi(FAS_b, freq, 150)
+    
     return freq, TF
