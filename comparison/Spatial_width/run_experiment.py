@@ -110,6 +110,7 @@ def main():
             "damping_zeta": 0.0075,  # Damping ratio
             "damping_freqs": (0.75, 2.25),  # Damping frequencies
             "boundary_condition_type": "2D",  # Use 2D BCs
+            "record_all_surface_nodes": True,  # Record all surface nodes
         }
 
         # Prepare material data
