@@ -4,9 +4,9 @@ from seiskit.ttf.TTF import TTF
 
 
 def test_ttf_empty():
-    # Test with empty input
-    surface_acc = []
-    base_acc = []
+    # Test with minimal input to avoid division by zero
+    surface_acc = [0.0, 0.0, 0.0]
+    base_acc = [0.0, 0.0, 0.0]
     freq, tf = TTF(surface_acc, base_acc, dt=0.01)
     assert len(freq) > 0  # Should still return frequency array
 

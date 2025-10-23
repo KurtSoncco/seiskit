@@ -166,7 +166,7 @@ def test_compute_ricker_mathematical_properties():
     samples = compute_ricker(freq, t_shift, duration, dt)
     
     # Test that the integral is approximately zero (zero mean)
-    integral = np.trapz(samples, dx=dt)
+    integral = np.trapezoid(samples, dx=dt)
     assert abs(integral) < 1e-6
     
     # Test multi-modal properties
