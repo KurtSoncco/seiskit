@@ -145,7 +145,22 @@ def plot_acceleration_comparison(
         y_axis_title="Acceleration ($m/s^2$)",
     )
 
-    line_styles = itertools.cycle(["dash", "dot", "dashdot"])
+    # Create consistent color and line style mapping for each model name
+    line_styles = ["dash", "dot", "dashdot"]
+    fallback_colors = ["#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#17becf", "#bcbd22"]
+    
+    # Get all model names (including reference)
+    all_model_names = list(datasets.keys())
+    
+    # Create consistent mappings
+    model_styles = {}
+    for i, model_name in enumerate(all_model_names):
+        color = MODEL_COLORS.get(model_name, fallback_colors[i % len(fallback_colors)])
+        line_style = line_styles[i % len(line_styles)] if model_name != reference_name else "solid"
+        model_styles[model_name] = {
+            "color": color,
+            "line_style": line_style
+        }
 
     for i, location in enumerate(["base", "top"], 1):
         # Plot other models first to ensure reference is plotted on top
@@ -154,14 +169,16 @@ def plot_acceleration_comparison(
                 continue
 
             time, accel = model_data[location]
-            color = MODEL_COLORS.get(model_name, next(FALLBACK_COLORS))
+            style = model_styles[model_name]
+            
             fig.add_trace(
                 go.Scatter(  # type: ignore[call-arg]
                     x=time,
                     y=accel,
                     mode="lines",
-                    name=f"{model_name} ({location})",
-                    line=dict(dash=next(line_styles), color=color),
+                    name=f"{model_name} ({location})",  # Include location for clarity
+                    line=dict(dash=style["line_style"], color=style["color"]),
+                    showlegend=True,  # Show legend for all traces
                 ),
                 row=i,
                 col=1,
@@ -170,18 +187,31 @@ def plot_acceleration_comparison(
         # Plot the reference model last with a solid line
         if location in datasets.get(reference_name, {}):
             time, accel = datasets[reference_name][location]
-            color = MODEL_COLORS.get(reference_name, next(FALLBACK_COLORS))
+            style = model_styles[reference_name]
+            
             fig.add_trace(
                 go.Scatter(  # type: ignore[call-arg]
                     x=time,
                     y=accel,
                     mode="lines",
-                    name=f"{reference_name} ({location})",
-                    line=dict(color=color, width=2.5),  # Thicker line for reference
+                    name=f"{reference_name} ({location})",  # Include location for clarity
+                    line=dict(color=style["color"], width=2.5),  # Thicker line for reference
+                    showlegend=True,  # Show legend for all traces
                 ),
                 row=i,
                 col=1,
             )
+
+    # Move legend to bottom
+    fig.update_layout(
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.1,
+            xanchor="center",
+            x=0.5
+        )
+    )
 
     fig.write_html(str(output_path))
     print(f"Comparison plot saved to {output_path}")
@@ -308,7 +338,13 @@ def plot_transfer_functions(
         height=600,
         width=800,
         title_text="Transfer Functions from Base to Top",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.1,
+            xanchor="center",
+            x=0.5
+        ),
     )
 
     fig.write_html(str(output_path))
