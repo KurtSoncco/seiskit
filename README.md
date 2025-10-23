@@ -1,4 +1,11 @@
 # Seiskit
+<p align="left">
+   <a href="https://github.com/KurtSoncco/seiskit"><img alt="GitHub stars" src="https://img.shields.io/github/stars/KurtSoncco/seiskit?style=social"></a>
+   <a href="https://github.com/KurtSoncco/seiskit/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/KurtSoncco/seiskit"></a>
+   <a href="https://github.com/KurtSoncco/seiskit/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/KurtSoncco/seiskit"></a>
+   <a href="https://www.python.org/downloads/"><img alt="Python versions" src="https://img.shields.io/badge/python-3.10%2B-blue"></a>
+   <a href="https://github.com/KurtSoncco/seiskit/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/KurtSoncco/seiskit"></a>
+</p>
 
 **Seiskit** is a Python package for conducting seismic analyses using OpenSees, with a focus on spatial variability in soil wave propagation. The package provides powerful parallel processing capabilities for running multiple seismic analyses concurrently, making it ideal for parameter studies and large-scale simulations.
 
@@ -43,7 +50,7 @@
 
 3. **Clone and setup the repository**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/KurtSoncco/seiskit.git
    cd seiskit
    pyenv local 3.11.7
    ```
@@ -73,7 +80,7 @@
 
 2. **Clone and setup**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/KurtSoncco/seiskit.git
    cd seiskit
    uv sync
    ```
