@@ -190,36 +190,36 @@ def analysis_results():
     RESULTS_DIR = Path("./results")
     DATA_CONFIG = {
         "Lx_800": {
-            "base": RESULTS_DIR / "Lx_800/soil_base.txt",
-            "top": RESULTS_DIR / "Lx_800/soil_top.txt",
+            "base": RESULTS_DIR / "Lx_800/Lx_800/soil_base_dof1_accel.txt",
+            "top": RESULTS_DIR / "Lx_800/Lx_800/soil_top_dof1_accel.txt",
         },
         "Lx_700": {
-            "base": RESULTS_DIR / "Lx_700/soil_base.txt",
-            "top": RESULTS_DIR / "Lx_700/soil_top.txt",
+            "base": RESULTS_DIR / "Lx_700/Lx_700/soil_base_dof1_accel.txt",
+            "top": RESULTS_DIR / "Lx_700/Lx_700/soil_top_dof1_accel.txt",
         },
         "Lx_600": {
-            "base": RESULTS_DIR / "Lx_600/soil_base.txt",
-            "top": RESULTS_DIR / "Lx_600/soil_top.txt",
+            "base": RESULTS_DIR / "Lx_600/Lx_600/soil_base_dof1_accel.txt",
+            "top": RESULTS_DIR / "Lx_600/Lx_600/soil_top_dof1_accel.txt",
         },
         "Lx_500": {
-            "base": RESULTS_DIR / "Lx_500/soil_base.txt",
-            "top": RESULTS_DIR / "Lx_500/soil_top.txt",
+            "base": RESULTS_DIR / "Lx_500/Lx_500/soil_base_dof1_accel.txt",
+            "top": RESULTS_DIR / "Lx_500/Lx_500/soil_top_dof1_accel.txt",
         },
         "Lx_400": {
-            "base": RESULTS_DIR / "Lx_400/soil_base.txt",
-            "top": RESULTS_DIR / "Lx_400/soil_top.txt",
+            "base": RESULTS_DIR / "Lx_400/Lx_400/soil_base_dof1_accel.txt",
+            "top": RESULTS_DIR / "Lx_400/Lx_400/soil_top_dof1_accel.txt",
         },
         "Lx_300": {
-            "base": RESULTS_DIR / "Lx_300/soil_base.txt",
-            "top": RESULTS_DIR / "Lx_300/soil_top.txt",
+            "base": RESULTS_DIR / "Lx_300/Lx_300/soil_base_dof1_accel.txt",
+            "top": RESULTS_DIR / "Lx_300/Lx_300/soil_top_dof1_accel.txt",
         },
         "Lx_200": {
-            "base": RESULTS_DIR / "Lx_200/soil_base.txt",
-            "top": RESULTS_DIR / "Lx_200/soil_top.txt",
+            "base": RESULTS_DIR / "Lx_200/Lx_200/soil_base_dof1_accel.txt",
+            "top": RESULTS_DIR / "Lx_200/Lx_200/soil_top_dof1_accel.txt",
         },
         "Lx_100": {
-            "base": RESULTS_DIR / "Lx_100/soil_base.txt",
-            "top": RESULTS_DIR / "Lx_100/soil_top.txt",
+            "base": RESULTS_DIR / "Lx_100/Lx_100/soil_base_dof1_accel.txt",
+            "top": RESULTS_DIR / "Lx_100/Lx_100/soil_top_dof1_accel.txt",
         },
     }
 
@@ -380,6 +380,6 @@ if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     # Uncomment the function you want to run:
-    main()  # Run the full parallel experiment
-    # analysis_results()  # Plot results after analysis
+    # main()  # Run the full parallel experiment
+    analysis_results()  # Plot results after analysis
     # compare_sequential_vs_parallel()  # Compare performance
