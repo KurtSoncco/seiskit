@@ -35,7 +35,8 @@ except ImportError:
 # --- Data Structures ---
 # [IMPROVEMENT] Using more specific and cleaner type hints.
 TimeSeries = Tuple[np.ndarray, np.ndarray]  # (time, acceleration)
-ModelResult = Dict[str, TimeSeries]  # e.g., {"base": TimeSeries, "top": TimeSeries}
+TimeSeriesMulti = Tuple[np.ndarray, np.ndarray]  # (time, acceleration_columns) for surface data
+ModelResult = Dict[str, Union[TimeSeries, TimeSeriesMulti]]  # e.g., {"base": TimeSeries, "top": TimeSeries, "surface": TimeSeriesMulti}
 DataSet = Dict[
     str, ModelResult
 ]  # e.g., {"SPECFEM": ModelResult, "PLAXIS": ModelResult}
@@ -59,7 +60,7 @@ def load_datasets(config: Mapping[str, Mapping[str, PathType]]) -> DataSet:
 
     Args:
         config: A mapping where keys are model names (e.g., "PLAXIS")
-                and values are mappings from location ("base", "top") to a
+                and values are mappings from location ("base", "top", "surface") to a
                 filesystem path.
 
     Returns:
@@ -74,9 +75,14 @@ def load_datasets(config: Mapping[str, Mapping[str, PathType]]) -> DataSet:
     for model_name, paths in config.items():
         datasets[model_name] = {}
         for location, file_path in paths.items():
-            if location in ("base", "top"):
+            if location in ("base", "top", "surface"):
                 data = np.loadtxt(file_path)
-                datasets[model_name][location] = (data[:, 0], data[:, 1])
+                if location == "surface" and data.shape[1] > 2:
+                    # For surface data with multiple nodes, return (time, all_accel_columns)
+                    datasets[model_name][location] = (data[:, 0], data[:, 1:])
+                else:
+                    # For base/top data or single-column surface data
+                    datasets[model_name][location] = (data[:, 0], data[:, 1])
     return datasets
 
 
@@ -275,6 +281,107 @@ def plot_acceleration_differences(
         fig.show()
 
 
+def plot_stacked_acceleration(
+    datasets: DataSet,
+    data_config: Mapping[str, Mapping[str, PathType]],
+    scale_factor: float = 2.0,
+    vertical_spacing: float = 5.0,
+    alpha: float = 0.3,
+) -> None:
+    """
+    Plot stacked acceleration time histories for multiple surface nodes using matplotlib.
+    
+    This function creates individual matplotlib plots for each model, saved in the same
+    folder as the data. Each plot shows surface node accelerations stacked vertically
+    with gray color and small alpha.
+    
+    Args:
+        datasets: The dictionary of loaded model data.
+        data_config: The original data configuration mapping model names to file paths.
+        scale_factor: Scaling factor for acceleration amplitudes (default: 2.0).
+        vertical_spacing: Vertical spacing between stacked traces (default: 5.0).
+        alpha: Transparency level for the lines (default: 0.3).
+    
+    Returns:
+        None
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("Matplotlib is not installed. Skipping plot generation.")
+        return
+
+    # Plot each model's surface acceleration
+    for model_name, model_data in datasets.items():
+        if "surface" not in model_data:
+            continue
+            
+        time, accel = model_data["surface"]
+        
+        # Get the output directory from the data config
+        if model_name not in data_config or "surface" not in data_config[model_name]:
+            continue
+            
+        surface_file_path = Path(data_config[model_name]["surface"])
+        output_dir = surface_file_path.parent
+        output_file = output_dir / f"{model_name}_surface_nodes_acceleration_stacked.png"
+        
+        # Create the plot
+        plt.figure(figsize=(12, 8))
+        
+        # Check if accel is 2D (multiple nodes) or 1D (single node)
+        if accel.ndim == 2 and accel.shape[1] > 1:
+            # Multiple surface nodes - plot each one
+            num_nodes = accel.shape[1]
+            vertical_offset = 0.0
+            
+            for i in range(num_nodes):
+                # Scale and offset the acceleration: accel * scale + offset
+                scaled_accel = accel[:, i] * scale_factor + vertical_offset
+                
+                plt.plot(
+                    scaled_accel,  # X-axis: acceleration + offset
+                    time,          # Y-axis: time
+                    color="gray",
+                    alpha=alpha,
+                    linewidth=0.8,
+                )
+                
+                # Update vertical offset for next node
+                vertical_offset += vertical_spacing
+        else:
+            # Single surface node
+            if accel.ndim == 2:
+                accel = accel[:, 0]  # Take first column if 2D
+            
+            # Scale the acceleration
+            scaled_accel = accel * scale_factor
+            
+            plt.plot(
+                scaled_accel,  # X-axis: acceleration
+                time,          # Y-axis: time
+                color="gray",
+                alpha=alpha,
+                linewidth=0.8,
+            )
+
+        # Set up the plot
+        plt.title(f"{model_name} - Surface Nodes Acceleration X (Stacked and Scaled)")
+        plt.xlabel("Acceleration + Offset (m/s²)")
+        plt.ylabel("Time (s)")
+        plt.grid(True, alpha=0.3)
+        
+        # Set time axis to go from 0 (bottom) to 15 (top)
+        plt.ylim(0, 15)
+        
+        # Save the plot
+        plt.tight_layout()
+        plt.savefig(output_file, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print(f"Stacked acceleration plot saved to {output_file}")
+
+
 def plot_transfer_functions(
     datasets: DataSet,
     reference_name: str,
@@ -412,4 +519,9 @@ if __name__ == "__main__":
         datasets=all_data,
         reference_name=REFERENCE_MODEL,
         output_path=Path("transfer_functions.html"),
+    )
+
+    plot_stacked_acceleration(
+        datasets=all_data,
+        data_config=DATA_CONFIG,
     )

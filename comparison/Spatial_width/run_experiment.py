@@ -18,6 +18,7 @@ from seiskit.plot_results import (
     load_datasets,
     plot_acceleration_comparison,
     plot_transfer_functions,
+    plot_stacked_acceleration,
 )
 
 
@@ -193,34 +194,42 @@ def analysis_results():
         "Lx_800": {
             "base": RESULTS_DIR / "Lx_800/Lx_800/soil_base_dof1_accel.txt",
             "top": RESULTS_DIR / "Lx_800/Lx_800/soil_top_dof1_accel.txt",
+            "surface": RESULTS_DIR / "Lx_800/Lx_800/surface_nodes_dof1_accel.txt",
         },
         "Lx_700": {
             "base": RESULTS_DIR / "Lx_700/Lx_700/soil_base_dof1_accel.txt",
             "top": RESULTS_DIR / "Lx_700/Lx_700/soil_top_dof1_accel.txt",
+            "surface": RESULTS_DIR / "Lx_700/Lx_700/surface_nodes_dof1_accel.txt",
         },
         "Lx_600": {
             "base": RESULTS_DIR / "Lx_600/Lx_600/soil_base_dof1_accel.txt",
             "top": RESULTS_DIR / "Lx_600/Lx_600/soil_top_dof1_accel.txt",
+            "surface": RESULTS_DIR / "Lx_600/Lx_600/surface_nodes_dof1_accel.txt",
         },
         "Lx_500": {
             "base": RESULTS_DIR / "Lx_500/Lx_500/soil_base_dof1_accel.txt",
             "top": RESULTS_DIR / "Lx_500/Lx_500/soil_top_dof1_accel.txt",
+            "surface": RESULTS_DIR / "Lx_500/Lx_500/surface_nodes_dof1_accel.txt",
         },
         "Lx_400": {
             "base": RESULTS_DIR / "Lx_400/Lx_400/soil_base_dof1_accel.txt",
             "top": RESULTS_DIR / "Lx_400/Lx_400/soil_top_dof1_accel.txt",
+            "surface": RESULTS_DIR / "Lx_400/Lx_400/surface_nodes_dof1_accel.txt",
         },
         "Lx_300": {
             "base": RESULTS_DIR / "Lx_300/Lx_300/soil_base_dof1_accel.txt",
             "top": RESULTS_DIR / "Lx_300/Lx_300/soil_top_dof1_accel.txt",
+            "surface": RESULTS_DIR / "Lx_300/Lx_300/surface_nodes_dof1_accel.txt",
         },
         "Lx_200": {
             "base": RESULTS_DIR / "Lx_200/Lx_200/soil_base_dof1_accel.txt",
             "top": RESULTS_DIR / "Lx_200/Lx_200/soil_top_dof1_accel.txt",
+            "surface": RESULTS_DIR / "Lx_200/Lx_200/surface_nodes_dof1_accel.txt",
         },
         "Lx_100": {
             "base": RESULTS_DIR / "Lx_100/Lx_100/soil_base_dof1_accel.txt",
             "top": RESULTS_DIR / "Lx_100/Lx_100/soil_top_dof1_accel.txt",
+            "surface": RESULTS_DIR / "Lx_100/Lx_100/surface_nodes_dof1_accel.txt",
         },
     }
 
@@ -238,6 +247,11 @@ def analysis_results():
         datasets=data,
         reference_name="",
         output_path=Path("acceleration_time_histories_comparison.html"),
+    )
+    # 5. Plot stacked acceleration comparison
+    plot_stacked_acceleration(
+        datasets=data,
+        data_config=DATA_CONFIG,
     )
 
 
