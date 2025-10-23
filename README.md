@@ -1,8 +1,8 @@
 # Seiskit
 <p align="left">
+   <a href="https://github.com/KurtSoncco/seiskit/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/KurtSoncco/seiskit"></a>
    <a href="https://github.com/KurtSoncco/seiskit"><img alt="GitHub stars" src="https://img.shields.io/github/stars/KurtSoncco/seiskit?style=social"></a>
    <a href="https://github.com/KurtSoncco/seiskit/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/KurtSoncco/seiskit"></a>
-   <a href="https://github.com/KurtSoncco/seiskit/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/KurtSoncco/seiskit"></a>
    <a href="https://www.python.org/downloads/"><img alt="Python versions" src="https://img.shields.io/badge/python-3.10%2B-blue"></a>
    <a href="https://github.com/KurtSoncco/seiskit/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/KurtSoncco/seiskit"></a>
 </p>
