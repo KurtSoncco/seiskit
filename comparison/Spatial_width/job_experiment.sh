@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=spatial-width
-#SBATCH --account=fc_tfsurrogate
-#SBATCH --partition=savio3_htc
+#SBATCH --account=savio3
+#SBATCH --partition=savio_normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=02:00:00
+#SBATCH --time=00:10:00
 #SBATCH --array=0-7
 #SBATCH --output=array_job_%A_task_%a.out
 #SBATCH --error=array_job_%A_task_%a.err
@@ -21,6 +21,7 @@ fi
 module purge
 module load gcc/13.2.0
 module load openblas/0.3.24
+module load openmpi/4.1.6 
 
 # Match thread counts to allocated CPUs (helps OpenBLAS and any OpenMP usage)
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
