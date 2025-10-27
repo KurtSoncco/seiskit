@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +25,11 @@ from seiskit.plot_results import (  # [seiskit/plot_results.py](seiskit/plot_res
 )
 
 
+def _fmt_hms(seconds: float) -> str:
+    seconds = int(round(seconds))
+    return f"{seconds // 3600:02d}:{(seconds % 3600) // 60:02d}:{seconds % 60:02d}"
+
+
 def run_array_index(index: int):
     """
     Run a single Lx case determined by the given array index.
@@ -31,6 +37,7 @@ def run_array_index(index: int):
     Reads parameters consistent with `main()` to ensure all array tasks use the same
     random field seed and total-width realization; crops per Lx_i and runs one analysis.
     """
+    t0 = time.time()
 
     # Base case parameters (same as in main)
     Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
@@ -51,11 +58,14 @@ def run_array_index(index: int):
 
     Lx_i = Lx_variability_values[index]
     task_id = f"Lx_{Lx_i}"
-    output_dir = f"results/{task_id}"
+    output_dir = f"results/{task_id}/{task_id}"  # Fixed: nested correctly
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"[run_array_index] Starting task {task_id} (index={index})")
 
+    # CRITICAL: Set numpy random seed to ensure consistent fields across array tasks
+    np.random.seed(seed)
+    
     # Generate a single large realization so cropping is consistent across array tasks
     Lx_total_for_field = max(Lx_variability_values)
     print(
@@ -131,23 +141,23 @@ def run_array_index(index: int):
     print(f"[run_array_index] Running OpenSees for {task_id} -> {output_dir}/{task_id}")
     result = run_opensees_analysis(config, model_data, task_id, output_dir)
 
-    print(f"[run_array_index] Done: {result}")
+    elapsed = time.time() - t0
+    print(f"[run_array_index] Done: {result} | Wall time: {_fmt_hms(elapsed)}")
     return result
 
 
 def main():
     """
-    In this experiment, we are going to generate ht emost variable case for a single Vs profile.
+    In this experiment, we are going to generate the most variable case for a single Vs profile.
     We are going to gradually decrease the width of the model until we observe significant errors in the PGA values and differences in the transfer functions.
 
     Experiment Layout:
-    Vs = np.array([140.0] * 8 + [1300.0] * 1)
+    Vs = np.array([180.0] * 8 + [1300.0] * 1)
     Lz = 50.0
-    rH, aHV, CV = 10.0, 10.0, 0.3
-
-
-    Lx = [500.0, 400.0, 300.0, 200.0]
+    rH, aHV, CV = 10.0, 2.0, 0.3
+    Lx_variability_values = [800, 700, 600, 500, 400, 300, 200, 100]
     """
+    t0 = time.time()
 
     ## Set base case
     Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
@@ -160,8 +170,12 @@ def main():
     # Lx_values = [500, 250, 100, 50, 25, 10]
     Lx_variability_values = [800, 700, 600, 500, 400, 300, 200, 100]
 
-    results = {Lx: f"results/Lx_{Lx}" for Lx in Lx_variability_values}
+    # Use consistent nested structure matching array job output
+    results = {Lx: f"results/Lx_{Lx}/Lx_{Lx}" for Lx in Lx_variability_values}
 
+    # Set numpy random seed for reproducibility
+    np.random.seed(seed)
+    
     print(f"Generating Vs realization for Lx = {np.max(Lx_variability_values)} m...")
     Vs_total_realization, x_coords, z_coords, h_mean = _generate_vs_variability_field(
         Vs_profile_1D,
@@ -237,7 +251,7 @@ def main():
         task_configs.append(task_config)
         material_data_list.append(material_data)
 
-        print(f"Task preparation complete for Lx = {Lx} m.")
+        print(f"Task preparation complete for Lx = {Lx_i} m.")
 
     # Run analyses in parallel using joblib
     print(f"\nRunning {len(task_configs)} analyses in parallel...")
@@ -294,6 +308,8 @@ def main():
 
     if summary["failed"] > 0:
         print(f"Failed tasks: {summary['failed_task_ids']}")
+
+    print(f"[main] Wall time: {_fmt_hms(time.time() - t0)}")
 
 
 def analysis_results():
@@ -508,7 +524,7 @@ def _parse_args():
     )
     p.add_argument("--index", type=int, help="Array index (over Lx_variability_values)")
     p.add_argument(
-        "--full", action="store_true", help="Run the full parallel experiment"
+        "--full", action="store_true", help="Run the full parallel experiment then plot"
     )
     p.add_argument("--plot", action="store_true", help="Generate plots from results")
     p.add_argument(
@@ -520,6 +536,7 @@ def _parse_args():
 if __name__ == "__main__":
     # Change to the script's directory
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    program_start = time.time()
 
     args = _parse_args()
 
@@ -536,22 +553,37 @@ if __name__ == "__main__":
 
     if idx is not None:
         run_array_index(idx)
+        print(f"[program] Total wall time: {_fmt_hms(time.time() - program_start)}")
         sys.exit(0)
 
     # Non-array modes
     if args.full:
+        print("[program] Running full experiment...")
+        t0 = time.time()
         main()
-    elif args.plot:
+        print(f"[program] Full experiment wall time: {_fmt_hms(time.time() - t0)}")
+
+        print("[program] Generating plots...")
+        t1 = time.time()
         analysis_results()
+        print(f"[program] Plotting wall time: {_fmt_hms(time.time() - t1)}")
+
+    elif args.plot:
+        t1 = time.time()
+        analysis_results()
+        print(f"[program] Plotting wall time: {_fmt_hms(time.time() - t1)}")
+
     elif args.compare:
         compare_sequential_vs_parallel()
     else:
         # Default to help if nothing specified
         print("No action specified. Use one of:")
         print(
-            "  --index N        # to run one Lx case by array index (or set SLURM_ARRAY_TASK_ID)"
+            "  --index N        # run one Lx case by array index (or set SLURM_ARRAY_TASK_ID)"
         )
-        print("  --full           # to run the full parallel experiment locally")
-        print("  --plot           # to generate plots from existing results")
-        print("  --compare        # to run a small perf comparison")
+        print("  --full           # run full parallel experiment then plot results")
+        print("  --plot           # generate plots from existing results")
+        print("  --compare        # small perf comparison")
         sys.exit(1)
+
+    print(f"[program] Total wall time: {_fmt_hms(time.time() - program_start)}")
