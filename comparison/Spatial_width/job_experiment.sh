@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=spatial-width
-#SBATCH --account=savio3
-#SBATCH --partition=savio_normal
+#SBATCH --account=fc_tfsurrogate
+#SBATCH --partition=savio3
+#SBATCH --qos=savio_normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
