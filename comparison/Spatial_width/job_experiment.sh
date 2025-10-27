@@ -13,11 +13,6 @@
 
 set -euo pipefail
 
-# Ensure we can use 'module' in non-interactive shells
-if [ -f /etc/profile.d/modules.sh ]; then
-  source /etc/profile.d/modules.sh
-fi
-
 # Clean module env and load required toolchain
 module purge
 module load gcc/13.2.0
