@@ -17,8 +17,8 @@ from seiskit.joblib_parallel import (
 from seiskit.plot_results import (
     load_datasets,
     plot_acceleration_comparison,
-    plot_transfer_functions,
     plot_stacked_acceleration,
+    plot_transfer_functions,
 )
 
 
@@ -250,8 +250,7 @@ def analysis_results():
     )
     # 5. Plot stacked acceleration comparison
     plot_stacked_acceleration(
-        datasets=data,
-        data_config=DATA_CONFIG,
+        datasets=data, data_config=DATA_CONFIG, vertical_spacing=2.5, scale_factor=4.0
     )
 
 
@@ -376,7 +375,7 @@ def compare_sequential_vs_parallel():
         )
         all_tasks.append(task)
 
-    results_list = run_joblib_parallel_analyses(all_tasks, n_jobs=2, verbose=1)
+    _ = run_joblib_parallel_analyses(all_tasks, n_jobs=2, verbose=1)
     parallel_time = time.time() - start_time
 
     print(f"  Parallel total time: {parallel_time:.1f}s")
