@@ -34,7 +34,7 @@ def TTF(surface_acc, base_acc, dt=1e-4, n_points=1000, Vsmin=None, dz: float = 5
 
     # Calculation of maximum frequency
     if Vsmin is not None:
-        fmax = Vsmin / (15 * dz)
+        fmax = Vsmin / (10 * dz)
     else:
         fmax = 2.5
 
