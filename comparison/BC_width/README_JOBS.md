@@ -55,7 +55,13 @@ ls -lh array_job_*_task_*.out
 find results -name "*.txt" | wc -l
 ```
 
-#### Step 3: After All Tasks Complete, Submit Plotting Job
+#### Step 3: Check Timing Results (Optional)
+```bash
+# View timing summary for all tasks
+./view_timing_results.sh
+```
+
+#### Step 4: After All Tasks Complete, Submit Plotting Job
 ```bash
 sbatch job_plot.sh
 ```
@@ -112,6 +118,32 @@ results/
 | 11    | 100    | 400      | 900         |
 | 12    | 100    | 500      | 1100        |
 | 13    | 100    | 1000     | 2100        |
+
+## Monitoring and Timing
+
+### View Timing Results
+Use `view_timing_results.sh` to check the status and timing of all array job tasks:
+
+```bash
+./view_timing_results.sh
+```
+
+This script shows:
+- Individual task status and timing
+- Task parameters (Lx_var, BC_width, total width)
+- Overall statistics (min, max, avg duration)
+- Missing/incomplete tasks
+- Quick commands for detailed inspection
+
+Example output:
+```
+Task Breakdown:
+Index | Lx_var | BC_width | Total Width | Status
+------|--------|----------|-------------|--------
+    0 |    800 |        0 |         800 | ✓ COMPLETED
+    1 |    800 |      100 |        1000 | ✓ COMPLETED
+    ...
+```
 
 ## Important Notes
 
