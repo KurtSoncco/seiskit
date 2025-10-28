@@ -1,0 +1,132 @@
+# BC Width Experiment - Job Submission Guide
+
+## Overview
+This experiment tests the effect of boundary condition (BC) width on seismic analysis results. It has 14 total combinations:
+- 2 Lx variability values: 800m, 100m
+- 7 BC width values: 0, 100, 200, 300, 400, 500, 1000m
+- Total = 2 × 7 = 14 combinations
+
+## Job Scripts
+
+### 1. `job_experiment.sh` - Array Job (Recommended for HPC)
+- Runs 14 tasks in parallel using SLURM array job system
+- Each task processes one combination of Lx_var and BC_width
+- **Submission**: `sbatch job_experiment.sh`
+- **Time**: ~2 hours per task (max 2h)
+- **Output**: Results in `results/Lx_{Lx_var}/BC_width_{BC_width}/`
+
+### 2. `job_plot.sh` - Plotting Only
+- Generates comparison plots from completed analysis results
+- Must be run AFTER all array tasks complete
+- **Submission**: `sbatch job_plot.sh`
+- **Time**: ~30 minutes
+- **Output**:
+  - `transfer_functions_comparison.html`
+  - `acceleration_time_histories_comparison.html`
+  - `*_surface_nodes_acceleration_stacked.png`
+
+### 3. `submit_jobs.sh` - Full Workflow (Sequential)
+- Runs all 14 tasks sequentially, then generates plots
+- For testing/development on a single node
+- **Note**: This is slower than using array jobs, but simpler
+- **Submission**: `sbatch submit_jobs.sh`
+- **Time**: ~3-4 hours total
+
+## Recommended Workflow
+
+### For HPC Cluster (Production):
+
+#### Step 1: Submit Array Job
+```bash
+sbatch job_experiment.sh
+```
+
+This will submit job with ID, e.g., `12345678`
+
+#### Step 2: Monitor Progress
+```bash
+# Check job status
+squeue -u $USER
+
+# Check output files
+ls -lh array_job_*_task_*.out
+
+# Check if results are being generated
+find results -name "*.txt" | wc -l
+```
+
+#### Step 3: After All Tasks Complete, Submit Plotting Job
+```bash
+sbatch job_plot.sh
+```
+
+### For Local Testing/Development:
+
+#### Run Individual Task
+```bash
+# Activate environment first
+source ../../.venv/bin/activate
+
+# Run specific index
+python run_experiment.py --index 0    # First task
+python run_experiment.py --index 10    # Task 10
+
+# After all tasks complete, generate plots
+python run_experiment.py --plot
+```
+
+## Output Structure
+
+```
+results/
+├── Lx_800/
+│   ├── BC_width_0/
+│   │   ├── 800_BC_width_0/
+│   │   │   ├── soil_base_dof1_accel.txt
+│   │   │   ├── soil_top_dof1_accel.txt
+│   │   │   ├── surface_nodes_dof1_accel.txt
+│   │   │   └── ...
+│   │   └── Vs_realization.png
+│   ├── BC_width_100/
+│   └── ...
+└── Lx_100/
+    ├── BC_width_0/
+    └── ...
+```
+
+## Index Mapping
+
+| Index | Lx_var | BC_width | Total Width |
+|-------|--------|----------|-------------|
+| 0     | 800    | 0        | 800         |
+| 1     | 800    | 100      | 1000        |
+| 2     | 800    | 200      | 1200        |
+| 3     | 800    | 300      | 1400        |
+| 4     | 800    | 400      | 1600        |
+| 5     | 800    | 500      | 1800        |
+| 6     | 800    | 1000     | 2800        |
+| 7     | 100    | 0        | 100         |
+| 8     | 100    | 100      | 300         |
+| 9     | 100    | 200      | 500         |
+| 10    | 100    | 300      | 700         |
+| 11    | 100    | 400      | 900         |
+| 12    | 100    | 500      | 1100        |
+| 13    | 100    | 1000     | 2100        |
+
+## Important Notes
+
+1. **Vs_min for Transfer Functions**: The plotting automatically extracts Vs_min from the 800m realization for proper transfer function calculation.
+
+2. **Seed**: All tasks use the same random seed (42) to ensure consistency in the gaussian field generation.
+
+3. **Array Job Dependencies**: To automatically run plotting after array job completes:
+   ```bash
+   sbatch --dependency=afterok:12345678 job_plot.sh
+   ```
+   (Replace 12345678 with your array job ID)
+
+4. **Check Results**: 
+   - Base and top accelerations are recorded at the soil layer boundaries
+   - Surface accelerations are recorded for all surface nodes
+   - Transfer functions compare Top/Base acceleration response
+

@@ -17,6 +17,12 @@ def TTF(surface_acc, base_acc, dt=1e-4, n_points=1000, Vsmin=None, dz: float = 5
         Base acceleration time history
     dt : float, optional
         Time step of the acceleration time history, by default 0.01
+    n_points : int, optional
+        Number of points to downsample the frequency, by default 1000
+    Vsmin : float, optional
+        Minimum Vs value to calculate the maximum frequency, by default None
+    dz : float, optional
+        Depth increment used in the model, by default 5.0
 
     Returns
     -------
@@ -50,10 +56,15 @@ def TTF(surface_acc, base_acc, dt=1e-4, n_points=1000, Vsmin=None, dz: float = 5
     # get TF
     kohmachi_s = kohmachi(FAS_s, freq, 150)
     kohmachi_b = kohmachi(FAS_b, freq, 150)
-    
+
     # Handle division by zero by adding a small epsilon
     epsilon = 1e-12
-    TF = np.divide(kohmachi_s, kohmachi_b + epsilon, out=np.zeros_like(kohmachi_s), where=(kohmachi_b + epsilon)!=0)
+    TF = np.divide(
+        kohmachi_s,
+        kohmachi_b + epsilon,
+        out=np.zeros_like(kohmachi_s),
+        where=(kohmachi_b + epsilon) != 0,
+    )
     # TF = kohmachi(FAS_s, freq, 150) / kohmachi(FAS_b, freq, 150)
-    
+
     return freq, TF
