@@ -6,10 +6,33 @@ echo "BC Width Experiment - Timing Results Summary"
 echo "============================================================================"
 echo ""
 
-# Find all output files
-OUTPUT_FILES=(array_job_*_task_*.out)
+# Find array job output files
+ARRAY_FILES=(array_job_*_task_*.out)
+# Find sequential job output files
+SEQUENTIAL_FILES=(full_workflow_*.out)
 
-if [ ${#OUTPUT_FILES[@]} -eq 0 ]; then
+# Determine which type of job was run
+if [ ${#ARRAY_FILES[@]} -gt 0 ] && [ ${#SEQUENTIAL_FILES[@]} -gt 0 ]; then
+    echo "Found both ARRAY job and SEQUENTIAL job outputs!"
+    echo "Comparing parallel vs sequential execution..."
+    echo ""
+    COMPARE_MODE=true
+elif [ ${#ARRAY_FILES[@]} -gt 0 ]; then
+    echo "Running in ARRAY job mode (parallel execution)"
+    echo ""
+    COMPARE_MODE=false
+    OUTPUT_FILES=("${ARRAY_FILES[@]}")
+elif [ ${#SEQUENTIAL_FILES[@]} -gt 0 ]; then
+    echo "Running in SEQUENTIAL job mode"
+    echo ""
+    COMPARE_MODE=false
+    # For sequential mode, we need to parse the single output file
+    if [ ${#SEQUENTIAL_FILES[@]} -eq 0 ]; then
+        echo "No output files found!"
+        exit 1
+    fi
+    OUTPUT_FILES=("${SEQUENTIAL_FILES[@]}")
+else
     echo "No output files found!"
     echo "Make sure you're in the directory where the jobs were submitted."
     exit 1
@@ -154,6 +177,93 @@ if [ ${#DURATIONS[@]} -gt 0 ]; then
     fi
 else
     echo "No completed jobs yet."
+fi
+
+# If in comparison mode, show parallel vs sequential comparison
+if [ "$COMPARE_MODE" = true ]; then
+    echo ""
+    echo "============================================================================"
+    echo "Parallel vs Sequential Execution Comparison"
+    echo "============================================================================"
+    
+    # Parse array job durations
+    ARRAY_TOTAL=0
+    ARRAY_COUNT=0
+    ARRAY_DURATIONS=()
+    
+    for file in "${ARRAY_FILES[@]}"; do
+        if grep -q "Total Duration (seconds):" "$file" 2>/dev/null; then
+            DURATION=$(grep "Total Duration (seconds):" "$file" | awk '{print $4}')
+            if [ ! -z "$DURATION" ]; then
+                ARRAY_DURATIONS+=("$DURATION")
+                ARRAY_TOTAL=$((ARRAY_TOTAL + DURATION))
+                ARRAY_COUNT=$((ARRAY_COUNT + 1))
+            fi
+        fi
+    done
+    
+    # Parse sequential job total time
+    SEQUENTIAL_FILE="${SEQUENTIAL_FILES[0]}"
+    SEQUENTIAL_DURATION=0
+    
+    if [ -f "$SEQUENTIAL_FILE" ]; then
+        # Look for "program] Total wall time" in the output
+        TOTAL_TIME=$(grep "program\] Total wall time:" "$SEQUENTIAL_FILE" | tail -n 1)
+        if [ ! -z "$TOTAL_TIME" ]; then
+            # Extract time in HH:MM:SS format and convert to seconds
+            TIME_STR=$(echo "$TOTAL_TIME" | awk '{print $NF}')
+            # Parse HH:MM:SS
+            HOURS=$(echo "$TIME_STR" | cut -d':' -f1)
+            MINUTES=$(echo "$TIME_STR" | cut -d':' -f2)
+            SECONDS=$(echo "$TIME_STR" | cut -d':' -f3)
+            SEQUENTIAL_DURATION=$((HOURS * 3600 + MINUTES * 60 + SECONDS))
+        fi
+    fi
+    
+    if [ $ARRAY_COUNT -gt 0 ] && [ $SEQUENTIAL_DURATION -gt 0 ]; then
+        ARRAY_MAX=0
+        for dur in "${ARRAY_DURATIONS[@]}"; do
+            if [ $dur -gt $ARRAY_MAX ]; then
+                ARRAY_MAX=$dur
+            fi
+        done
+        
+        # Array job time is the longest task (since tasks run in parallel)
+        PARALLEL_TIME=$ARRAY_MAX
+        
+        echo "Parallel execution (array job):"
+        echo "  Tasks completed: $ARRAY_COUNT / 14"
+        echo "  Longest task: ${PARALLEL_TIME}s ($(($PARALLEL_TIME / 60))m $(($PARALLEL_TIME % 60))s)"
+        echo "  All tasks run simultaneously on different nodes"
+        echo ""
+        
+        echo "Sequential execution (submit_jobs.sh):"
+        echo "  Total time: ${SEQUENTIAL_DURATION}s ($(($SEQUENTIAL_DURATION / 60))m $(($SEQUENTIAL_DURATION % 60))s)"
+        echo "  Tasks run one after another on same node"
+        echo ""
+        
+        if [ $SEQUENTIAL_DURATION -gt 0 ]; then
+            SPEEDUP=$(awk "BEGIN {printf \"%.2f\", $SEQUENTIAL_DURATION / $PARALLEL_TIME}")
+            EFFICIENCY=$(awk "BEGIN {printf \"%.1f\", ($SPEEDUP / 14) * 100}")
+            
+            echo "Performance Analysis:"
+            echo "  Speedup: ${SPEEDUP}x"
+            echo "  Efficiency: ${EFFICIENCY}% (theoretical max: ${SPEEDUP}%)"
+            echo "  Time saved: $((SEQUENTIAL_DURATION - PARALLEL_TIME))s ($(( (SEQUENTIAL_DURATION - PARALLEL_TIME) / 60 ))m $(( (SEQUENTIAL_DURATION - PARALLEL_TIME) % 60 ))s)"
+            
+            echo ""
+            echo "📊 Summary:"
+            if [ $(echo "$SPEEDUP > 8" | bc) -eq 1 ]; then
+                echo "  ✅ Excellent parallelization! Speedup > 8x"
+            elif [ $(echo "$SPEEDUP > 4" | bc) -eq 1 ]; then
+                echo "  ✓ Good parallelization with ${SPEEDUP}x speedup"
+            else
+                echo "  ⚠️  Limited speedup (${SPEEDUP}x). Consider optimizing."
+            fi
+        fi
+    else
+        echo "Need both parallel and sequential results for comparison."
+    fi
 fi
 
 echo ""

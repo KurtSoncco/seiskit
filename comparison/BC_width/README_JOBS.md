@@ -135,6 +135,24 @@ This script shows:
 - Missing/incomplete tasks
 - Quick commands for detailed inspection
 
+#### Parallel vs Sequential Comparison
+If you run both `job_experiment.sh` (array job) and `submit_jobs.sh` (sequential), the script will automatically detect both and provide a performance comparison:
+- **Speedup**: How much faster parallel execution is
+- **Efficiency**: How effectively parallel resources are used
+- **Time saved**: Total time reduction with parallel execution
+
+Example:
+```bash
+# Run parallel array job
+sbatch job_experiment.sh
+
+# Run sequential job
+sbatch submit_jobs.sh
+
+# Compare results
+./view_timing_results.sh
+```
+
 Example output:
 ```
 Task Breakdown:
@@ -143,6 +161,26 @@ Index | Lx_var | BC_width | Total Width | Status
     0 |    800 |        0 |         800 | ✓ COMPLETED
     1 |    800 |      100 |        1000 | ✓ COMPLETED
     ...
+
+============================================================================
+Parallel vs Sequential Execution Comparison
+============================================================================
+Parallel execution (array job):
+  Tasks completed: 14 / 14
+  Longest task: 1845s (30m 45s)
+  All tasks run simultaneously on different nodes
+
+Sequential execution (submit_jobs.sh):
+  Total time: 12847s (214m 7s)
+  Tasks run one after another on same node
+
+Performance Analysis:
+  Speedup: 6.96x
+  Efficiency: 49.7%
+  Time saved: 11002s (183m 22s)
+
+📊 Summary:
+  ✓ Good parallelization with 6.96x speedup
 ```
 
 ## Important Notes
