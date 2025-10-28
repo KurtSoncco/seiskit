@@ -295,7 +295,7 @@ def analysis_results():
     )
 
     ## Plot trasnfer functions only for 800m case
-    data_800 = {k: v for k, v in data.items() if "800" in k}
+    data_800 = {k: v for k, v in data.items() if "Lx800" in k}
     print("Plotting transfer functions only for 800m case...")
     plot_transfer_functions_with_vsmin(
         datasets=data_800,
@@ -305,7 +305,7 @@ def analysis_results():
     )
     ## Plot trasnfer functions only for 100m case
     print("Plotting transfer functions only for 100m case...")
-    data_100 = {k: v for k, v in data.items() if "100" in k}
+    data_100 = {k: v for k, v in data.items() if "Lx100" in k}
     plot_transfer_functions_with_vsmin(
         datasets=data_100,
         output_path=Path("transfer_functions_comparison_100m.html"),
