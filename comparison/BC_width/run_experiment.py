@@ -294,6 +294,25 @@ def analysis_results():
         dz=dz,
     )
 
+    ## Plot trasnfer functions only for 800m case
+    data_800 = {k: v for k, v in data.items() if "800" in k}
+    print("Plotting transfer functions only for 800m case...")
+    plot_transfer_functions_with_vsmin(
+        datasets=data_800,
+        output_path=Path("transfer_functions_comparison_800m.html"),
+        dz=dz,
+        Vs_min=Vs_min,
+    )
+    ## Plot trasnfer functions only for 100m case
+    print("Plotting transfer functions only for 100m case...")
+    data_100 = {k: v for k, v in data.items() if "100" in k}
+    plot_transfer_functions_with_vsmin(
+        datasets=data_100,
+        output_path=Path("transfer_functions_comparison_100m.html"),
+        dz=dz,
+        Vs_min=Vs_min,
+    )
+
     # Plot acceleration comparison
     print("Plotting acceleration comparisons...")
     plot_acceleration_comparison(
