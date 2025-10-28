@@ -68,6 +68,7 @@ def _generate_vs_variability_field(
     CV: float,
     seed: Optional[int] = 42,
     dz_1D: float = 5.0,
+    interlayer_seed: Optional[int] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """
     Generates a 2D Vs variability field for the top layer using a lognormal
@@ -81,8 +82,11 @@ def _generate_vs_variability_field(
         rH: Correlation length (horizontal) for intralayer variability [m].
         aHV: Anisotropy ratio (rH / rV) for intralayer variability.
         CV: Coefficient of variation for the top layer's Vs.
-        Vs1: Shear wave velocity of the top layer [m/s].
-        rng: Random number generator for reproducibility.
+        seed: Random seed for spatial field generation.
+        dz_1D: Vertical spacing for 1D profile [m].
+        interlayer_seed: Random seed for interlayer (wavy boundary) generation.
+                        If None, uses the same seed as spatial field. Useful for
+                        keeping interlayer variability fixed while varying spatial field.
     Returns:
         A tuple containing:
         - var_Vs_field (np.ndarray): The 2D Vs variability field of shape (nz, nx_var).
@@ -91,8 +95,13 @@ def _generate_vs_variability_field(
         - h (float): The average depth of the first layer interface [m].
     """
 
-    # 0. Initialize random number generator for reproducibility
+    # 0. Initialize random number generator for spatial field reproducibility
     rng = np.random.default_rng(seed)
+
+    # Separate RNG for interlayer variability (wavy boundary)
+    interlayer_rng = np.random.default_rng(
+        interlayer_seed if interlayer_seed is not None else seed
+    )
 
     # 1. Profile and Grid Setup
     Vs_unique = np.unique(Vs_profile)
@@ -124,10 +133,11 @@ def _generate_vs_variability_field(
 
     # 3. Interlayer Variability (Wavy Boundary)
     # Generate a random wavy interface using a sum of sinusoids
-    freq1 = rng.uniform(1 / 80, 1 / 40)
-    freq2 = rng.uniform(1 / 40, 1 / 20)
-    freq3 = rng.uniform(1 / 20, 1 / 10)
-    phase_offset = rng.uniform(0, 2 * np.pi)
+    # Use interlayer_rng to allow separate seed control
+    freq1 = interlayer_rng.uniform(1 / 80, 1 / 40)
+    freq2 = interlayer_rng.uniform(1 / 40, 1 / 20)
+    freq3 = interlayer_rng.uniform(1 / 20, 1 / 10)
+    phase_offset = interlayer_rng.uniform(0, 2 * np.pi)
     wave_amplitude = (dz / 2) * (
         np.sin(2 * np.pi * freq1 * x_var + phase_offset)
         + np.sin(2 * np.pi * freq2 * x_var + phase_offset)
@@ -217,6 +227,7 @@ def create_vs_realization(
     CV: float,
     seed: Optional[int] = 42,
     dz_1D: float = 5.0,
+    interlayer_seed: Optional[int] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """
     Generates a 2D spatial variability realization of a Vs profile.
@@ -238,7 +249,10 @@ def create_vs_realization(
         rH: Correlation length (horizontal) for intralayer variability [m].
         aHV: Anisotropy ratio (rH / rV) for intralayer variability.
         CV: Coefficient of variation for the top layer's Vs.
-        seed: Random seed for reproducibility.
+        seed: Random seed for spatial field generation.
+        dz_1D: Vertical spacing for 1D profile [m].
+        interlayer_seed: Random seed for interlayer (wavy boundary) generation.
+                        If None, uses the same seed as spatial field.
 
     Returns:
         A tuple containing:
@@ -252,8 +266,13 @@ def create_vs_realization(
             "Total length Lx must be greater than or equal to Lx_variability."
         )
 
-    # 0. Initialize random number generator for reproducibility
+    # 0. Initialize random number generator for spatial field reproducibility
     rng = np.random.default_rng(seed)
+
+    # Separate RNG for interlayer variability (wavy boundary)
+    interlayer_rng = np.random.default_rng(
+        interlayer_seed if interlayer_seed is not None else seed
+    )
 
     # 1. Profile and Grid Setup
     Vs_unique = np.unique(Vs_profile)
@@ -285,10 +304,11 @@ def create_vs_realization(
 
     # 3. Interlayer Variability (Wavy Boundary)
     # Generate a random wavy interface using a sum of sinusoids
-    freq1 = rng.uniform(1 / 80, 1 / 40)
-    freq2 = rng.uniform(1 / 40, 1 / 20)
-    freq3 = rng.uniform(1 / 20, 1 / 10)
-    phase_offset = rng.uniform(0, 2 * np.pi)
+    # Use interlayer_rng to allow separate seed control
+    freq1 = interlayer_rng.uniform(1 / 80, 1 / 40)
+    freq2 = interlayer_rng.uniform(1 / 40, 1 / 20)
+    freq3 = interlayer_rng.uniform(1 / 20, 1 / 10)
+    phase_offset = interlayer_rng.uniform(0, 2 * np.pi)
     wave_amplitude = (dz / 2) * (
         np.sin(2 * np.pi * freq1 * x_var + phase_offset)
         + np.sin(2 * np.pi * freq2 * x_var + phase_offset)
