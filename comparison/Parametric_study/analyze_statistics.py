@@ -136,6 +136,7 @@ def compute_tf_statistics(datasets, dz=2.5, Vs_min=None):
 
         # Compute statistics, ignoring NaN values
         tf_matrix = np.array(tf_interpolated)
+        valid_counts = np.sum(~np.isnan(tf_matrix), axis=0)
         mean_tf = np.nanmean(tf_matrix, axis=0)
         std_tf = np.nanstd(tf_matrix, axis=0)
 
@@ -144,6 +145,23 @@ def compute_tf_statistics(datasets, dz=2.5, Vs_min=None):
         common_freq = common_freq[valid_idx]
         mean_tf = mean_tf[valid_idx]
         std_tf = std_tf[valid_idx]
+        valid_counts = valid_counts[valid_idx]
+
+        # Diagnostics for small std values and contributor counts
+        finite_std = std_tf[np.isfinite(std_tf)]
+        if finite_std.size > 0:
+            std_median = float(np.median(finite_std))
+            std_min = float(np.min(finite_std))
+            std_max = float(np.max(finite_std))
+            counts_min = int(np.min(valid_counts)) if valid_counts.size else 0
+            counts_median = int(np.median(valid_counts)) if valid_counts.size else 0
+            counts_max = int(np.max(valid_counts)) if valid_counts.size else 0
+            print(
+                f"TF stats rH={rH:.0f}, CV={CV}: std(med/min/max)="
+                f"{std_median:.3e}/{std_min:.3e}/{std_max:.3e}; "
+                f"contributors per freq (min/med/max)="
+                f"{counts_min}/{counts_median}/{counts_max}"
+            )
 
         stats[(rH, CV)] = {
             "freq": common_freq,
@@ -343,25 +361,16 @@ def plot_tf_statistics(stats, output_path: Path, show_fig: bool = False):
         show_fig: If True, displays the figure interactively
     """
     # Generate distinct color and linestyle combinations
-    colors = [
-        "#1f77b4",  # blue
-        "#ff7f0e",  # orange
-        "#2ca02c",  # green
-        "#d62728",  # red
-        "#9467bd",  # purple
-        "#8c564b",  # brown
-        "#e377c2",  # pink
-        "#7f7f7f",  # gray
-        "#bcbd22",  # olive
-        "#17becf",  # cyan
-    ]
-
-    linestyles = ["solid", "dash", "dot", "dashdot"]
+    # Define color shades by rH group and linestyles by CV
+    # rH 10 -> blue shades, rH 30 -> green shades, rH 50 -> red shades
+    rh_colors = {
+        10.0: {0.1: "#0b3d91", 0.2: "#1f77b4", 0.3: "#85b6e2"},
+        30.0: {0.1: "#145a32", 0.2: "#2ca02c", 0.3: "#98df8a"},
+        50.0: {0.1: "#7f0000", 0.2: "#d62728", 0.3: "#f28e8e"},
+    }
+    cv_linestyles = {0.1: "solid", 0.2: "dash", 0.3: "dot"}
 
     fig = go.Figure()
-
-    # Generate all unique combinations of color and linestyle
-    style_combinations = list(product(range(len(colors)), range(len(linestyles))))
 
     # Sort by (rH, CV) for consistent ordering
     sorted_keys = sorted(stats.keys())
@@ -369,10 +378,9 @@ def plot_tf_statistics(stats, output_path: Path, show_fig: bool = False):
     for idx, (rH, CV) in enumerate(sorted_keys):
         data = stats[(rH, CV)]
 
-        # Get unique color/linestyle for this combination
-        color_idx, linestyle_idx = style_combinations[idx % len(style_combinations)]
-        color = colors[color_idx]
-        linestyle = linestyles[linestyle_idx]
+        # Choose color shades by rH and CV, and linestyles by CV
+        color = rh_colors.get(rH, {}).get(CV, "#7f7f7f")
+        linestyle = cv_linestyles.get(CV, "solid")
 
         label = f"rH={rH:.0f}, CV={CV}"
 
@@ -651,6 +659,17 @@ def main():
     # Plot time history statistics
     print("Plotting time history statistics...")
     plot_time_history_statistics(time_stats, Path("time_histories_statistics.html"))
+
+    # Additionally, plot surface accelerations using codebase function
+    try:
+        from seiskit.plot_results import plot_stacked_acceleration
+
+        print("Plotting stacked surface accelerations...")
+        plot_stacked_acceleration(
+            datasets=data, data_config=DATA_CONFIG, vertical_spacing=3.0
+        )
+    except Exception as e:
+        print(f"Warning: Could not generate stacked surface acceleration plots: {e}")
 
     print("\nAnalysis complete!")
 
