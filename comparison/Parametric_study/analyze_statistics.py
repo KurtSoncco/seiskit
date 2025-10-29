@@ -25,8 +25,11 @@ def compute_tf_statistics(datasets, dz=2.5, Vs_min=None):
     # Group data by rH and CV
     grouped_data = {}
 
+    skipped_realizations = []
+
     for model_name, model_data in datasets.items():
         if "base" not in model_data or "top" not in model_data:
+            skipped_realizations.append((model_name, "missing base/top"))
             continue
 
         # Extract rH, CV, seed from model name
@@ -47,6 +50,31 @@ def compute_tf_statistics(datasets, dz=2.5, Vs_min=None):
 
                 if key not in grouped_data:
                     grouped_data[key] = []
+
+                # Validate data shapes and emptiness
+                try:
+                    base_time, base_accel = model_data["base"]
+                    top_time, top_accel = model_data["top"]
+                except Exception:
+                    skipped_realizations.append((model_name, "invalid base/top tuple"))
+                    continue
+
+                if (
+                    base_time is None
+                    or base_accel is None
+                    or top_accel is None
+                    or np.size(base_time) == 0
+                    or np.size(base_accel) == 0
+                    or np.size(top_accel) == 0
+                ):
+                    skipped_realizations.append((model_name, "empty arrays"))
+                    continue
+
+                if len(base_time) < 2:
+                    skipped_realizations.append(
+                        (model_name, "insufficient base time steps")
+                    )
+                    continue
 
                 grouped_data[key].append((model_data, seed))
 
@@ -124,6 +152,11 @@ def compute_tf_statistics(datasets, dz=2.5, Vs_min=None):
             "n_realizations": len(data_list),
         }
 
+    if skipped_realizations:
+        print("Warning: skipped some realizations in TF stats due to data issues:")
+        for name, reason in skipped_realizations:
+            print(f"  - {name}: {reason}")
+
     return stats
 
 
@@ -141,8 +174,11 @@ def compute_time_history_statistics(datasets):
     # Group data by rH and CV
     grouped_data = {}
 
+    skipped_realizations = []
+
     for model_name, model_data in datasets.items():
         if "base" not in model_data or "surface" not in model_data:
+            skipped_realizations.append((model_name, "missing base/surface"))
             continue
 
         # Extract rH, CV, seed from model name
@@ -162,6 +198,29 @@ def compute_time_history_statistics(datasets):
                 if key not in grouped_data:
                     grouped_data[key] = []
 
+                # Validate tuple structure and non-emptiness
+                try:
+                    base_time, base_accel = model_data["base"]
+                    surface_time, surface_accel_all = model_data["surface"]
+                except Exception:
+                    skipped_realizations.append((model_name, "invalid tuples"))
+                    continue
+
+                if (
+                    np.size(base_time) == 0
+                    or np.size(base_accel) == 0
+                    or np.size(surface_time) == 0
+                    or np.size(surface_accel_all) == 0
+                ):
+                    skipped_realizations.append((model_name, "empty arrays"))
+                    continue
+
+                if len(surface_time) < 2:
+                    skipped_realizations.append(
+                        (model_name, "insufficient surface time steps")
+                    )
+                    continue
+
                 grouped_data[key].append((model_data, seed))
 
             except (ValueError, IndexError):
@@ -180,20 +239,16 @@ def compute_time_history_statistics(datasets):
         for model_data, seed in data_list:
             # Extract central point from surface nodes (middle column)
             if "surface" in model_data:
-                surface_data = model_data["surface"]
-                n_nodes = surface_data.shape[1] if len(surface_data.shape) > 1 else 1
-                central_idx = n_nodes // 2 if n_nodes > 1 else 0
+                surface_time, surface_accel_all = model_data["surface"]
 
-                if len(surface_data.shape) > 1:
-                    # Array with multiple nodes
-                    surface_accel_central = surface_data[:, central_idx]
+                # Determine central node/column if 2D, otherwise use 1D series
+                if hasattr(surface_accel_all, "ndim") and surface_accel_all.ndim == 2:
+                    n_nodes = surface_accel_all.shape[1]
+                    central_idx = n_nodes // 2 if n_nodes > 1 else 0
+                    surface_accel_central = surface_accel_all[:, central_idx]
                 else:
-                    # Single node
-                    surface_accel_central = surface_data
+                    surface_accel_central = surface_accel_all
 
-                n_steps = len(surface_accel_central)
-                dt = 0.01
-                surface_time = np.arange(n_steps, dtype=float) * dt
                 surface_time_arrays.append(surface_time)
                 surface_accel_arrays.append(surface_accel_central)
 
@@ -208,11 +263,17 @@ def compute_time_history_statistics(datasets):
         surface_std = None
 
         if surface_time_arrays:
+            # Determine common dt as median of all dts to reduce aliasing
+            dts = []
+            for t in surface_time_arrays:
+                if len(t) > 1:
+                    dts.append(np.median(np.diff(t)))
+            common_timestep = np.median(dts) if dts else 0.01
+
             min_time = min(t.min() for t in surface_time_arrays)
             max_time = min(
                 t.max() for t in surface_time_arrays
-            )  # Use min to handle different lengths
-            common_timestep = 0.01  # Assuming fixed dt
+            )  # min to handle lengths
             common_time = np.arange(min_time, max_time, common_timestep)
 
             # Interpolate all accelerations to common time grid
@@ -228,9 +289,13 @@ def compute_time_history_statistics(datasets):
 
         # If no surface data, use base data for time grid
         elif base_time_arrays:
+            dts = []
+            for t in base_time_arrays:
+                if len(t) > 1:
+                    dts.append(np.median(np.diff(t)))
+            common_timestep = np.median(dts) if dts else 0.01
             min_time = min(t.min() for t in base_time_arrays)
             max_time = min(t.max() for t in base_time_arrays)
-            common_timestep = 0.01
             common_time = np.arange(min_time, max_time, common_timestep)
 
         # Store stats
@@ -257,6 +322,13 @@ def compute_time_history_statistics(datasets):
 
             stats[(rH, CV)]["base_mean"] = base_mean
             stats[(rH, CV)]["base_std"] = base_std
+
+    if skipped_realizations:
+        print(
+            "Warning: skipped some realizations in time-history stats due to data issues:"
+        )
+        for name, reason in skipped_realizations:
+            print(f"  - {name}: {reason}")
 
     return stats
 
@@ -312,6 +384,7 @@ def plot_tf_statistics(stats, output_path: Path, show_fig: bool = False):
                 mode="lines",
                 name=label,
                 line=dict(color=color, dash=linestyle, width=2),
+                legendgroup=label,
             )
         )
 
@@ -328,6 +401,7 @@ def plot_tf_statistics(stats, output_path: Path, show_fig: bool = False):
                 line=dict(color="rgba(255,255,255,0)"),
                 showlegend=False,
                 hoverinfo="skip",
+                legendgroup=label,
             )
         )
 
