@@ -36,10 +36,6 @@ export OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 export NUMEXPR_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 
-# Ensure Python logs are unbuffered so progress shows up immediately
-export PYTHONUNBUFFERED=1
-export PYTHONHASHSEED=0
-
 # Activate your project venv (absolute path for HPC home)
 source /global/home/users/kurtwal98/seiskit/.venv/bin/activate
 
