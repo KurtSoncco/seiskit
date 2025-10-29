@@ -505,6 +505,67 @@ def plot_tf_std(stats, output_path: Path, show_fig: bool = False):
         fig.show()
 
 
+def plot_tf_cov(stats, output_path: Path, show_fig: bool = False):
+    """
+    Plot coefficient of variation (std/mean) of transfer functions as lines
+    across frequency for each (rH, CV) combination.
+
+    Args:
+        stats: Dictionary from compute_tf_statistics containing 'freq', 'mean', 'std'
+        output_path: Path to save the HTML file
+        show_fig: If True, displays the figure interactively
+    """
+    rh_colors = {
+        10.0: {0.1: "#0b3d91", 0.2: "#1f77b4", 0.3: "#85b6e2"},
+        30.0: {0.1: "#145a32", 0.2: "#2ca02c", 0.3: "#98df8a"},
+        50.0: {0.1: "#7f0000", 0.2: "#d62728", 0.3: "#f28e8e"},
+    }
+    cv_linestyles = {0.1: "solid", 0.2: "dash", 0.3: "dot"}
+
+    fig = go.Figure()
+
+    sorted_keys = sorted(stats.keys())
+
+    for rH, CV in sorted_keys:
+        data = stats[(rH, CV)]
+
+        mean_vals = data["mean"]
+        std_vals = data["std"]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            denom = np.where(np.abs(mean_vals) > 1e-12, mean_vals, np.nan)
+            cov = std_vals / denom
+
+        color = rh_colors.get(rH, {}).get(CV, "#7f7f7f")
+        linestyle = cv_linestyles.get(CV, "solid")
+        label = f"rH={rH:.0f}, CV={CV}"
+
+        fig.add_trace(
+            go.Scatter(
+                x=data["freq"],
+                y=cov,
+                mode="lines",
+                name=label,
+                line=dict(color=color, dash=linestyle, width=2),
+            )
+        )
+
+    fig.update_xaxes(title_text="Frequency (Hz)", type="log")
+    fig.update_yaxes(title_text="TF Coefficient of Variation (std/mean)")
+    fig.update_layout(
+        height=700,
+        width=1200,
+        title_text="Transfer Function Coefficient of Variation across Realizations",
+        showlegend=True,
+        hovermode="closest",
+    )
+
+    fig.write_html(str(output_path))
+    print(f"Transfer function CoV plot saved to {output_path}")
+
+    if show_fig:
+        fig.show()
+
+
 def plot_time_history_statistics(stats, output_path: Path, show_fig: bool = False):
     """
     Plot time history statistics with mean lines and ±1 std regions.
@@ -660,9 +721,9 @@ def main():
     parser.add_argument(
         "--plots",
         nargs="+",
-        choices=["tf", "tfstd", "time", "surface", "all"],
+        choices=["tf", "tfstd", "tfcov", "time", "surface", "all"],
         default=["all"],
-        help="Which plots to generate: tf, tfstd, time, surface, or all",
+        help="Which plots to generate: tf, tfstd, tfcov, time, surface, or all",
     )
     parser.add_argument(
         "--show",
@@ -674,6 +735,7 @@ def main():
     do_all = "all" in args.plots
     do_tf = do_all or ("tf" in args.plots)
     do_tfstd = do_all or ("tfstd" in args.plots)
+    do_tfcov = do_all or ("tfcov" in args.plots)
     do_time = do_all or ("time" in args.plots)
     do_surface = do_all or ("surface" in args.plots)
 
@@ -706,8 +768,8 @@ def main():
         print("Make sure all array jobs have completed successfully.")
         sys.exit(1)
 
-    # Transfer functions: compute Vs_min and TF stats only if requested (tf or tfstd)
-    if do_tf or do_tfstd:
+    # Transfer functions: compute Vs_min and TF stats only if requested (tf, tfstd, or tfcov)
+    if do_tf or do_tfstd or do_tfcov:
         print("Generating sample realization to extract Vs_min...")
         Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
         Lz = 50.0
@@ -752,6 +814,10 @@ def main():
             print("Plotting transfer function std...")
             plot_tf_std(stats, Path("transfer_functions_std.html"), show_fig=args.show)
 
+        if do_tfcov:
+            print("Plotting transfer function coefficient of variation...")
+            plot_tf_cov(stats, Path("transfer_functions_cov.html"), show_fig=args.show)
+
     # Time history statistics
     if do_time:
         print("\nComputing time history statistics...")
@@ -786,5 +852,5 @@ def main():
 
 
 if __name__ == "__main__":
-    ## Usage: python analyze_statistics.py --plots tf time surface --show
+    ## Usage: python analyze_statistics.py --plots tf tfstd tfcov time surface --show
     main()
