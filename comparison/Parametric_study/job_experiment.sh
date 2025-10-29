@@ -12,18 +12,6 @@
 #SBATCH --error=array_job_%A_task_%a.err
 
 set -euo pipefail
-set -o pipefail
-
-# Optional verbose mode
-if [[ "${DEBUG:-0}" == "1" ]]; then
-  set -x
-fi
-
-# Trap common termination signals to log a clear message before exit
-on_term() {
-  echo "[SIGNAL] $(date) - Received termination signal (job $SLURM_JOB_ID task $SLURM_ARRAY_TASK_ID)." >&2
-}
-trap on_term SIGTERM SIGINT SIGHUP
 
 # Clean module env and load required toolchain
 module purge
@@ -49,6 +37,9 @@ cd "${SLURM_SUBMIT_DIR:-$PWD}"
 START_TIME=$(date +%s)
 START_DATE=$(date)
 
+# Use explicit venv python to avoid PATH/env issues
+PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
+
 # Print job info
 echo "============================================================================"
 echo "SLURM Array Job Information"
@@ -62,9 +53,9 @@ echo "Working Directory: $(pwd)"
 echo "Host: $(hostname)"
 echo "Modules:"
 module list 2>&1 | sed 's/^/  /'
-echo "Python path: $(which python)"
-python -V
-echo "NumPy version: $(python - <<'PYEOF'
+echo "Python path: ${PYTHON_BIN}"
+${PYTHON_BIN} -V
+echo "NumPy version: $(${PYTHON_BIN} - <<'PYEOF'
 import numpy as np
 print(np.__version__)
 PYEOF
@@ -74,7 +65,7 @@ echo ""
 
 # Quick preflight: verify Python env and OpenSees availability (fail fast if broken)
 echo "[PRE] $(date) - Verifying Python and OpenSees imports..."
-timeout 120s python - <<'PYEOF'
+timeout 120s ${PYTHON_BIN} - <<'PYEOF'
 import sys
 print('PYTHON_OK', sys.version.split()[0])
 try:
@@ -103,16 +94,13 @@ HB_PID=$!
 # Safety timeout slightly below SLURM limit (seconds); override with PER_TASK_TIMEOUT_SECONDS
 PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6900}"
 
-# Use explicit venv python to avoid PATH/env issues in srun context
-PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
-
 srun --export=ALL \
      --ntasks=1 \
      --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
      --cpu-bind=cores \
      --kill-on-bad-exit=1 \
      timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
-     "${PYTHON_BIN}" -u run_experiment.py
+     ${PYTHON_BIN} -u run_experiment.py
 SRUN_RC=$?
 echo "[RUN] $(date) - srun exit code: ${SRUN_RC}"
 PYTHON_EXIT_CODE=$?
