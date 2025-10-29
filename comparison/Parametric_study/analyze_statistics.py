@@ -1,3 +1,4 @@
+import argparse
 import sys
 from itertools import product
 from pathlib import Path
@@ -105,40 +106,58 @@ def compute_tf_statistics(datasets, dz=2.5, Vs_min=None):
             freq_arrays.append(freq)
             tf_arrays.append(tf)
 
-        # Align all arrays to a common frequency grid
-        # Use the finest resolution (smallest frequency step)
-        min_freq = min(f.min() for f in freq_arrays)
-        max_freq = max(f.max() for f in freq_arrays)
+        # Decide if interpolation is needed: if all frequency arrays are identical
+        # within a tight tolerance, we can stack directly to avoid interpolation noise.
+        use_direct_stack = True
+        ref_freq = freq_arrays[0]
+        for f in freq_arrays[1:]:
+            if f.shape != ref_freq.shape or not np.allclose(
+                f, ref_freq, rtol=1e-9, atol=1e-12
+            ):
+                use_direct_stack = False
+                break
 
-        # Find the finest step size
-        step_sizes = [np.diff(f).min() for f in freq_arrays if len(f) > 1]
-        if len(step_sizes) == 0:
-            # Fallback if all arrays are too short
-            finest_step = (max_freq - min_freq) / 100
+        if use_direct_stack:
+            common_freq = ref_freq
+            tf_interpolated = tf_arrays  # already aligned
+            print(f"TF alignment rH={rH:.0f}, CV={CV}: direct stack (no interpolation)")
         else:
-            finest_step = min(step_sizes)
+            # Align all arrays to a common frequency grid using finest resolution
+            min_freq = min(f.min() for f in freq_arrays)
+            max_freq = max(f.max() for f in freq_arrays)
 
-        # Create common frequency grid
-        common_freq = np.arange(min_freq, max_freq + finest_step, finest_step)
+            # Find the finest step size
+            step_sizes = [np.diff(f).min() for f in freq_arrays if len(f) > 1]
+            if len(step_sizes) == 0:
+                # Fallback if all arrays are too short
+                finest_step = (max_freq - min_freq) / 100
+            else:
+                finest_step = min(step_sizes)
 
-        # Interpolate all TFs to common grid
-        tf_interpolated = []
-        for freq, tf in zip(freq_arrays, tf_arrays):
-            # Only interpolate within the frequency range of each realization
-            tf_interp = np.interp(
-                common_freq,
-                freq,
-                tf,
-                left=np.nan,
-                right=np.nan,  # Use NaN outside the range
+            # Create common frequency grid
+            common_freq = np.arange(min_freq, max_freq + finest_step, finest_step)
+
+            # Interpolate all TFs to common grid
+            tf_interpolated = []
+            for freq, tf in zip(freq_arrays, tf_arrays):
+                # Only interpolate within the frequency range of each realization
+                tf_interp = np.interp(
+                    common_freq,
+                    freq,
+                    tf,
+                    left=np.nan,
+                    right=np.nan,
+                )
+                tf_interpolated.append(tf_interp)
+            print(
+                f"TF alignment rH={rH:.0f}, CV={CV}: interpolated to common grid (step={finest_step:.3e})"
             )
-            tf_interpolated.append(tf_interp)
 
         # Compute statistics, ignoring NaN values
         tf_matrix = np.array(tf_interpolated)
         valid_counts = np.sum(~np.isnan(tf_matrix), axis=0)
         mean_tf = np.nanmean(tf_matrix, axis=0)
-        std_tf = np.nanstd(tf_matrix, axis=0)
+        std_tf = np.nanstd(tf_matrix, axis=0, ddof=1)
 
         # Filter out NaN values from the output
         valid_idx = ~np.isnan(mean_tf)
@@ -303,7 +322,7 @@ def compute_time_history_statistics(datasets):
             # Compute statistics for surface
             surface_matrix = np.array(surface_accel_interpolated)
             surface_mean = np.mean(surface_matrix, axis=0)
-            surface_std = np.std(surface_matrix, axis=0)
+            surface_std = np.std(surface_matrix, axis=0, ddof=1)
 
         # If no surface data, use base data for time grid
         elif base_time_arrays:
@@ -336,7 +355,7 @@ def compute_time_history_statistics(datasets):
 
             base_matrix = np.array(base_accel_interpolated)
             base_mean = np.mean(base_matrix, axis=0)
-            base_std = np.std(base_matrix, axis=0)
+            base_std = np.std(base_matrix, axis=0, ddof=1)
 
             stats[(rH, CV)]["base_mean"] = base_mean
             stats[(rH, CV)]["base_std"] = base_std
@@ -579,33 +598,28 @@ def plot_time_history_statistics(stats, output_path: Path, show_fig: bool = Fals
 
 def main():
     """Main function to compute and plot statistics."""
-    # Get Vs_min from a sample realization
-    print("Generating sample realization to extract Vs_min...")
-    Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
-    Lz = 50.0
-    dx, dz = 2.5, 2.5
-    rH, aHV, CV = 30.0, 1.0, 0.2  # Middle values
-    seed = 30  # Middle seed value
-    interlayer_seed = 42
-
-    np.random.seed(seed)
-    from seiskit.gaussian_field import _generate_vs_variability_field
-
-    Vs_sample, _, _, _ = _generate_vs_variability_field(
-        Vs_profile_1D,
-        500,
-        Lz,
-        dx,
-        dz,
-        rH,
-        aHV,
-        CV,
-        seed=seed,
-        interlayer_seed=interlayer_seed,
+    # CLI arguments
+    parser = argparse.ArgumentParser(
+        description="Compute and plot parametric study statistics"
     )
+    parser.add_argument(
+        "--plots",
+        nargs="+",
+        choices=["tf", "time", "surface", "all"],
+        default=["all"],
+        help="Which plots to generate: tf, time, surface, or all",
+    )
+    parser.add_argument(
+        "--show",
+        action="store_true",
+        help="Show interactive figures in addition to writing HTML",
+    )
+    args = parser.parse_args()
 
-    Vs_min = np.min(Vs_sample)
-    print(f"Using Vs_min = {Vs_min:.2f} m/s for transfer function calculation")
+    do_all = "all" in args.plots
+    do_tf = do_all or ("tf" in args.plots)
+    do_time = do_all or ("time" in args.plots)
+    do_surface = do_all or ("surface" in args.plots)
 
     # Load data
     RESULTS_DIR = Path("./results")
@@ -636,40 +650,76 @@ def main():
         print("Make sure all array jobs have completed successfully.")
         sys.exit(1)
 
-    # Compute statistics
-    print("Computing transfer function statistics...")
-    stats = compute_tf_statistics(data, dz=dz, Vs_min=Vs_min)
+    # Transfer functions: compute Vs_min and TF stats only if requested
+    if do_tf:
+        print("Generating sample realization to extract Vs_min...")
+        Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
+        Lz = 50.0
+        dx, dz = 2.5, 2.5
+        rH, aHV, CV = 30.0, 1.0, 0.2
+        seed = 30
+        interlayer_seed = 42
 
-    print(f"Computed statistics for {len(stats)} rH-CV combinations:")
-    for (rH, CV), entry in stats.items():
-        print(f"  rH={rH:.0f}, CV={CV}: {entry['n_realizations']} realizations")
+        np.random.seed(seed)
+        from seiskit.gaussian_field import _generate_vs_variability_field
 
-    # Plot statistics
-    print("Plotting transfer function statistics...")
-    plot_tf_statistics(stats, Path("transfer_functions_statistics.html"))
-
-    # Compute time history statistics
-    print("\nComputing time history statistics...")
-    time_stats = compute_time_history_statistics(data)
-
-    print(f"Computed time history statistics for {len(time_stats)} rH-CV combinations:")
-    for (rH, CV), entry in time_stats.items():
-        print(f"  rH={rH:.0f}, CV={CV}: {entry['n_realizations']} realizations")
-
-    # Plot time history statistics
-    print("Plotting time history statistics...")
-    plot_time_history_statistics(time_stats, Path("time_histories_statistics.html"))
-
-    # Additionally, plot surface accelerations using codebase function
-    try:
-        from seiskit.plot_results import plot_stacked_acceleration
-
-        print("Plotting stacked surface accelerations...")
-        plot_stacked_acceleration(
-            datasets=data, data_config=DATA_CONFIG, vertical_spacing=3.0
+        Vs_sample, _, _, _ = _generate_vs_variability_field(
+            Vs_profile_1D,
+            500,
+            Lz,
+            dx,
+            dz,
+            rH,
+            aHV,
+            CV,
+            seed=seed,
+            interlayer_seed=interlayer_seed,
         )
-    except Exception as e:
-        print(f"Warning: Could not generate stacked surface acceleration plots: {e}")
+
+        Vs_min = np.min(Vs_sample)
+        print(f"Using Vs_min = {Vs_min:.2f} m/s for transfer function calculation")
+
+        print("Computing transfer function statistics...")
+        stats = compute_tf_statistics(data, dz=dz, Vs_min=Vs_min)
+
+        print(f"Computed statistics for {len(stats)} rH-CV combinations:")
+        for (rH, CV), entry in stats.items():
+            print(f"  rH={rH:.0f}, CV={CV}: {entry['n_realizations']} realizations")
+
+        print("Plotting transfer function statistics...")
+        plot_tf_statistics(
+            stats, Path("transfer_functions_statistics.html"), show_fig=args.show
+        )
+
+    # Time history statistics
+    if do_time:
+        print("\nComputing time history statistics...")
+        time_stats = compute_time_history_statistics(data)
+
+        print(
+            f"Computed time history statistics for {len(time_stats)} rH-CV combinations:"
+        )
+        for (rH, CV), entry in time_stats.items():
+            print(f"  rH={rH:.0f}, CV={CV}: {entry['n_realizations']} realizations")
+
+        print("Plotting time history statistics...")
+        plot_time_history_statistics(
+            time_stats, Path("time_histories_statistics.html"), show_fig=args.show
+        )
+
+    # Surface accelerations (stacked)
+    if do_surface:
+        try:
+            from seiskit.plot_results import plot_stacked_acceleration
+
+            print("Plotting stacked surface accelerations...")
+            plot_stacked_acceleration(
+                datasets=data, data_config=DATA_CONFIG, vertical_spacing=3.0
+            )
+        except Exception as e:
+            print(
+                f"Warning: Could not generate stacked surface acceleration plots: {e}"
+            )
 
     print("\nAnalysis complete!")
 
