@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=02:00:00
-#SBATCH --array=0-44
+#SBATCH --array=0-44%12
 #SBATCH --output=array_job_%A_task_%a.out
 #SBATCH --error=array_job_%A_task_%a.err
 
@@ -23,6 +23,9 @@ export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 export OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 export NUMEXPR_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
+
+# Ensure Python logs are unbuffered so progress shows up immediately
+export PYTHONUNBUFFERED=1
 
 # Activate your project venv (absolute path for HPC home)
 source /global/home/users/kurtwal98/seiskit/.venv/bin/activate
@@ -50,8 +53,11 @@ echo "Working Directory: $(pwd)"
 echo "============================================================================"
 echo ""
 
-# Execute the array task; the script reads SLURM_ARRAY_TASK_ID automatically
-python run_experiment.py
+# Execute the array task via srun with CPU binding; the script reads SLURM_ARRAY_TASK_ID automatically
+srun --ntasks=1 \
+     --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
+     --cpu-bind=cores \
+     python run_experiment.py
 PYTHON_EXIT_CODE=$?
 
 # Record end time
