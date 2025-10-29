@@ -5,12 +5,25 @@
 #SBATCH --qos=savio_normal
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
+#SBATCH --mem-per-cpu=2G
 #SBATCH --time=02:00:00
-#SBATCH --array=0-44%32
+#SBATCH --array=0-44%30
 #SBATCH --output=array_job_%A_task_%a.out
 #SBATCH --error=array_job_%A_task_%a.err
 
 set -euo pipefail
+set -o pipefail
+
+# Optional verbose mode
+if [[ "${DEBUG:-0}" == "1" ]]; then
+  set -x
+fi
+
+# Trap common termination signals to log a clear message before exit
+on_term() {
+  echo "[SIGNAL] $(date) - Received termination signal (job $SLURM_JOB_ID task $SLURM_ARRAY_TASK_ID)." >&2
+}
+trap on_term SIGTERM SIGINT SIGHUP
 
 # Clean module env and load required toolchain
 module purge
@@ -25,6 +38,7 @@ export NUMEXPR_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 
 # Ensure Python logs are unbuffered so progress shows up immediately
 export PYTHONUNBUFFERED=1
+export PYTHONHASHSEED=0
 
 # Activate your project venv (absolute path for HPC home)
 source /global/home/users/kurtwal98/seiskit/.venv/bin/activate
@@ -49,6 +63,16 @@ echo "Start Time: $START_DATE"
 echo "Node: $SLURMD_NODENAME"
 echo "CPUs per task: $SLURM_CPUS_PER_TASK"
 echo "Working Directory: $(pwd)"
+echo "Host: $(hostname)"
+echo "Modules:"
+module list 2>&1 | sed 's/^/  /'
+echo "Python path: $(which python)"
+python -V
+echo "NumPy version: $(python - <<'PYEOF'
+import numpy as np
+print(np.__version__)
+PYEOF
+)"
 echo "============================================================================"
 echo ""
 
@@ -73,13 +97,29 @@ fi
 
 # Execute the array task via srun with CPU binding; the script reads SLURM_ARRAY_TASK_ID automatically
 echo "[RUN] $(date) - Launching srun for task ${SLURM_ARRAY_TASK_ID}"
-srun --ntasks=1 \
+
+# Heartbeat every 60s to show liveness
+(
+  while true; do echo "[HEARTBEAT] $(date) - task ${SLURM_ARRAY_TASK_ID} running"; sleep 60; done
+) &
+HB_PID=$!
+
+# Safety timeout slightly below SLURM limit (seconds); override with PER_TASK_TIMEOUT_SECONDS
+PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6900}"
+
+srun --export=ALL \
+     --ntasks=1 \
      --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
      --cpu-bind=cores \
-     python run_experiment.py
+     --kill-on-bad-exit=1 \
+     timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
+     bash -lc 'python run_experiment.py'
 SRUN_RC=$?
 echo "[RUN] $(date) - srun exit code: ${SRUN_RC}"
 PYTHON_EXIT_CODE=$?
+
+# Stop heartbeat
+kill ${HB_PID} 2>/dev/null || true
 
 # Record end time
 END_TIME=$(date +%s)
