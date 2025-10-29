@@ -103,13 +103,16 @@ HB_PID=$!
 # Safety timeout slightly below SLURM limit (seconds); override with PER_TASK_TIMEOUT_SECONDS
 PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6900}"
 
+# Use explicit venv python to avoid PATH/env issues in srun context
+PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
+
 srun --export=ALL \
      --ntasks=1 \
      --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
      --cpu-bind=cores \
      --kill-on-bad-exit=1 \
      timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
-     bash -lc 'python run_experiment.py'
+     "${PYTHON_BIN}" -u run_experiment.py
 SRUN_RC=$?
 echo "[RUN] $(date) - srun exit code: ${SRUN_RC}"
 PYTHON_EXIT_CODE=$?
