@@ -16,7 +16,7 @@ except Exception:  # pragma: no cover - OpenSees not available in test env
 from seiskit.builder import ModelData
 from seiskit.config import AnalysisConfig
 from seiskit.damping import compute_rayleigh_coefficients
-from seiskit.recorders import setup_recorders, print_recorder_summary
+from seiskit.recorders import print_recorder_summary, setup_recorders
 from seiskit.utils import compute_ricker
 
 
@@ -142,7 +142,9 @@ def run_isolated_analysis(
         ndivy_total = int(config.Ly / config.hy) + 1
 
         # Setup recorders based on configuration
-        recorder_info = setup_recorders(config, ndivx_total, ndivy_total, run_output_path)
+        recorder_info = setup_recorders(
+            config, ndivx_total, ndivy_total, run_output_path
+        )
         print_recorder_summary(recorder_info)
 
         # 8. Run Dynamic Analysis
@@ -181,7 +183,12 @@ def _run_gravity_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
 
 
 def _run_dynamic_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
-    """Run dynamic analysis in isolated environment."""
+    """Run dynamic analysis in isolated environment with progress tracking.
+
+    Runs step-by-step to detect hangs and provide progress information.
+    """
+    import time
+
     # Setup damping
     alphaM, betaK = compute_rayleigh_coefficients(
         config.damping_zeta, config.damping_freqs[0], config.damping_freqs[1]
@@ -197,10 +204,72 @@ def _run_dynamic_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
     ops.integrator("TRBDF2")
     ops.analysis("Transient")
 
-    # Run analysis
+    # Run analysis in batches with progress tracking to detect hangs
     nsteps = int(config.duration / config.dt)
-    if ops.analyze(nsteps, config.dt) != 0:
-        raise RuntimeError(f"Dynamic analysis failed for run {run_id}")
+    print(
+        f"[{run_id}] Starting dynamic analysis: {nsteps} steps (dt={config.dt}s, duration={config.duration}s)"
+    )
+
+    # Use batch processing: run multiple steps per analyze() call for efficiency
+    # but small enough to detect hangs quickly
+    batch_size = max(
+        1, min(100, nsteps // 10)
+    )  # ~10 batches total, but at least 1 step per batch
+
+    # Maximum time per batch (seconds) - if a batch takes longer, likely hung
+    max_time_per_batch = 1200  # 20 minutes per batch
+
+    successful_steps = 0
+    start_time = time.time()
+    step = 0
+
+    while step < nsteps:
+        batch_start_time = time.time()
+        remaining_steps = nsteps - step
+        current_batch_size = min(batch_size, remaining_steps)
+
+        # Run batch of steps
+        result = ops.analyze(current_batch_size, config.dt)
+
+        batch_time = time.time() - batch_start_time
+
+        # Check for timeout on this batch
+        if batch_time > max_time_per_batch:
+            raise RuntimeError(
+                f"Dynamic analysis batch (steps {step + 1}-{step + current_batch_size}/{nsteps}) "
+                f"for run {run_id} took {batch_time:.1f}s (> {max_time_per_batch}s timeout). "
+                f"This suggests the analysis is hung. Last {successful_steps} steps completed successfully."
+            )
+
+        # Check for analysis failure
+        if result != 0:
+            raise RuntimeError(
+                f"Dynamic analysis failed at step {step + current_batch_size}/{nsteps} for run {run_id}. "
+                f"Completed {successful_steps} steps successfully. "
+                f"Error code: {result}"
+            )
+
+        successful_steps += current_batch_size
+        step += current_batch_size
+
+        # Print progress after each batch
+        elapsed = time.time() - start_time
+        progress = 100.0 * step / nsteps
+        avg_step_time = elapsed / step if step > 0 else 0
+        remaining_steps_count = nsteps - step
+        estimated_remaining = (
+            avg_step_time * remaining_steps_count if avg_step_time > 0 else 0
+        )
+        print(
+            f"[{run_id}] Progress: {step}/{nsteps} steps ({progress:.1f}%) | "
+            f"Elapsed: {elapsed:.1f}s | Avg: {avg_step_time:.3f}s/step | "
+            f"Est. remaining: {estimated_remaining:.1f}s"
+        )
+
+    total_time = time.time() - start_time
+    print(
+        f"[{run_id}] Dynamic analysis completed: {nsteps} steps in {total_time:.1f}s ({total_time / nsteps:.3f}s/step)"
+    )
 
 
 def validate_analysis_setup(
