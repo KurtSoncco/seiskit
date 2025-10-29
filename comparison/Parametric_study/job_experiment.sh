@@ -3,7 +3,6 @@
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio3
 #SBATCH --qos=savio_normal
-#SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=02:00:00
@@ -53,11 +52,33 @@ echo "Working Directory: $(pwd)"
 echo "============================================================================"
 echo ""
 
+# Quick preflight: verify Python env and OpenSees availability (fail fast if broken)
+echo "[PRE] $(date) - Verifying Python and OpenSees imports..."
+timeout 120s python - <<'PYEOF'
+import sys
+print('PYTHON_OK', sys.version.split()[0])
+try:
+    import openseespy.opensees as ops  # noqa
+    print('OPENSEES_OK')
+except Exception as e:
+    print('OPENSEES_IMPORT_FAIL', e)
+    sys.exit(3)
+PYEOF
+PRE_RC=$?
+echo "[PRE] $(date) - Preflight exit code: ${PRE_RC}"
+if [ ${PRE_RC} -ne 0 ]; then
+  echo "[PRE] Preflight failed; exiting task ${SLURM_ARRAY_TASK_ID}"
+  exit ${PRE_RC}
+fi
+
 # Execute the array task via srun with CPU binding; the script reads SLURM_ARRAY_TASK_ID automatically
+echo "[RUN] $(date) - Launching srun for task ${SLURM_ARRAY_TASK_ID}"
 srun --ntasks=1 \
      --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
      --cpu-bind=cores \
      python run_experiment.py
+SRUN_RC=$?
+echo "[RUN] $(date) - srun exit code: ${SRUN_RC}"
 PYTHON_EXIT_CODE=$?
 
 # Record end time

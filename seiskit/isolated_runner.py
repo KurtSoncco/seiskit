@@ -4,6 +4,8 @@ This module provides a completely isolated OpenSees execution environment
 that can be safely called in separate processes without global state conflicts.
 """
 
+import contextlib
+import signal
 import timeit
 from pathlib import Path
 from typing import Optional
@@ -175,7 +177,10 @@ def _run_gravity_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
     ops.integrator("LoadControl", 1.0)
     ops.analysis("Static")
 
-    if ops.analyze(1) != 0:
+    # Guard against rare hangs during gravity solve
+    with _time_limit(300, msg=f"Gravity analysis timeout for run {run_id}"):
+        result = ops.analyze(1)
+    if result != 0:
         raise RuntimeError(f"Gravity analysis failed for run {run_id}")
 
     ops.loadConst("-time", 0.0)
@@ -217,7 +222,7 @@ def _run_dynamic_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
     )  # ~10 batches total, but at least 1 step per batch
 
     # Maximum time per batch (seconds) - if a batch takes longer, likely hung
-    max_time_per_batch = 1200  # 20 minutes per batch
+    max_time_per_batch = 600  # 10 minutes per batch
 
     successful_steps = 0
     start_time = time.time()
@@ -228,8 +233,14 @@ def _run_dynamic_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
         remaining_steps = nsteps - step
         current_batch_size = min(batch_size, remaining_steps)
 
-        # Run batch of steps
-        result = ops.analyze(current_batch_size, config.dt)
+        # Run batch of steps with a guard timeout to avoid indefinite hangs
+        with _time_limit(
+            max_time_per_batch + 30,
+            msg=(
+                f"Dynamic batch timeout for run {run_id} at steps {step + 1}-{step + current_batch_size}/{nsteps}"
+            ),
+        ):
+            result = ops.analyze(current_batch_size, config.dt)
 
         batch_time = time.time() - batch_start_time
 
@@ -270,6 +281,32 @@ def _run_dynamic_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
     print(
         f"[{run_id}] Dynamic analysis completed: {nsteps} steps in {total_time:.1f}s ({total_time / nsteps:.3f}s/step)"
     )
+
+
+@contextlib.contextmanager
+def _time_limit(seconds: int, msg: Optional[str] = None):
+    """Raise TimeoutError if the with-block exceeds the given number of seconds.
+
+    Uses SIGALRM; only works on Unix and in the main thread of the process.
+    """
+
+    def _handle_signum(signum, frame):
+        raise TimeoutError(msg or f"Operation exceeded {seconds} seconds")
+
+    if seconds is None or seconds <= 0:
+        yield
+        return
+    prev_handler = signal.getsignal(signal.SIGALRM)
+    try:
+        signal.signal(signal.SIGALRM, _handle_signum)
+        signal.alarm(seconds)
+        yield
+    finally:
+        signal.alarm(0)
+        try:
+            signal.signal(signal.SIGALRM, prev_handler)
+        except Exception:
+            pass
 
 
 def validate_analysis_setup(
