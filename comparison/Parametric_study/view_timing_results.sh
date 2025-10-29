@@ -44,6 +44,8 @@ get_task_params() {
 # Array to store durations and task info
 declare -a DURATIONS=()
 declare -a TASK_INFO=()
+declare -a START_TS_LIST=()
+declare -a END_TS_LIST=()
 
 echo "Task Breakdown:"
 echo "Index |   rH   |  CV  | Seed | Status"
@@ -71,6 +73,18 @@ for file in "${OUTPUT_FILES[@]}"; do
             if [ ! -z "$DURATION" ]; then
                 DURATIONS+=("$DURATION")
                 TASK_INFO+=("$TASK_ID|$rH|$CV|$SEED|$DURATION")
+            fi
+
+            # Extract start and end times (from summary block)
+            START_LINE=$(grep -m1 "Start Time:" "$file" | head -n1 | sed 's/Start Time: //')
+            END_LINE=$(grep -m1 "End Time:" "$file" | head -n1 | sed 's/End Time: //')
+            if [ -n "$START_LINE" ] && [ -n "$END_LINE" ]; then
+                START_TS=$(date -d "$START_LINE" +%s 2>/dev/null || true)
+                END_TS=$(date -d "$END_LINE" +%s 2>/dev/null || true)
+                if [[ "$START_TS" =~ ^[0-9]+$ ]] && [[ "$END_TS" =~ ^[0-9]+$ ]]; then
+                    START_TS_LIST+=("$START_TS")
+                    END_TS_LIST+=("$END_TS")
+                fi
             fi
         else
             STATUS="⏳ RUNNING"
@@ -135,7 +149,7 @@ if [ ${#DURATIONS[@]} -gt 0 ]; then
     echo "Min duration: ${MIN}s ($(($MIN / 60))m $(($MIN % 60))s)"
     echo "Max duration: ${MAX}s ($(($MAX / 60))m $(($MAX % 60))s)"
     echo "Avg duration: ${AVG}s ($(($AVG / 60))m $(($AVG % 60))s)"
-    echo "Total duration: ${TOTAL}s ($(($TOTAL / 3600))h $(($(($TOTAL % 3600)) / 60))m $(($TOTAL % 60))s)"
+    echo "Aggregate CPU time (sum over tasks): ${TOTAL}s ($(($TOTAL / 3600))h $(($(($TOTAL % 3600)) / 60))m $(($TOTAL % 60))s)"
     
     if [ $COUNT -lt 45 ]; then
         echo ""
@@ -158,6 +172,74 @@ if [ ${#DURATIONS[@]} -gt 0 ]; then
     else
         echo ""
         echo "✅ All 45 tasks completed successfully!"
+    fi
+
+    # Parallel efficiency metrics (makespan, capacity, idle time)
+    if [ ${#START_TS_LIST[@]} -gt 0 ] && [ ${#END_TS_LIST[@]} -gt 0 ]; then
+        JOB_SCRIPT="job_experiment.sh"
+        MAX_CONCURRENCY=32
+        TOTAL_TASKS=45
+        CPUS_PER_TASK=4
+        if [ -f "$JOB_SCRIPT" ]; then
+            ARRAY_LINE=$(grep -E "^#SBATCH --array=" "$JOB_SCRIPT" || true)
+            if [ -n "$ARRAY_LINE" ]; then
+                ARRAY_SPEC=${ARRAY_LINE#*--array=}
+                ARRAY_SPEC=${ARRAY_SPEC%% *}
+                RANGE=${ARRAY_SPEC%%%*}
+                if [[ "$ARRAY_SPEC" == *%* ]]; then
+                    MAX_CONCURRENCY=${ARRAY_SPEC##*%}
+                fi
+                if [[ "$RANGE" == *-* ]]; then
+                    START_IDX=${RANGE%%-*}
+                    END_IDX=${RANGE##*-}
+                    if [[ "$START_IDX" =~ ^[0-9]+$ ]] && [[ "$END_IDX" =~ ^[0-9]+$ ]]; then
+                        TOTAL_TASKS=$((END_IDX - START_IDX + 1))
+                    fi
+                fi
+            fi
+            CPT_LINE=$(grep -E "^#SBATCH --cpus-per-task=" "$JOB_SCRIPT" || true)
+            if [ -n "$CPT_LINE" ]; then
+                CPUS_PER_TASK=${CPT_LINE#*--cpus-per-task=}
+                CPUS_PER_TASK=${CPUS_PER_TASK%% *}
+            fi
+        fi
+
+        MIN_START=${START_TS_LIST[0]}
+        MAX_END=${END_TS_LIST[0]}
+        for ts in "${START_TS_LIST[@]}"; do
+            if [ "$ts" -lt "$MIN_START" ]; then MIN_START=$ts; fi
+        done
+        for ts in "${END_TS_LIST[@]}"; do
+            if [ "$ts" -gt "$MAX_END" ]; then MAX_END=$ts; fi
+        done
+        MAKESPAN=$((MAX_END - MIN_START))
+
+        SLOTS=$MAX_CONCURRENCY
+        if [ "$TOTAL_TASKS" -lt "$MAX_CONCURRENCY" ]; then SLOTS=$TOTAL_TASKS; fi
+        CAPACITY=$((MAKESPAN * SLOTS))
+        IDLE=$((CAPACITY - TOTAL))
+        if [ "$IDLE" -lt 0 ]; then IDLE=0; fi
+        if command -v bc >/dev/null 2>&1; then
+            EFF_PCT=$(echo "scale=2; 100 * $TOTAL / ($CAPACITY == 0 ? 1 : $CAPACITY)" | bc)
+            IDLE_PCT=$(echo "scale=2; 100 * $IDLE / ($CAPACITY == 0 ? 1 : $CAPACITY)" | bc)
+        else
+            EFF_PCT=$(( CAPACITY > 0 ? (100 * TOTAL / CAPACITY) : 0 ))
+            IDLE_PCT=$(( CAPACITY > 0 ? (100 * IDLE / CAPACITY) : 0 ))
+        fi
+
+        echo ""
+        echo "============================================================================"
+        echo "Parallelization Metrics"
+        echo "============================================================================"
+        echo "Configured array size: ${TOTAL_TASKS} tasks"
+        echo "Max concurrent tasks: ${MAX_CONCURRENCY} (slots)"
+        echo "CPUs per task:        ${CPUS_PER_TASK}"
+        echo "Makespan:             ${MAKESPAN}s ($(($MAKESPAN / 3600))h $((($(($MAKESPAN % 3600)) / 60)))m $(($MAKESPAN % 60))s)"
+        echo "Total work:           ${TOTAL}s"
+        echo "Total capacity:       ${CAPACITY}s (slots * makespan)"
+        echo "Efficiency:           ${EFF_PCT}% (work / capacity)"
+        echo "Idle time:            ${IDLE}s ($(($IDLE / 3600))h $((($(($IDLE % 3600)) / 60)))m $(($IDLE % 60))s)"
+        echo "Idle fraction:        ${IDLE_PCT}%"
     fi
     
     # Show statistics by parameter
