@@ -559,8 +559,8 @@ def main():
     stats = compute_tf_statistics(data, dz=dz, Vs_min=Vs_min)
 
     print(f"Computed statistics for {len(stats)} rH-CV combinations:")
-    for (rH, CV), data in stats.items():
-        print(f"  rH={rH:.0f}, CV={CV}: {data['n_realizations']} realizations")
+    for (rH, CV), entry in stats.items():
+        print(f"  rH={rH:.0f}, CV={CV}: {entry['n_realizations']} realizations")
 
     # Plot statistics
     print("Plotting transfer function statistics...")
@@ -571,8 +571,8 @@ def main():
     time_stats = compute_time_history_statistics(data)
 
     print(f"Computed time history statistics for {len(time_stats)} rH-CV combinations:")
-    for (rH, CV), data in time_stats.items():
-        print(f"  rH={rH:.0f}, CV={CV}: {data['n_realizations']} realizations")
+    for (rH, CV), entry in time_stats.items():
+        print(f"  rH={rH:.0f}, CV={CV}: {entry['n_realizations']} realizations")
 
     # Plot time history statistics
     print("Plotting time history statistics...")
