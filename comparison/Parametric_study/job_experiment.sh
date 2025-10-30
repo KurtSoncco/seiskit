@@ -79,9 +79,9 @@ HB_PID=$!
 # Safety timeout slightly below SLURM limit (seconds); override with PER_TASK_TIMEOUT_SECONDS
 PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6900}"
 
-# Resolve path to the Parametric Study runner (supports --index and SLURM_ARRAY_TASK_ID)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUNNER_PY="${SCRIPT_DIR}/run_experiment.py"
+# Resolve absolute path to the runner within the SLURM submit directory
+# We already cd'ed into ${SLURM_SUBMIT_DIR} above, but use absolute path to avoid spool dir confusion
+RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
 
 srun --export=ALL \
      --ntasks=1 \
