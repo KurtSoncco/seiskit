@@ -8,6 +8,7 @@
 #SBATCH --mem-per-cpu=2G
 #SBATCH --time=02:00:00
 #SBATCH --array=0-44%30
+#SBATCH --exclusive
 #SBATCH --output=array_job_%A_task_%a.out
 #SBATCH --error=array_job_%A_task_%a.err
 
@@ -19,11 +20,11 @@ module purge
 module load gcc/13.2.0
 module load openblas/0.3.24 
 
-# Match thread counts to allocated CPUs (helps OpenBLAS and any OpenMP usage)
-export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
-export OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
-export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
-export NUMEXPR_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
+# Force single-threaded math libs to avoid oversubscription and races
+export OMP_NUM_THREADS="1"
+export OPENBLAS_NUM_THREADS="1"
+export MKL_NUM_THREADS="1"
+export NUMEXPR_NUM_THREADS="1"
 
 # Activate your project venv (absolute path for HPC home)
 source /global/home/users/kurtwal98/seiskit/.venv/bin/activate
@@ -79,6 +80,10 @@ HB_PID=$!
 # Safety timeout slightly below SLURM limit (seconds); override with PER_TASK_TIMEOUT_SECONDS
 PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6900}"
 
+# Give each array task an isolated temp directory to avoid shared-TMP contention
+export TMPDIR="${SLURM_SUBMIT_DIR:-$PWD}/.tmp/task_${SLURM_ARRAY_TASK_ID}"
+mkdir -p "${TMPDIR}" || true
+
 # Resolve absolute path to the runner within the SLURM submit directory
 # We already cd'ed into ${SLURM_SUBMIT_DIR} above, but use absolute path to avoid spool dir confusion
 RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
@@ -86,6 +91,7 @@ RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
 srun --export=ALL \
      --ntasks=1 \
      --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
+     --exclusive \
      --cpu-bind=cores \
      --kill-on-bad-exit=1 \
      timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
