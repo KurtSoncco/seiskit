@@ -79,9 +79,9 @@ HB_PID=$!
 # Safety timeout slightly below SLURM limit (seconds); override with PER_TASK_TIMEOUT_SECONDS
 PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6900}"
 
-# Resolve path to the SLURM-aware experiment runner relative to this script
+# Resolve path to the Parametric Study runner (supports --index and SLURM_ARRAY_TASK_ID)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUNNER_PY="${SCRIPT_DIR}/../Spatial_width/run_experiment_SLURM.py"
+RUNNER_PY="${SCRIPT_DIR}/run_experiment.py"
 
 srun --export=ALL \
      --ntasks=1 \

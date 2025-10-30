@@ -1,5 +1,6 @@
 import argparse
 import os
+import signal
 import sys
 import time
 from pathlib import Path
@@ -24,6 +25,54 @@ from seiskit.plot_results import (
     plot_stacked_acceleration,
 )
 from seiskit.ttf.TTF import TTF
+
+
+def _configure_slurm_environment() -> None:
+    """Configure threading and report SLURM context when running under SLURM.
+
+    - Pins BLAS/OpenMP thread counts to SLURM_CPUS_PER_TASK to avoid oversubscription.
+    - Prints a short header with SLURM job metadata for easier debugging.
+    """
+    slurm_cpus = os.getenv("SLURM_CPUS_PER_TASK")
+    if slurm_cpus:
+        for var in (
+            "OMP_NUM_THREADS",
+            "OPENBLAS_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+        ):
+            # Only set if not already explicitly provided
+            if not os.getenv(var):
+                os.environ[var] = slurm_cpus
+
+    # Minimal context log
+    job_id = os.getenv("SLURM_JOB_ID", "-")
+    array_id = os.getenv("SLURM_ARRAY_JOB_ID", job_id)
+    task_id = os.getenv("SLURM_ARRAY_TASK_ID", "-")
+    node = os.getenv("SLURMD_NODENAME", os.uname().nodename)
+    cpus = slurm_cpus or "-"
+    print(
+        f"[slurm] job_id={job_id} array_id={array_id} task_id={task_id} node={node} cpus={cpus}"
+    )
+
+
+def _install_sigterm_handler():
+    """Install a SIGTERM handler to flush logs and exit cleanly on preemption/time limit."""
+
+    def _handler(signum, frame):  # noqa: ARG001
+        try:
+            print("[signal] Received SIGTERM. Attempting graceful shutdown...")
+        finally:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            # Use code 143 (128+15) which indicates SIGTERM
+            os._exit(143)
+
+    try:
+        signal.signal(signal.SIGTERM, _handler)
+    except Exception:
+        # Not fatal if signals are unavailable on the platform
+        pass
 
 
 def _fmt_hms(seconds: float) -> str:
@@ -383,6 +432,10 @@ if __name__ == "__main__":
     # Change to the script's directory
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     program_start = time.time()
+
+    # SLURM-aware setup
+    _configure_slurm_environment()
+    _install_sigterm_handler()
 
     args = _parse_args()
 
