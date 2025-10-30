@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=parametric-study
+set -x
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio3
 #SBATCH --qos=savio_normal
@@ -40,32 +41,16 @@ START_DATE=$(date)
 # Use explicit venv python to avoid PATH/env issues
 PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
 
-# Print job info
+# Print minimal job info
 echo "============================================================================"
-echo "SLURM Array Job Information"
-echo "============================================================================"
-echo "Job ID: $SLURM_JOB_ID"
-echo "Array Task ID: $SLURM_ARRAY_TASK_ID"
-echo "Start Time: $START_DATE"
-echo "Node: $SLURMD_NODENAME"
-echo "CPUs per task: $SLURM_CPUS_PER_TASK"
-echo "Working Directory: $(pwd)"
-echo "Host: $(hostname)"
-echo "Modules:"
-module list 2>&1 | sed 's/^/  /'
-echo "Python path: ${PYTHON_BIN}"
-${PYTHON_BIN} -V
-echo "NumPy version: $(${PYTHON_BIN} - <<'PYEOF'
-import numpy as np
-print(np.__version__)
-PYEOF
-)"
+echo "Task ${SLURM_ARRAY_TASK_ID} | Job ${SLURM_JOB_ID} | Node: $SLURMD_NODENAME"
+echo "Start: $START_DATE"
 echo "============================================================================"
 echo ""
 
 # Quick preflight: verify Python env and OpenSees availability (fail fast if broken)
 echo "[PRE] $(date) - Verifying Python and OpenSees imports..."
-timeout 120s ${PYTHON_BIN} - <<'PYEOF'
+timeout 30s ${PYTHON_BIN} - <<'PYEOF'
 import sys
 print('PYTHON_OK', sys.version.split()[0])
 try:
@@ -101,9 +86,8 @@ srun --export=ALL \
      --kill-on-bad-exit=1 \
      timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
      ${PYTHON_BIN} -u run_experiment.py
-SRUN_RC=$?
-echo "[RUN] $(date) - srun exit code: ${SRUN_RC}"
 PYTHON_EXIT_CODE=$?
+echo "[RUN] $(date) - Python exit code: ${PYTHON_EXIT_CODE}"
 
 # Stop heartbeat
 kill ${HB_PID} 2>/dev/null || true
