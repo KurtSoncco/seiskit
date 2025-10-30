@@ -79,13 +79,17 @@ HB_PID=$!
 # Safety timeout slightly below SLURM limit (seconds); override with PER_TASK_TIMEOUT_SECONDS
 PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6900}"
 
+# Resolve path to the SLURM-aware experiment runner relative to this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNNER_PY="${SCRIPT_DIR}/../Spatial_width/run_experiment_SLURM.py"
+
 srun --export=ALL \
      --ntasks=1 \
      --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
      --cpu-bind=cores \
      --kill-on-bad-exit=1 \
      timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
-     ${PYTHON_BIN} -u run_experiment.py
+     ${PYTHON_BIN} -u "${RUNNER_PY}" --index "${SLURM_ARRAY_TASK_ID}"
 PYTHON_EXIT_CODE=$?
 echo "[RUN] $(date) - Python exit code: ${PYTHON_EXIT_CODE}"
 
