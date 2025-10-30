@@ -72,9 +72,20 @@ else
     echo "   Completed results (with surface_nodes_dof1_accel.txt):"
     for dir in $RESULT_DIRS; do
         if [ -d "$dir" ]; then
-            for subdir in "$dir"/*/*/; do
-                if [ -f "${subdir}surface_nodes_dof1_accel.txt" ]; then
-                    echo "     ✓ $(basename "$subdir")"
+            # Look for subdirectories like CV_0.1, CV_0.2, etc.
+            for cv_dir in "$dir"/*/; do
+                if [ -d "$cv_dir" ]; then
+                    # Look for task directories like rH10_CV0.1_s10
+                    for task_dir in "$cv_dir"*/; do
+                        task_name=$(basename "$task_dir")
+                        # Check if this is the nested task directory (e.g., rH10_CV0.1_s10/rH10_CV0.1_s10/)
+                        if [ -d "$task_dir" ]; then
+                            # Check for the file directly in this directory
+                            if [ -f "${task_dir}surface_nodes_dof1_accel.txt" ]; then
+                                echo "     ✓ $task_name"
+                            fi
+                        fi
+                    done
                 fi
             done
         fi
@@ -92,9 +103,13 @@ COMPLETED_COUNT=0
 if [ -n "$RESULT_DIRS" ]; then
     for dir in $RESULT_DIRS; do
         if [ -d "$dir" ]; then
-            for subdir in "$dir"/*/*/; do
-                if [ -f "${subdir}surface_nodes_dof1_accel.txt" ]; then
-                    COMPLETED_COUNT=$((COMPLETED_COUNT + 1))
+            for cv_dir in "$dir"/*/; do
+                if [ -d "$cv_dir" ]; then
+                    for task_dir in "$cv_dir"*/; do
+                        if [ -d "$task_dir" ] && [ -f "${task_dir}surface_nodes_dof1_accel.txt" ]; then
+                            COMPLETED_COUNT=$((COMPLETED_COUNT + 1))
+                        fi
+                    done
                 fi
             done
         fi
