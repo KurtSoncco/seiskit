@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --job-name=parametric-study
-set -x
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio3
 #SBATCH --qos=savio_normal
@@ -12,6 +11,7 @@ set -x
 #SBATCH --output=array_job_%A_task_%a.out
 #SBATCH --error=array_job_%A_task_%a.err
 
+set -x
 set -euo pipefail
 
 # Clean module env and load required toolchain
