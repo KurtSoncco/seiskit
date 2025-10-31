@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=2G
 #SBATCH --time=02:00:00
-#SBATCH --array=0-5%3
+#SBATCH --array=0-15%3
 #SBATCH --exclusive
 #SBATCH --output=array_job_%A_task_%a.out
 #SBATCH --error=array_job_%A_task_%a.err
