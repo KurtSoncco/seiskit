@@ -143,7 +143,18 @@ def run_array_index(index: int):
 
     task_id = f"rH{rH:.0f}_CV{CV}_s{seed}"
     output_dir = f"results/rH_{rH:.0f}/CV_{CV}/{task_id}"
-    os.makedirs(output_dir, exist_ok=True)
+    # Create directories with retry logic for file system contention
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            break
+        except (OSError, IOError):
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(
+                0.1 * (attempt + 1)
+            )  # Exponential backoff: 0.1s, 0.2s, 0.3s, 0.4s
 
     print(f"[run_array_index] Starting task {task_id} (index={index})")
     print(f"  rH = {rH} m, CV = {CV}, seed = {seed}")

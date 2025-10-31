@@ -3,17 +3,21 @@
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio3
 #SBATCH --qos=savio_normal
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks-per-node=8
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=2G
 #SBATCH --time=02:00:00
-#SBATCH --array=0-15%3
-#SBATCH --exclusive
+#SBATCH --array=0-15%10
+# Removed --exclusive to allow efficient node packing: 8 tasks/node (32 cores / 4 cores per task)
 #SBATCH --output=array_job_%A_task_%a.out
 #SBATCH --error=array_job_%A_task_%a.err
 
 set -x
 set -euo pipefail
+
+# Stagger module loading to reduce Lmod contention (random delay 0-2s)
+# This prevents all tasks from hitting the module system simultaneously
+sleep $((RANDOM % 3))
 
 # Clean module env and load required toolchain
 module purge
@@ -81,18 +85,23 @@ HB_PID=$!
 PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6900}"
 
 # Give each array task an isolated temp directory to avoid shared-TMP contention
+# Use retry logic to handle concurrent creation
 export TMPDIR="${SLURM_SUBMIT_DIR:-$PWD}/.tmp/task_${SLURM_ARRAY_TASK_ID}"
-mkdir -p "${TMPDIR}" || true
+for i in 0.1 0.2 0.3 0.4 0.5; do
+  mkdir -p "${TMPDIR}" && break || sleep "$i"
+done
 
 # Resolve absolute path to the runner within the SLURM submit directory
 # We already cd'ed into ${SLURM_SUBMIT_DIR} above, but use absolute path to avoid spool dir confusion
 RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
 
+# Add --mpi=none to avoid PMI initialization delays/hangs
+# Note: Job no longer uses --exclusive, so multiple tasks can share nodes efficiently
 srun --export=ALL \
      --ntasks=1 \
      --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
-     --exclusive \
      --cpu-bind=cores \
+     --mpi=none \
      --kill-on-bad-exit=1 \
      timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
      ${PYTHON_BIN} -u "${RUNNER_PY}" --index "${SLURM_ARRAY_TASK_ID}"
