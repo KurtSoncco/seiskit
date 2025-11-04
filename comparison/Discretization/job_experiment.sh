@@ -40,8 +40,8 @@ if [ -n "$SLURM_JOB_ID" ]; then
     # Make OpenSeesPy's native libs visible
     export LD_LIBRARY_PATH=/global/home/users/kurtwal98/seiskit/.venv/lib/python3.11/site-packages/openseespylinux/lib:${LD_LIBRARY_PATH:-}
     
-    # Use explicit venv python
-    PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
+    # Use explicit venv python3.11 to avoid missing 'python' symlink
+    PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python3.11"
 else
     # Running locally - try to use local venv
     # Try to activate local venv if it exists
@@ -51,8 +51,12 @@ else
         source ".venv/bin/activate"
     fi
     
-    # Use python from PATH (should be from venv)
-    PYTHON_BIN="python"
+    # Use python from PATH (prefer python3.11 if available; otherwise 'python')
+    if command -v python3.11 >/dev/null 2>&1; then
+        PYTHON_BIN="python3.11"
+    else
+        PYTHON_BIN="python"
+    fi
 fi
 
 # Force single-threaded math libs to avoid oversubscription and races
