@@ -5,7 +5,7 @@
 #SBATCH --qos=savio_normal
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=2G
-#SBATCH --time=20:00:00
+#SBATCH --time=02:00:00
 #SBATCH --array=0-9%5
 # Allow scheduler to pack tasks per node; no explicit ntasks-per-node or exclusive
 #SBATCH --output=logs/disc_exp_%A_%a.out
