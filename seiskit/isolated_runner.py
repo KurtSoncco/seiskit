@@ -88,18 +88,39 @@ def run_isolated_analysis(
 
         # 4. Create Soil Elements
         for elem in model_data.soil_elements:
-            ops.element(
-                "quad",
-                elem.tag,
-                *elem.nodes,
-                1.0,
-                "PlaneStrain",
-                elem.mat_tag,
-                0.0,
-                0.0,
-                0.0,
-                elem.gravity_load,
-            )
+            # Check element type from config to determine element formulation
+            # For higher-order case, use enhancedQuad (Enhanced Strain formulation)
+            # which provides better accuracy than standard quad
+            if config.element_type == "8node":
+                # Use enhancedQuad (Enhanced Strain Quadrilateral) for higher-order accuracy
+                # This uses enhanced strain formulation for improved performance
+                nodes_to_use = elem.nodes[:4] if len(elem.nodes) == 8 else elem.nodes
+                ops.element(
+                    "enhancedQuad",
+                    elem.tag,
+                    *nodes_to_use,
+                    1.0,
+                    "PlaneStrain",
+                    elem.mat_tag,
+                    0.0,
+                    0.0,
+                    0.0,
+                    elem.gravity_load,
+                )
+            else:
+                # Standard 4-node element with standard formulation
+                ops.element(
+                    "quad",
+                    elem.tag,
+                    *elem.nodes,
+                    1.0,
+                    "PlaneStrain",
+                    elem.mat_tag,
+                    0.0,
+                    0.0,
+                    0.0,
+                    elem.gravity_load,
+                )
 
         # 5. Create Boundary Elements
         for elem in model_data.boundary_elements:
