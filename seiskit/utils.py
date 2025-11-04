@@ -6,7 +6,7 @@ require OpenSees. These functions are designed to be parallelization-safe.
 """
 
 import math
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -15,10 +15,10 @@ def load_material_properties(
     data: Dict[str, Optional[str]],
 ) -> Dict[str, np.ndarray]:
     """Load the data from the specified paths and return as numpy arrays.
-    
+
     Args:
         data: Dictionary mapping property names to file paths
-        
+
     Returns:
         Dictionary mapping property names to loaded numpy arrays
     """
@@ -36,21 +36,20 @@ def compute_ricker(
     dt: float,
 ) -> np.ndarray:
     """Generate a Ricker wavelet time series.
-    
+
     Args:
         freq: Central frequency of the Ricker wavelet
         t_shift: Time shift parameter
         duration: Total duration of the time series
         dt: Time step
-        
+
     Returns:
         Array of Ricker wavelet values
     """
-    time_points = np.arange(0.0, duration+dt, dt)
+    time_points = np.arange(0.0, duration + dt, dt)
     arg = (math.pi * freq * (time_points - t_shift)) ** 2
     ricker_values = (1.0 - 2.0 * arg) * np.exp(-arg)
-    
-    
+
     return ricker_values
 
 
@@ -70,7 +69,7 @@ def build_mesh_and_materials(
 
     Args:
         Lx: Domain width
-        Ly: Domain height  
+        Ly: Domain height
         hx: Element size
         vs_grid: Optional shear wave velocity grid
         rho_grid: Optional density grid
@@ -121,12 +120,18 @@ def build_mesh_and_materials(
                     )
                 else:
                     vs, nu, rho = default_props
-                    
+
                 G = rho * vs**2
                 E = G * 2.0 * (1.0 + nu)
                 mat_props = (E, nu, rho)
                 if mat_props not in material_map:
                     material_map[mat_props] = mat_tag_counter
                     mat_tag_counter += 1
-                    
+
     return abs_elements, material_map
+
+
+def _fmt_hms(seconds: float) -> str:
+    """Format seconds as HH:MM:SS."""
+    total_seconds = int(seconds)
+    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"

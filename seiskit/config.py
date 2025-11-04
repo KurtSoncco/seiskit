@@ -28,15 +28,24 @@ class AnalysisConfig:
     max_gravity_iter: int = 10
     dynamic_tolerance: float = 1.0e-4
     max_dynamic_iter: int = 10
-    
+
     # Boundary Condition Type
     boundary_condition_type: str = "1D"  # "1D" for site response, "2D" for free field
-    
+
     # Recorder Configuration
-    record_center_nodes: bool = True  # Enable/disable recording of center nodes (base and surface)
-    record_all_surface_nodes: bool = False  # Enable/disable recording of all surface nodes
-    recorder_dofs: list[int] = field(default_factory=lambda: [1])  # List of DOFs to record (1=X, 2=Y)
+    record_center_nodes: bool = (
+        True  # Enable/disable recording of center nodes (base and surface)
+    )
+    record_all_surface_nodes: bool = (
+        False  # Enable/disable recording of all surface nodes
+    )
+    recorder_dofs: list[int] = field(
+        default_factory=lambda: [1]
+    )  # List of DOFs to record (1=X, 2=Y)
     recorder_quantity: str = "accel"  # What to record ("accel", "disp", "vel", etc.)
+
+    # Element Type
+    element_type: str = "4node"  # "4node" for 4-node quads, "8node" for 8-node quads
 
     @property
     def hy(self) -> float:

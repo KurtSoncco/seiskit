@@ -394,9 +394,20 @@ def plot_realization(
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(12, 5))
 
+    # Compute physical extents from grid spacing to ensure dx/dz are honored
+    nz, nx = Vs_realization.shape
+    computed_Lx = nx * dx
+    computed_Lz = nz * dz
+    assert np.isclose(computed_Lx, Lx) and np.isclose(computed_Lz, Lz), (
+        f"Computed Lx/Lz do not match provided Lx/Lz: {computed_Lx} m != {Lx} m, {computed_Lz} m != {Lz} m"
+    )
+
+    # If provided Lx/Lz differ noticeably, prefer computed values for accurate scaling
+    extent = (0, computed_Lx, computed_Lz, 0)
+
     im = ax.imshow(
         Vs_realization,
-        extent=(0, Lx, Lz, 0),
+        extent=extent,
         aspect="auto",
         cmap=cmap,  # Use the modified colormap
         interpolation="nearest",

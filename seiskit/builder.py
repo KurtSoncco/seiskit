@@ -18,7 +18,7 @@ class NodeData:
 @dataclass
 class SoilElementData:
     tag: int
-    nodes: Tuple[int, int, int, int]
+    nodes: Tuple[int, ...]  # 4 nodes for 4-node, 8 nodes for 8-node
     mat_tag: int
     gravity_load: float
 
@@ -68,7 +68,13 @@ def build_model_data(
         )
 
     # 1. Generate Node Data
+    # For "8node" case, we use bbarQuad (B-bar formulation) which is higher-order
+    # but still uses 4 nodes - no need for mid-nodes
+    use_8node = config.element_type == "8node"
+
     abs_h = config.hx * 2.0
+
+    # Generate corner nodes
     for j in range(ndivy_total + 1):
         y = -abs_h if j == 0 else (j - 1) * config.hy
         for i in range(ndivx_total + 1):
@@ -80,10 +86,59 @@ def build_model_data(
             node_tag = j * (ndivx_total + 1) + i + 1
             model.nodes.append(NodeData(tag=node_tag, x=x - config.Lx / 2.0, y=y))
 
+    # Generate mid-nodes for 8-node elements (disabled - not supported in OpenSees 2D)
+    if False and use_8node:
+        # Horizontal mid-nodes (between corners horizontally)
+        for j in range(ndivy_total + 1):
+            y = -abs_h if j == 0 else (j - 1) * config.hy
+            for i in range(ndivx_total):
+                x1 = (
+                    -abs_h
+                    if i == 0
+                    else (
+                        config.Lx + abs_h
+                        if i == ndivx_total - 1
+                        else (i - 1) * config.hx
+                    )
+                )
+                x2 = (
+                    -abs_h
+                    if i + 1 == 0
+                    else (config.Lx + abs_h if i + 1 == ndivx_total else i * config.hx)
+                )
+                x_mid = (x1 + x2) / 2.0
+                node_tag = (
+                    (ndivy_total + 1) * (ndivx_total + 1) + j * ndivx_total + i + 1
+                )
+                model.nodes.append(
+                    NodeData(tag=node_tag, x=x_mid - config.Lx / 2.0, y=y)
+                )
+
+        # Vertical mid-nodes (between corners vertically)
+        for j in range(ndivy_total):
+            for i in range(ndivx_total + 1):
+                x = (
+                    -abs_h
+                    if i == 0
+                    else (
+                        config.Lx + abs_h if i == ndivx_total else (i - 1) * config.hx
+                    )
+                )
+                y1 = -abs_h if j == 0 else (j - 1) * config.hy
+                y2 = -abs_h if j + 1 == 0 else j * config.hy
+                y_mid = (y1 + y2) / 2.0
+                base_offset = (ndivy_total + 1) * (ndivx_total + 1) + (
+                    ndivy_total + 1
+                ) * ndivx_total
+                node_tag = base_offset + j * (ndivx_total + 1) + i + 1
+                model.nodes.append(
+                    NodeData(tag=node_tag, x=x - config.Lx / 2.0, y=y_mid)
+                )
+
     # 2. Generate Element and Material Data
     for j in range(ndivy_total):
         Yflag = "B" if j == 0 else ""
-        
+
         for i in range(ndivx_total):
             Etag = j * ndivx_total + i + 1
             N1, N2 = j * (ndivx_total + 1) + i + 1, j * (ndivx_total + 1) + i + 2
@@ -158,6 +213,30 @@ def build_model_data(
 
                 mat_tag = model.material_map[mat_props]
                 gravity = -9.806 * rho
+
+                # For 8-node elements, add mid-nodes
+                if use_8node:
+                    # Node ordering for 8-node quad in OpenSees:
+                    # Corners: N1, N2, N3, N4 (same as 4-node)
+                    # Mid-edges: N5 (between N1-N2), N6 (between N2-N3),
+                    #            N7 (between N3-N4), N8 (between N4-N1)
+                    base_corner_nodes = (ndivy_total + 1) * (ndivx_total + 1)
+                    base_horiz_mid = base_corner_nodes
+                    base_vert_mid = base_corner_nodes + (ndivy_total + 1) * ndivx_total
+
+                    # N5: horizontal mid-node between N1 and N2 (bottom edge)
+                    N5 = base_horiz_mid + j * ndivx_total + i + 1
+                    # N6: vertical mid-node between N2 and N3 (right edge)
+                    N6 = base_vert_mid + j * (ndivx_total + 1) + (i + 1) + 1
+                    # N7: horizontal mid-node between N3 and N4 (top edge)
+                    N7 = base_horiz_mid + (j + 1) * ndivx_total + i + 1
+                    # N8: vertical mid-node between N4 and N1 (left edge)
+                    N8 = base_vert_mid + j * (ndivx_total + 1) + i + 1
+
+                    nodes = (N1, N2, N3, N4, N5, N6, N7, N8)
+                else:
+                    nodes = (N1, N2, N3, N4)
+
                 model.soil_elements.append(
                     SoilElementData(
                         tag=Etag, nodes=nodes, mat_tag=mat_tag, gravity_load=gravity
