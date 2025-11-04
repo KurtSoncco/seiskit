@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -l
 #SBATCH --job-name=disc_exp
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio3
