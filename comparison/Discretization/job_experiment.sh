@@ -1,11 +1,15 @@
 #!/bin/bash
 #SBATCH --job-name=disc_exp
+#SBATCH --account=fc_tfsurrogate
+#SBATCH --partition=savio3
+#SBATCH --qos=savio_normal
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=20:00:00
+#SBATCH --array=0-9
 #SBATCH --output=logs/disc_exp_%A_%a.out
 #SBATCH --error=logs/disc_exp_%A_%a.err
-#SBATCH --time=24:00:00
-#SBATCH --cpus-per-task=1
-#SBATCH --mem=8G
-#SBATCH --array=0-9
 
 # Get case type from command line argument (default to 2x2_4node)
 CASE_TYPE=${1:-2x2_4node}
