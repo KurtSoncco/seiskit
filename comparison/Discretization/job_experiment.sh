@@ -23,26 +23,43 @@ if [[ ! "$CASE_TYPE" =~ ^(2x2_4node|1x1_4node|2x2_8node)$ ]]; then
     exit 1
 fi
 
-# Stagger module loading to reduce Lmod contention (random delay 0-2s)
-# This prevents all tasks from hitting the module system simultaneously
-sleep $((RANDOM % 3))
-
-# Clean module env and load required toolchain
-module purge
-module load gcc/13.2.0
-module load openblas/0.3.24 
+# Check if running under SLURM
+if [ -n "$SLURM_JOB_ID" ]; then
+    # Running under SLURM - use module system
+    # Stagger module loading to reduce Lmod contention (random delay 0-2s)
+    sleep $((RANDOM % 3))
+    
+    # Clean module env and load required toolchain
+    module purge
+    module load gcc/13.2.0
+    module load openblas/0.3.24 
+    
+    # Activate your project venv (absolute path for HPC home)
+    source /global/home/users/kurtwal98/seiskit/.venv/bin/activate
+    
+    # Make OpenSeesPy's native libs visible
+    export LD_LIBRARY_PATH=/global/home/users/kurtwal98/seiskit/.venv/lib/python3.11/site-packages/openseespylinux/lib:${LD_LIBRARY_PATH:-}
+    
+    # Use explicit venv python
+    PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
+else
+    # Running locally - try to use local venv
+    # Try to activate local venv if it exists
+    if [ -f "$(dirname "$0")/../../.venv/bin/activate" ]; then
+        source "$(dirname "$0")/../../.venv/bin/activate"
+    elif [ -f ".venv/bin/activate" ]; then
+        source ".venv/bin/activate"
+    fi
+    
+    # Use python from PATH (should be from venv)
+    PYTHON_BIN="python"
+fi
 
 # Force single-threaded math libs to avoid oversubscription and races
-export OMP_NUM_THREADS="1"
-export OPENBLAS_NUM_THREADS="1"
-export MKL_NUM_THREADS="1"
-export NUMEXPR_NUM_THREADS="1"
-
-# Activate your project venv (absolute path for HPC home)
-source /global/home/users/kurtwal98/seiskit/.venv/bin/activate
-
-# Make OpenSeesPy's native libs visible
-export LD_LIBRARY_PATH=/global/home/users/kurtwal98/seiskit/.venv/lib/python3.11/site-packages/openseespylinux/lib:${LD_LIBRARY_PATH:-}
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
+export OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
+export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
+export NUMEXPR_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 
 # Run from the directory you submitted the job (keeps relative paths sane)
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
@@ -54,15 +71,16 @@ mkdir -p logs
 START_TIME=$(date +%s)
 START_DATE=$(date)
 
-# Use explicit venv python to avoid PATH/env issues
-PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
-
-# Get the array task ID
-TASK_ID=$SLURM_ARRAY_TASK_ID
+# Get the array task ID (for local runs, can be passed as second argument)
+TASK_ID=${SLURM_ARRAY_TASK_ID:-${2:-0}}
 
 # Print minimal job info
 echo "============================================================================"
-echo "Task ${TASK_ID} | Job ${SLURM_JOB_ID} | Node: $SLURMD_NODENAME"
+if [ -n "$SLURM_JOB_ID" ]; then
+    echo "Task ${TASK_ID} | Job ${SLURM_JOB_ID} | Node: ${SLURMD_NODENAME:-$(hostname)}"
+else
+    echo "Local run | Task ${TASK_ID} | Node: $(hostname)"
+fi
 echo "Case: $CASE_TYPE"
 echo "Start: $START_DATE"
 echo "============================================================================"
@@ -94,25 +112,29 @@ for i in 0.1 0.2 0.3 0.4 0.5; do
   mkdir -p "${TMPDIR}" && break || sleep "$i"
 done
 
-# Resolve absolute path to the runner within the SLURM submit directory
+# Resolve absolute path to the runner
 RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
 
-# Safety timeout slightly below SLURM limit (seconds); override with PER_TASK_TIMEOUT_SECONDS
-PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-70000}"
+# Execute the array task
+echo "[RUN] $(date) - Launching task ${TASK_ID}, case ${CASE_TYPE}"
 
-# Execute the array task via srun with CPU binding
-echo "[RUN] $(date) - Launching srun for task ${TASK_ID}, case ${CASE_TYPE}"
-
-# Add --mpi=none to avoid PMI initialization delays/hangs
-srun --export=ALL \
-     --ntasks=1 \
-     --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
-     --cpu-bind=cores \
-     --mpi=none \
-     --kill-on-bad-exit=1 \
-     timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
-     ${PYTHON_BIN} -u "${RUNNER_PY}" --case "${CASE_TYPE}" --index "${TASK_ID}"
-PYTHON_EXIT_CODE=$?
+if [ -n "$SLURM_JOB_ID" ]; then
+    # Running under SLURM - use srun with CPU binding
+    PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-70000}"
+    srun --export=ALL \
+         --ntasks=1 \
+         --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
+         --cpu-bind=cores \
+         --mpi=none \
+         --kill-on-bad-exit=1 \
+         timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
+         ${PYTHON_BIN} -u "${RUNNER_PY}" --case "${CASE_TYPE}" --index "${TASK_ID}"
+    PYTHON_EXIT_CODE=$?
+else
+    # Running locally - run directly
+    ${PYTHON_BIN} -u "${RUNNER_PY}" --case "${CASE_TYPE}" --index "${TASK_ID}"
+    PYTHON_EXIT_CODE=$?
+fi
 echo "[RUN] $(date) - Python exit code: ${PYTHON_EXIT_CODE}"
 
 # Record end time
