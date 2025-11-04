@@ -88,6 +88,9 @@ echo ""
 
 # Quick preflight: verify Python env and OpenSees availability (fail fast if broken)
 echo "[PRE] $(date) - Verifying Python and OpenSees imports..."
+echo "[PRE] Python binary: ${PYTHON_BIN}"
+echo "[PRE] Python which: $(command -v ${PYTHON_BIN} || true)"
+echo "[PRE] LD_LIBRARY_PATH head: ${LD_LIBRARY_PATH:-<empty>}"
 timeout 30s ${PYTHON_BIN} - <<'PYEOF'
 import sys
 print('PYTHON_OK', sys.version.split()[0])
@@ -115,12 +118,32 @@ done
 # Resolve absolute path to the runner
 RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
 
+# Ensure runner exists
+if [ ! -f "${RUNNER_PY}" ]; then
+  echo "[PRE] Runner script not found at ${RUNNER_PY}. Exiting."
+  exit 2
+fi
+
+# Log runner and environment details
+echo "[PRE] Runner path: ${RUNNER_PY}"
+echo "[PRE] Case: ${CASE_TYPE} | Index: ${TASK_ID}"
+${PYTHON_BIN} - <<'PYEOF'
+try:
+    import pkgutil, sys
+    print("PY_ENV_OK", sys.executable)
+    print("PY_PKGS_HAVE_OPENSEESPY", bool(pkgutil.find_loader('openseespy')))
+except Exception as e:
+    print("PY_ENV_CHECK_FAIL", e)
+PYEOF
+
 # Execute the array task
 echo "[RUN] $(date) - Launching task ${TASK_ID}, case ${CASE_TYPE}"
 
 if [ -n "$SLURM_JOB_ID" ]; then
     # Running under SLURM - use srun with CPU binding
-    PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-70000}"
+    # Enforce a sane default task timeout (4h) unless explicitly overridden
+    : "${PER_TASK_TIMEOUT_SECONDS:=14400}"
+    echo "[RUN] Using per-task timeout (seconds): ${PER_TASK_TIMEOUT_SECONDS}"
     srun --export=ALL \
          --ntasks=1 \
          --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
