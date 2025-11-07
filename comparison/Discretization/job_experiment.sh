@@ -6,10 +6,14 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=2G
 #SBATCH --time=03:00:00
-#SBATCH --array=0-29%9
+#SBATCH --array=0-29%7
 # Allow scheduler to pack tasks per node; no explicit ntasks-per-node or exclusive
 #SBATCH --output=logs/disc_exp_%A_%a.out
 #SBATCH --error=logs/disc_exp_%A_%a.err
+
+## Command(s) to run:
+# sbatch job_experiment.sh 2x2_4node
+# sbatch job_experiment.sh 1x1_4node
 
 set -x
 set -euo pipefail

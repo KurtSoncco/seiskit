@@ -274,7 +274,7 @@ def run_discretization_case(
         hx=dx,  # Element size
         dt=0.01,
         duration=15.0,
-        motion_freq=2.00,
+        motion_freq=1.75,
         motion_t_shift=1.4,
         damping_zeta=0.0075,
         damping_freqs=(0.75, 2.25),
