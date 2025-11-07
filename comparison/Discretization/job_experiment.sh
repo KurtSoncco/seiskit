@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #SBATCH --job-name=disc_exp
 #SBATCH --account=fc_tfsurrogate
-#SBATCH --partition=savio2
+#SBATCH --partition=savio3
 #SBATCH --qos=savio_normal
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=2G
