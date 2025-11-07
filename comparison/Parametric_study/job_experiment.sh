@@ -8,8 +8,8 @@
 #SBATCH --time=02:00:00
 #SBATCH --array=0-15%10
 # Allow scheduler to pack tasks per node; no explicit ntasks-per-node or exclusive
-#SBATCH --output=array_job_%A_task_%a.out
-#SBATCH --error=array_job_%A_task_%a.err
+#SBATCH --output=logs/array_job_%A_task_%a.out
+#SBATCH --error=logs/array_job_%A_task_%a.err
 
 set -x
 set -euo pipefail
@@ -42,6 +42,9 @@ export LD_LIBRARY_PATH=/global/home/users/kurtwal98/seiskit/.venv/lib/python3.11
 # Run from the directory you submitted the job (keeps relative paths sane)
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
 
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
 # Record start time
 START_TIME=$(date +%s)
 START_DATE=$(date)
@@ -72,6 +75,7 @@ PRE_RC=$?
 echo "[PRE] $(date) - Preflight exit code: ${PRE_RC}"
 if [ ${PRE_RC} -ne 0 ]; then
   echo "[PRE] Preflight failed; exiting task ${SLURM_ARRAY_TASK_ID}"
+  echo "[PRE] Check error logs for details: logs/array_job_${SLURM_JOB_ID:-<job_id>}_task_${SLURM_ARRAY_TASK_ID}.err"
   exit ${PRE_RC}
 fi
 
