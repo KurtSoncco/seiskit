@@ -96,7 +96,6 @@ def build_mesh_and_materials(
 
     # Iterate and create element stubs (no OpenSees calls)
     for j in range(ndivy):
-        Yflag = "B" if j == 0 else ""
         for i in range(ndivx):
             Etag = j * ndivx + i + 1
             is_boundary = (i == 0) or (i == ndivx - 1) or (j == 0)
