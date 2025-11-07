@@ -89,14 +89,22 @@ echo "[RUN] $(date) - Launching srun for task ${SLURM_ARRAY_TASK_ID}"
 PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6300}"
 
 # Use node-local scratch space for TMPDIR to avoid NFS contention
-# $SLURM_TMP is fast, node-local storage that's automatically cleaned up
-if [ -n "$SLURM_TMP" ]; then
-    # Running under SLURM - use node-local scratch
-    export TMPDIR="${SLURM_TMP}/task_${SLURM_ARRAY_TASK_ID}"
+# On Savio, /tmp and /dev/shm are per-job directories automatically set up by SLURM
+# They map to /local/job[jobid] and /dev/shm/job[jobid] respectively
+# /tmp uses fast NVMe on savio3_htc; /dev/shm is memory-backed (faster but limited by RAM)
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+    # Running under SLURM on Savio compute node
+    # Use /tmp (job-specific, fast NVMe on savio3_htc)
+    # Create task-specific subdirectory to avoid conflicts between array tasks
+    export TMPDIR="/tmp/task_${SLURM_ARRAY_TASK_ID:-0}"
     mkdir -p "${TMPDIR}"
+    # Alternative: use /dev/shm for memory-backed storage (very fast but limited by RAM)
+    # Uncomment the following lines and comment out the /tmp lines above to use /dev/shm:
+    # export TMPDIR="/dev/shm/task_${SLURM_ARRAY_TASK_ID:-0}"
+    # mkdir -p "${TMPDIR}"
 else
     # Running locally - use a local temp directory
-    export TMPDIR="${SLURM_SUBMIT_DIR:-$PWD}/.tmp/task_${SLURM_ARRAY_TASK_ID}"
+    export TMPDIR="${SLURM_SUBMIT_DIR:-$PWD}/.tmp/task_${SLURM_ARRAY_TASK_ID:-0}"
     mkdir -p "${TMPDIR}"
 fi
 
