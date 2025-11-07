@@ -109,7 +109,7 @@ def run_array_index(index: int):
     Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
     Lz = 50.0
     dx, dz = 2.5, 2.5
-    aHV = 1.0  # Fixed horizontal-to-vertical aspect ratio
+    aHV = 10.0  # Fixed horizontal-to-vertical aspect ratio
     interlayer_seed = 42  # Fixed seed for interlayer (wavy boundary) variability
 
     # Parameter variations

@@ -61,7 +61,7 @@ echo ""
 
 # Quick preflight: verify Python env and OpenSees availability (fail fast if broken)
 echo "[PRE] $(date) - Verifying Python and OpenSees imports..."
-timeout 30s ${PYTHON_BIN} - <<'PYEOF'
+timeout 60s ${PYTHON_BIN} - <<'PYEOF'
 import sys
 print('PYTHON_OK', sys.version.split()[0])
 try:
