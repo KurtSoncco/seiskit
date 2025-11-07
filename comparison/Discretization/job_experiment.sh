@@ -95,20 +95,27 @@ echo "[PRE] $(date) - Verifying Python and OpenSees imports..."
 echo "[PRE] Python binary: ${PYTHON_BIN}"
 echo "[PRE] Python which: $(command -v ${PYTHON_BIN} || true)"
 echo "[PRE] LD_LIBRARY_PATH head: ${LD_LIBRARY_PATH:-<empty>}"
-timeout 30s ${PYTHON_BIN} - <<'PYEOF'
+echo "[PRE] Running preflight check..."
+PREFLIGHT_OUTPUT=$(timeout 90s ${PYTHON_BIN} - <<'PYEOF' 2>&1
 import sys
-print('PYTHON_OK', sys.version.split()[0])
+print('PYTHON_OK', sys.version.split()[0], file=sys.stderr)
 try:
     import openseespy.opensees as ops  # noqa
-    print('OPENSEES_OK')
+    print('OPENSEES_OK', file=sys.stderr)
 except Exception as e:
-    print('OPENSEES_IMPORT_FAIL', e)
+    print('OPENSEES_IMPORT_FAIL', str(e), file=sys.stderr)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
     sys.exit(3)
 PYEOF
+)
 PRE_RC=$?
+echo "[PRE] Preflight output:"
+echo "${PREFLIGHT_OUTPUT}"
 echo "[PRE] $(date) - Preflight exit code: ${PRE_RC}"
 if [ ${PRE_RC} -ne 0 ]; then
   echo "[PRE] Preflight failed; exiting task ${TASK_ID}"
+  echo "[PRE] Check error logs for details: logs/disc_exp_${SLURM_JOB_ID:-<job_id>}_${TASK_ID}.err"
   exit ${PRE_RC}
 fi
 
