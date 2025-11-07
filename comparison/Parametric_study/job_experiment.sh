@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=2G
 #SBATCH --time=02:00:00
-#SBATCH --array=0-15%10
+#SBATCH --array=0-44%10
 # Allow scheduler to pack tasks per node; no explicit ntasks-per-node or exclusive
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err

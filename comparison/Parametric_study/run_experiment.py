@@ -87,7 +87,7 @@ def run_array_index(index: int):
 
     This experiment varies VS spatial variability parameters:
     - rH: 10, 30, 50 (3 values) - correlation length
-    - aHV: 1.0 (fixed) - aspect ratio
+    - aHV: 10.0 (fixed) - aspect ratio
     - CV: 0.1, 0.2, 0.3 (3 values) - coefficient of variation
     - 5 different seed values for spatial field generation
     - interlayer_seed: 42 (fixed) - seed for wavy boundary (interlayer variability)
