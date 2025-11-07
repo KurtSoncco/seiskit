@@ -104,6 +104,10 @@ def run_array_index(index: int):
     - index = rH_idx x (3x5) + CV_idx x 5 + seed_idx
     """
     t0 = time.time()
+    print(
+        f"[run_array_index] [{_fmt_hms(0)}] Starting run_array_index for index={index}",
+        flush=True,
+    )
 
     # Base case parameters
     Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
@@ -143,31 +147,59 @@ def run_array_index(index: int):
 
     task_id = f"rH{rH:.0f}_CV{CV}_s{seed}"
     output_dir = f"results/rH_{rH:.0f}/CV_{CV}/{task_id}"
+
     # Create directories with retry logic for file system contention
-    max_retries = 5
+    print(
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Creating output directory: {output_dir}",
+        flush=True,
+    )
+    max_retries = 10
+    retry_delay = 0.5
     for attempt in range(max_retries):
         try:
             os.makedirs(output_dir, exist_ok=True)
+            print(
+                f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Directory created successfully",
+                flush=True,
+            )
             break
-        except (OSError, IOError):
+        except (OSError, IOError) as e:
             if attempt == max_retries - 1:
+                print(
+                    f"[run_array_index] [{_fmt_hms(time.time() - t0)}] ERROR: Failed to create directory after {max_retries} attempts: {e}",
+                    flush=True,
+                )
                 raise
-            time.sleep(
-                0.1 * (attempt + 1)
-            )  # Exponential backoff: 0.1s, 0.2s, 0.3s, 0.4s
+            wait_time = retry_delay * (
+                2**attempt
+            )  # Exponential backoff: 0.5s, 1s, 2s, 4s, ...
+            print(
+                f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Directory creation failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...",
+                flush=True,
+            )
+            time.sleep(wait_time)
 
-    print(f"[run_array_index] Starting task {task_id} (index={index})")
-    print(f"  rH = {rH} m, CV = {CV}, seed = {seed}")
     print(
-        f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m"
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Starting task {task_id} (index={index})",
+        flush=True,
+    )
+    print(f"  rH = {rH} m, CV = {CV}, seed = {seed}", flush=True)
+    print(
+        f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m",
+        flush=True,
     )
 
     # Generate VS field with the specified parameters
-    print(f"[run_array_index] Generating VS field with seed={seed}")
     print(
-        f"[run_array_index] Using interlayer_seed={interlayer_seed} for wavy boundary"
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Generating VS field with seed={seed}",
+        flush=True,
+    )
+    print(
+        f"[run_array_index] Using interlayer_seed={interlayer_seed} for wavy boundary",
+        flush=True,
     )
     np.random.seed(seed)
+    vs_field_start = time.time()
     Vs_realization, x_coords, z_coords, h_mean = _generate_vs_variability_field(
         Vs_profile_1D,
         Lx_variability,
@@ -180,9 +212,17 @@ def run_array_index(index: int):
         seed=seed,
         interlayer_seed=interlayer_seed,
     )
+    print(
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] VS field generated in {_fmt_hms(time.time() - vs_field_start)}",
+        flush=True,
+    )
 
     # Extend the profile with BC zones on each side
     # Total width = Lx_variability + 2*BC_width (BC zone on left and right)
+    print(
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Extending profile with BC zones",
+        flush=True,
+    )
     Vs_extended, x_total = _extend_profile(
         Vs_realization,
         Lx=Lx,  # Extended width with BC zones
@@ -190,6 +230,11 @@ def run_array_index(index: int):
     )
 
     # Save realization plot
+    print(
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Saving VS realization plot...",
+        flush=True,
+    )
+    plot_start = time.time()
     plot_realization(
         Vs_profile_1D,
         Vs_extended,
@@ -198,6 +243,10 @@ def run_array_index(index: int):
         dx,
         dz,
         save_path=f"{output_dir}/Vs_realization.png",
+    )
+    print(
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Plot saved in {_fmt_hms(time.time() - plot_start)}",
+        flush=True,
     )
 
     # Build analysis config
@@ -219,13 +268,33 @@ def run_array_index(index: int):
     nu = np.ones_like(Vs_extended) * 0.3
 
     # Build model and run analysis
+    print(
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Building model data...",
+        flush=True,
+    )
+    model_build_start = time.time()
     model_data = build_model_data(config, Vs_extended, rho, nu)
+    print(
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Model data built in {_fmt_hms(time.time() - model_build_start)}",
+        flush=True,
+    )
 
-    print(f"[run_array_index] Running OpenSees for {task_id} -> {output_dir}")
+    print(
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Running OpenSees for {task_id} -> {output_dir}",
+        flush=True,
+    )
+    opensees_start = time.time()
     result = run_opensees_analysis(config, model_data, task_id, output_dir)
+    print(
+        f"[run_array_index] [{_fmt_hms(time.time() - t0)}] OpenSees completed in {_fmt_hms(time.time() - opensees_start)}",
+        flush=True,
+    )
 
     elapsed = time.time() - t0
-    print(f"[run_array_index] Done: {result} | Wall time: {_fmt_hms(elapsed)}")
+    print(
+        f"[run_array_index] [{_fmt_hms(elapsed)}] Done: {result} | Total wall time: {_fmt_hms(elapsed)}",
+        flush=True,
+    )
     return result
 
 
