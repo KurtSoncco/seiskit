@@ -14,7 +14,6 @@ from . import (
     optools,
     parallel,
     plot_results,
-    run_analysis,
     utils,
 )
 
@@ -60,7 +59,6 @@ __all__ = [
     "optools",
     "parallel",
     "plot_results",
-    "run_analysis",
     "utils",
     # Core classes and functions
     "AnalysisConfig",
