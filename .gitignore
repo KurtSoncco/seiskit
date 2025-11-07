@@ -71,6 +71,10 @@ Thumbs.db
 # Ignore examples
 examples/
 
+# Ignore plots html files
+*.html
+*.Identifier
+
 # Ignore test_results 
 test_results/
 
