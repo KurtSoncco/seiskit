@@ -274,7 +274,7 @@ def run_discretization_case(
         hx=dx,  # Element size
         dt=0.01,
         duration=15.0,
-        motion_freq=1.75,
+        motion_freq=3,  # 0.75 and 3 hz
         motion_t_shift=1.4,
         damping_zeta=0.0075,
         damping_freqs=(0.75, 2.25),
@@ -282,6 +282,9 @@ def run_discretization_case(
         record_all_surface_nodes=True,
         element_type=element_type,  # Pass element type to config
     )
+
+    # Experiment the change of frequency from 0.75 and 3 Hz only for one realization in each case
+    #
 
     rho = np.ones_like(Vs_extended) * 2000.0
     nu = np.ones_like(Vs_extended) * 0.3

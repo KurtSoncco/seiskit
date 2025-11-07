@@ -41,6 +41,10 @@ if [ -n "$SLURM_JOB_ID" ]; then
     # Activate your project venv (absolute path for HPC home)
     source /global/home/users/kurtwal98/seiskit/.venv/bin/activate
     
+    # Prevent Python bytecode (.pyc) file writing to avoid NFS contention
+    # When multiple tasks import openseespy simultaneously, they fight for file locks
+    export PYTHONDONTWRITEBYTECODE=1
+    
     # Make OpenSeesPy's native libs visible
     export LD_LIBRARY_PATH=/global/home/users/kurtwal98/seiskit/.venv/lib/python3.11/site-packages/openseespylinux/lib:${LD_LIBRARY_PATH:-}
     
@@ -123,12 +127,17 @@ if [ ${PRE_RC} -ne 0 ]; then
   exit ${PRE_RC}
 fi
 
-# Give each array task an isolated temp directory to avoid shared-TMP contention
-# Use retry logic to handle concurrent creation
-export TMPDIR="${SLURM_SUBMIT_DIR:-$PWD}/.tmp/task_${TASK_ID}"
-for i in 0.1 0.2 0.3 0.4 0.5; do
-  mkdir -p "${TMPDIR}" && break || sleep "$i"
-done
+# Use node-local scratch space for TMPDIR to avoid NFS contention
+# $SLURM_TMP is fast, node-local storage that's automatically cleaned up
+if [ -n "$SLURM_TMP" ]; then
+    # Running under SLURM - use node-local scratch
+    export TMPDIR="${SLURM_TMP}/task_${TASK_ID}"
+    mkdir -p "${TMPDIR}"
+else
+    # Running locally - use a local temp directory
+    export TMPDIR="${SLURM_SUBMIT_DIR:-$PWD}/.tmp/task_${TASK_ID}"
+    mkdir -p "${TMPDIR}"
+fi
 
 # Resolve absolute path to the runner
 RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
@@ -156,8 +165,9 @@ echo "[RUN] $(date) - Launching task ${TASK_ID}, case ${CASE_TYPE}"
 
 if [ -n "$SLURM_JOB_ID" ]; then
     # Running under SLURM - use srun with CPU binding
-    # Enforce a sane default task timeout (4h) unless explicitly overridden
-    : "${PER_TASK_TIMEOUT_SECONDS:=14400}"
+    # Set timeout to 2.5 hours (9000s) - less than job walltime of 3 hours
+    # This ensures SLURM kills the job before srun timeout, preventing hangs
+    : "${PER_TASK_TIMEOUT_SECONDS:=9000}"
     echo "[RUN] Using per-task timeout (seconds): ${PER_TASK_TIMEOUT_SECONDS}"
     srun --export=ALL \
          --ntasks=1 \

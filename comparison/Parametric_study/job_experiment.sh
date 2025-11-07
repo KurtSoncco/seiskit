@@ -3,12 +3,11 @@
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio3
 #SBATCH --qos=savio_normal
-#SBATCH --ntasks-per-node=8
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=2G
 #SBATCH --time=02:00:00
 #SBATCH --array=0-15%10
-# Removed --exclusive to allow efficient node packing: 8 tasks/node (32 cores / 4 cores per task)
+# Allow scheduler to pack tasks per node; no explicit ntasks-per-node or exclusive
 #SBATCH --output=array_job_%A_task_%a.out
 #SBATCH --error=array_job_%A_task_%a.err
 
@@ -32,6 +31,10 @@ export NUMEXPR_NUM_THREADS="1"
 
 # Activate your project venv (absolute path for HPC home)
 source /global/home/users/kurtwal98/seiskit/.venv/bin/activate
+
+# Prevent Python bytecode (.pyc) file writing to avoid NFS contention
+# When multiple tasks import openseespy simultaneously, they fight for file locks
+export PYTHONDONTWRITEBYTECODE=1
 
 # Make OpenSeesPy's native libs visible
 export LD_LIBRARY_PATH=/global/home/users/kurtwal98/seiskit/.venv/lib/python3.11/site-packages/openseespylinux/lib:${LD_LIBRARY_PATH:-}
@@ -75,21 +78,23 @@ fi
 # Execute the array task via srun with CPU binding; the script reads SLURM_ARRAY_TASK_ID automatically
 echo "[RUN] $(date) - Launching srun for task ${SLURM_ARRAY_TASK_ID}"
 
-# Heartbeat every 60s to show liveness
-(
-  while true; do echo "[HEARTBEAT] $(date) - task ${SLURM_ARRAY_TASK_ID} running"; sleep 60; done
-) &
-HB_PID=$!
+# Removed heartbeat to avoid pre-step cgroup/binding interference and misleading liveness
 
-# Safety timeout slightly below SLURM limit (seconds); override with PER_TASK_TIMEOUT_SECONDS
-PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6900}"
+# Set timeout to 1.75 hours (6300s) - less than job walltime of 2 hours
+# This ensures SLURM kills the job before srun timeout, preventing hangs
+PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6300}"
 
-# Give each array task an isolated temp directory to avoid shared-TMP contention
-# Use retry logic to handle concurrent creation
-export TMPDIR="${SLURM_SUBMIT_DIR:-$PWD}/.tmp/task_${SLURM_ARRAY_TASK_ID}"
-for i in 0.1 0.2 0.3 0.4 0.5; do
-  mkdir -p "${TMPDIR}" && break || sleep "$i"
-done
+# Use node-local scratch space for TMPDIR to avoid NFS contention
+# $SLURM_TMP is fast, node-local storage that's automatically cleaned up
+if [ -n "$SLURM_TMP" ]; then
+    # Running under SLURM - use node-local scratch
+    export TMPDIR="${SLURM_TMP}/task_${SLURM_ARRAY_TASK_ID}"
+    mkdir -p "${TMPDIR}"
+else
+    # Running locally - use a local temp directory
+    export TMPDIR="${SLURM_SUBMIT_DIR:-$PWD}/.tmp/task_${SLURM_ARRAY_TASK_ID}"
+    mkdir -p "${TMPDIR}"
+fi
 
 # Resolve absolute path to the runner within the SLURM submit directory
 # We already cd'ed into ${SLURM_SUBMIT_DIR} above, but use absolute path to avoid spool dir confusion
@@ -108,8 +113,7 @@ srun --export=ALL \
 PYTHON_EXIT_CODE=$?
 echo "[RUN] $(date) - Python exit code: ${PYTHON_EXIT_CODE}"
 
-# Stop heartbeat
-kill ${HB_PID} 2>/dev/null || true
+# (no heartbeat to stop)
 
 # Record end time
 END_TIME=$(date +%s)
