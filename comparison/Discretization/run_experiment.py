@@ -1,9 +1,14 @@
 """Discretization comparison experiment.
 
-This experiment compares three cases:
+This experiment compares two discretization cases:
 1. 2x2 discretization with 4-node elements (baseline)
 2. 1x1 discretization with 4-node elements (using re_discretization)
-3. 2x2 discretization with 8-node elements (higher order)
+
+For each discretization case, three base cases are tested with different layer 1 heights:
+- h5m: Layer 1 = 5m (Vs=100 m/s), Layer 2 = 145m (Vs=1500 m/s)
+- h75m: Layer 1 = 75m (Vs=100 m/s), Layer 2 = 75m (Vs=1500 m/s)
+- h145m: Layer 1 = 145m (Vs=100 m/s), Layer 2 = 5m (Vs=1500 m/s)
+Total depth is 150m for all base cases.
 """
 
 import argparse
@@ -80,7 +85,7 @@ def _fmt_hms(seconds: float) -> str:
 
 
 def run_discretization_case(
-    case_type: Literal["2x2_4node", "1x1_4node", "2x2_8node"],
+    case_type: Literal["2x2_4node", "1x1_4node"],
     index: int = 0,
 ):
     """
@@ -90,20 +95,48 @@ def run_discretization_case(
         case_type: Type of discretization case to run:
             - "2x2_4node": 2x2m elements with 4-node elements (baseline)
             - "1x1_4node": 1x1m elements with 4-node elements (re-discretized)
-            - "2x2_8node": 2x2m elements with 8-node elements (higher order)
-        index: Parameter combination index (0-based) for spatial variability
+        index: Parameter combination index (0-based) for:
+            - 3 base cases (layer 1 heights: 5m, 75m, 145m)
+            - 2 rH_CV combinations (rH=10/CV=0.3, rH=50/CV=0.1)
+            - 5 seed values
+            Total: 30 combinations (0-29)
 
     Returns:
         Result status message
     """
     t0 = time.time()
 
-    # Base case parameters
-    Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
-    Lz = 50.0
+    # Base case parameters - three different layer 1 heights
+    # Each base case: Vs1=100 m/s, Vs2=1500 m/s, total depth=150 m
+    # Using dz_1D = 5.0 m (default) for profile discretization
+    base_cases = [
+        {
+            "name": "h5m",
+            "layer1_height": 5.0,
+            "layer1_count": 1,
+            "layer2_count": 29,
+        },  # 5m layer1, 145m layer2
+        {
+            "name": "h75m",
+            "layer1_height": 75.0,
+            "layer1_count": 15,
+            "layer2_count": 15,
+        },  # 75m layer1, 75m layer2
+        {
+            "name": "h145m",
+            "layer1_height": 145.0,
+            "layer1_count": 29,
+            "layer2_count": 1,
+        },  # 145m layer1, 5m layer2
+    ]
+
+    Lz = 150.0  # Total depth: 150 meters
     dx_base, dz_base = 2.0, 2.0  # Base discretization (2x2)
-    aHV = 1.0
+    aHV = 10.0
     interlayer_seed = 42
+    Vs1 = 100.0  # Layer 1 velocity
+    Vs2 = 1500.0  # Layer 2 (bedrock) velocity
+    dz_1D = 5.0  # Vertical spacing for 1D profile
 
     # Parameter variations for spatial field
     # Only two combinations: (rH=10, CV=0.3) and (rH=50, CV=0.1)
@@ -119,7 +152,8 @@ def run_discretization_case(
     BC_width = 500.0
     Lx = Lx_variability + 2 * BC_width  # 1500m total
 
-    total_combinations = len(rH_CV_combinations) * len(seed_values)
+    # Total combinations: 3 base cases × 2 rH_CV combinations × 5 seeds = 30
+    total_combinations = len(base_cases) * len(rH_CV_combinations) * len(seed_values)
 
     if index < 0 or index >= total_combinations:
         raise IndexError(
@@ -128,12 +162,21 @@ def run_discretization_case(
         )
 
     # Map index to parameter combination
-    # index = combo_idx × 5 + seed_idx
-    combo_idx = index // len(seed_values)
-    seed_idx = index % len(seed_values)
+    # index = base_case_idx × (2 × 5) + combo_idx × 5 + seed_idx
+    # index = base_case_idx × 10 + combo_idx × 5 + seed_idx
+    base_case_idx = index // (len(rH_CV_combinations) * len(seed_values))
+    remainder = index % (len(rH_CV_combinations) * len(seed_values))
+    combo_idx = remainder // len(seed_values)
+    seed_idx = remainder % len(seed_values)
 
+    base_case = base_cases[base_case_idx]
     rH, CV = rH_CV_combinations[combo_idx]
     seed = seed_values[seed_idx]
+
+    # Create Vs_profile_1D based on selected base case
+    Vs_profile_1D = np.array(
+        [Vs1] * base_case["layer1_count"] + [Vs2] * base_case["layer2_count"]
+    )
 
     # Determine discretization based on case type
     if case_type == "2x2_4node":
@@ -144,19 +187,13 @@ def run_discretization_case(
         dx, dz = dx_base / 2, dz_base / 2  # 1x1 discretization
         element_type = "4node"
         case_name = "1x1_4node"
-    elif case_type == "2x2_8node":
-        dx, dz = dx_base, dz_base
-        element_type = "8node"  # Uses enhancedQuad (Enhanced Strain Quadrilateral)
-        case_name = "2x2_8node"
-        print(
-            "Note: Using enhancedQuad (Enhanced Strain Quadrilateral) for higher-order accuracy. "
-            "This uses enhanced strain formulation for improved numerical performance."
-        )
     else:
         raise ValueError(f"Unknown case type: {case_type}")
 
-    task_id = f"{case_name}_rH{rH:.0f}_CV{CV}_s{seed}"
-    output_dir = f"results/{case_name}/rH_{rH:.0f}/CV_{CV}/{task_id}"
+    task_id = f"{case_name}_{base_case['name']}_rH{rH:.0f}_CV{CV}_s{seed}"
+    output_dir = (
+        f"results/{case_name}/{base_case['name']}/rH_{rH:.0f}/CV_{CV}/{task_id}"
+    )
 
     # Create directories with retry logic
     max_retries = 5
@@ -171,6 +208,10 @@ def run_discretization_case(
 
     print(f"[{case_name}] Starting task {task_id} (index={index})")
     print(f"  Case: {case_name}, Element type: {element_type}")
+    print(
+        f"  Base case: {base_case['name']} (Layer 1 height: {base_case['layer1_height']:.0f} m)"
+    )
+    print(f"  Vs1 = {Vs1} m/s, Vs2 = {Vs2} m/s, Total depth Lz = {Lz} m")
     print(f"  dx={dx} m, dz={dz} m")
     print(f"  rH = {rH} m, CV = {CV}, seed = {seed}")
     print(
@@ -191,6 +232,7 @@ def run_discretization_case(
         aHV,
         CV,
         seed=seed,
+        dz_1D=dz_1D,
         interlayer_seed=interlayer_seed,
     )
     field_generation_time = time.time() - t_field_start
@@ -273,6 +315,8 @@ def run_discretization_case(
             writer.writerow(
                 [
                     "case_type",
+                    "base_case",
+                    "layer1_height_m",
                     "rH",
                     "CV",
                     "seed",
@@ -290,6 +334,8 @@ def run_discretization_case(
         writer.writerow(
             [
                 case_name,
+                base_case["name"],
+                f"{base_case['layer1_height']:.1f}",
                 f"{rH:.1f}",
                 f"{CV:.3f}",
                 str(seed),
@@ -322,14 +368,14 @@ def _parse_args():
     p.add_argument(
         "--case",
         type=str,
-        choices=["2x2_4node", "1x1_4node", "2x2_8node"],
+        choices=["2x2_4node", "1x1_4node"],
         required=True,
         help="Case type to run",
     )
     p.add_argument(
         "--index",
         type=int,
-        help="Parameter combination index (0-44). If not provided, uses SLURM_ARRAY_TASK_ID",
+        help="Parameter combination index (0-29). If not provided, uses SLURM_ARRAY_TASK_ID",
     )
     return p.parse_args()
 
