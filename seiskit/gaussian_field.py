@@ -370,6 +370,7 @@ def plot_realization(
     dx: float,
     dz: float,
     save_path: Optional[str] = None,
+    title: Optional[str] = None,
 ):
     """
     Plots the Vs realization with a color scale focused on the soil layer.
@@ -422,7 +423,10 @@ def plot_realization(
     ax.set_xlabel("Distance (m)", fontsize=12)
     ax.set_ylabel("Depth (m)", fontsize=12)
     ax.set_title(
-        "Optimized 2D $V_s$ Realization (Soil-Focused Color Scale)", fontsize=14
+        title
+        if title is not None
+        else "Optimized 2D $V_s$ Realization (Soil-Focused Color Scale)",
+        fontsize=14,
     )
     ax.grid(False)
 
@@ -441,7 +445,7 @@ if __name__ == "__main__":
     Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
     Lx, Lx_variability, Lz = 500.0, 300.0, 50.0
     dx, dz = 2.5, 2.5
-    rH, aHV, CV = 10.0, 2.0, 0.3
+    rH, aHV, CV = 10.0, 10.0, 0.3
 
     # --- Generation (same as before) ---
     print("Generating Vs realization...")
@@ -461,48 +465,38 @@ if __name__ == "__main__":
     # --- Plotting with optimized color scale ---
     plot_realization(Vs_profile_1D, Vs_realization, Lx, Lz, dx, dz)
 
-    ## Do two generation for Lx_var = 500 m and Lx_var = 100 m
-    ## The Lx_var =100 is the central 100 m of the Lx_var = 500 m case
+    ## Generate realizations for different aHV values
+    ## Each realization is generated with the specified Lx_variability and then extended to full Lx
 
     Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
     Lz = 50.0
-    rH, aHV, CV = 10.0, 2.0, 0.3
+    rH, CV = 50.0, 0.3
     dx, dz = 2.5, 2.5
     seed = 42
 
-    Lx_variability_values = [500.0, 100.0]
-    Lx = 1000.0  # Total length for the larger variability case
+    Lx_variability = 500.0
+    aHV_values = [10.0, 50.0, 100.0]
+    Lx = 1000.0  # Total length to extend the profile to
 
-    # Generate the larger variability case first
-    print(
-        f"Generating Vs realization for Lx_variability = {np.max(Lx_variability_values)} m..."
-    )
-    Vs_total_realization, x_coords, z_coords, h_mean = _generate_vs_variability_field(
-        Vs_profile_1D,
-        np.max(Lx_variability_values),
-        Lz,
-        dx,
-        dz,
-        rH,
-        aHV,
-        CV,
-        seed=seed,
-    )
+    for aHV in aHV_values:
+        print(f"Generating Vs realization for aHV = {aHV} and rH = {rH}...")
+        # Generate the variability field for this aHV value
+        Vs_realization, x_coords, z_coords, h_mean = _generate_vs_variability_field(
+            Vs_profile_1D,
+            Lx_variability,
+            Lz,
+            dx,
+            dz,
+            rH,
+            aHV,
+            CV,
+            seed=seed,
+        )
 
-    for Lx_variability in Lx_variability_values:
-        print(f"Generating Vs realization for Lx_variability = {Lx_variability} m...")
-        # Compute the central region given the desired Lx_variability
-        center_x = np.max(Lx_variability_values) / 2.0
-        half_Lx_var = Lx_variability / 2.0
-        x_start = center_x - half_Lx_var
-        x_end = center_x + half_Lx_var
-        start_idx = int(x_start / dx)
-        end_idx = int(x_end / dx)
-        Vs_realization = Vs_total_realization[:, start_idx:end_idx]
-        print(f"Generation complete for Lx_variability = {Lx_variability} m.\n")
-
-        ## Extend to full Lx
+        # Extend the profile to full Lx width
         final_Vs, x_total = _extend_profile(Vs_realization, Lx, dx)
+
+        print(f"Generation complete for aHV = {aHV} and rH = {rH}.\n")
 
         plot_realization(
             Vs_profile_1D,
@@ -511,5 +505,6 @@ if __name__ == "__main__":
             Lz,
             dx,
             dz,
-            save_path=f"Vs_realization_Lxvar_{int(Lx_variability)}.png",
+            save_path=f"Vs_realization_aHV_{aHV}.png",
+            title=f"Vs realization for aHV = {aHV} and rH = {rH}",
         )
