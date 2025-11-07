@@ -1,4 +1,9 @@
-# File: config.py
+"""Configuration settings for OpenSees 2D site response analysis.
+
+This module defines the AnalysisConfig dataclass which holds all configuration
+parameters for running seismic site response analyses.
+"""
+
 from dataclasses import dataclass, field
 
 

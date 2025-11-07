@@ -1,4 +1,9 @@
-# File: builder.py
+"""Model builder for OpenSees 2D site response analysis.
+
+This module provides functions to build model data structures (nodes, elements, materials)
+without making OpenSees calls, making the code testable and parallelization-safe.
+"""
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
@@ -7,9 +12,16 @@ import numpy as np
 from seiskit.config import AnalysisConfig
 
 
-# Define data structures to hold the prepared model
 @dataclass
 class NodeData:
+    """Data structure for a node in the model.
+
+    Attributes:
+        tag: Node tag (unique identifier)
+        x: X coordinate
+        y: Y coordinate
+    """
+
     tag: int
     x: float
     y: float
@@ -17,6 +29,15 @@ class NodeData:
 
 @dataclass
 class SoilElementData:
+    """Data structure for an interior soil element.
+
+    Attributes:
+        tag: Element tag (unique identifier)
+        nodes: Tuple of node tags (4 for 4-node, 8 for 8-node elements)
+        mat_tag: Material tag reference
+        gravity_load: Gravity load value
+    """
+
     tag: int
     nodes: Tuple[int, ...]  # 4 nodes for 4-node, 8 nodes for 8-node
     mat_tag: int
@@ -25,6 +46,17 @@ class SoilElementData:
 
 @dataclass
 class BoundaryElementData:
+    """Data structure for a boundary/absorbing element.
+
+    Attributes:
+        tag: Element tag (unique identifier)
+        nodes: Tuple of 4 node tags
+        btype: Boundary type string (e.g., "L", "R", "B", "LB", "RB")
+        G: Shear modulus
+        poiss: Poisson's ratio
+        rho: Density
+    """
+
     tag: int
     nodes: Tuple[int, int, int, int]
     btype: str

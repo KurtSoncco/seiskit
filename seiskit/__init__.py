@@ -26,6 +26,13 @@ from .analysis import (
 )
 from .builder import ModelData, build_model_data
 from .config import AnalysisConfig
+from .damping import (
+    compute_average_damping_harmonic,
+    compute_damping_from_Q,
+    compute_quality_factor,
+    compute_rayleigh_coefficients,
+    compute_rayleigh_mass_only,
+)
 from .isolated_runner import run_isolated_analysis
 
 # Parallel execution functions
@@ -65,6 +72,12 @@ __all__ = [
     "perform_analysis_spatial",
     "run_analysis",
     "run_opensees_analysis",
+    # Damping functions
+    "compute_rayleigh_coefficients",
+    "compute_rayleigh_mass_only",
+    "compute_quality_factor",
+    "compute_damping_from_Q",
+    "compute_average_damping_harmonic",
     # Parallel execution
     "AnalysisResult",
     "AnalysisTask",

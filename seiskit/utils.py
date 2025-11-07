@@ -131,7 +131,14 @@ def build_mesh_and_materials(
     return abs_elements, material_map
 
 
-def _fmt_hms(seconds: float) -> str:
-    """Format seconds as HH:MM:SS."""
+def fmt_hms(seconds: float) -> str:
+    """Format seconds as HH:MM:SS.
+
+    Args:
+        seconds: Time in seconds
+
+    Returns:
+        Formatted string as HH:MM:SS
+    """
     total_seconds = int(seconds)
     return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"

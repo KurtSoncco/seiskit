@@ -87,6 +87,8 @@ def run_isolated_analysis(
             ops.nDMaterial("ElasticIsotropic", mat_tag, E, poiss, rho)
 
         # 4. Create Soil Elements
+        # Collect interior soil element tags for damping application
+        interior_soil_element_tags = []
         for elem in model_data.soil_elements:
             # Check element type from config to determine element formulation
             # For higher-order case, use enhancedQuad (Enhanced Strain formulation)
@@ -121,6 +123,8 @@ def run_isolated_analysis(
                     0.0,
                     elem.gravity_load,
                 )
+            # Store the tag for damping application (only interior soil elements)
+            interior_soil_element_tags.append(elem.tag)
 
         # 5. Create Boundary Elements
         for elem in model_data.boundary_elements:
@@ -171,7 +175,9 @@ def run_isolated_analysis(
         print_recorder_summary(recorder_info)
 
         # 8. Run Dynamic Analysis
-        _run_dynamic_analysis_isolated(config, run_id)
+        _run_dynamic_analysis_isolated(
+            config, model_data, interior_soil_element_tags, run_id
+        )
 
         # 9. Clean up completely
         ops.wipe()
@@ -208,18 +214,27 @@ def _run_gravity_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
     ops.wipeAnalysis()
 
 
-def _run_dynamic_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
+def _run_dynamic_analysis_isolated(
+    config: AnalysisConfig,
+    model_data: ModelData,
+    interior_soil_element_tags: list[int],
+    run_id: str,
+) -> None:
     """Run dynamic analysis in isolated environment with progress tracking.
 
     Runs step-by-step to detect hangs and provide progress information.
     """
     import time
 
-    # Setup damping
+    # Setup damping - apply only to interior soil elements, not boundary elements
     alphaM, betaK = compute_rayleigh_coefficients(
         config.damping_zeta, config.damping_freqs[0], config.damping_freqs[1]
     )
-    ops.rayleigh(alphaM, betaK, 0.0, 0.0)
+    # Apply damping using region() to only interior soil elements
+    # The tags were collected when creating the soil elements above
+    ops.region(
+        1, "-ele", *interior_soil_element_tags, "-rayleigh", alphaM, betaK, 0.0, 0.0
+    )
 
     # Setup analysis
     ops.constraints("Transformation")
@@ -411,7 +426,7 @@ def _apply_2d_boundary_conditions(config: AnalysisConfig) -> None:
     print("Applying 2D free field boundary conditions (no constraints applied).")
 
 
-def _apply_gravity_constraints_2d(config: AnalysisConfig) -> None:
+def _apply_gravity_constraints_2d(config: AnalysisConfig) -> list[int]:
     """Apply temporary constraints for gravity analysis in 2D case.
 
     For 2D free field, we need to temporarily fix some nodes to prevent rigid body motion
