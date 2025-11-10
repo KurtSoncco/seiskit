@@ -10,6 +10,8 @@ This experiment compares three different discretization approaches for 2D site r
 
 - `run_experiment.py`: Main experiment script that runs the three cases
 - `re_discretization.py`: Contains the re-discretization function that expands 2×2 elements into 1×1 elements
+- `merge_timing_data.py`: Script to merge individual task timing files into a single CSV (run after array job completes)
+- `job_experiment.sh`: SLURM batch script for running array jobs
 
 ## Usage
 
@@ -55,13 +57,19 @@ Results are organized by case type:
 
 ```
 results/
-├── timing_data.csv          # Timing data for all runs (CSV format)
+├── timing_data.csv                      # Merged timing data (created by merge_timing_data.py)
+├── timing_data_task_2x2_4node_0.csv    # Individual task timing files (deleted after merging)
+├── timing_data_task_2x2_4node_1.csv
+├── timing_data_task_1x1_4node_0.csv
+├── timing_data_task_1x1_4node_1.csv
+├── ...                                  # (Individual files are cleaned up after merge)
 ├── 2x2_4node/
-│   └── rH_10/
-│       └── CV_0.3/
-│           └── 2x2_4node_rH10_CV0.3_s10/
-│               ├── Vs_realization.png
-│               └── ...
+│   └── h5m/
+│       └── rH_10/
+│           └── CV_0.3/
+│               └── 2x2_4node_h5m_rH10_CV0.3_s10/
+│                   ├── Vs_realization.png
+│                   └── ...
 ├── 1x1_4node/
 │   └── ...
 └── 2x2_8node/
@@ -70,8 +78,18 @@ results/
 
 ### Timing Data
 
-Timing information for all runs is automatically saved to `results/timing_data.csv` with the following columns:
+To avoid race conditions when multiple tasks run simultaneously, each task writes its timing data to a separate file: `results/timing_data_task_{case_type}_{index}.csv` (e.g., `timing_data_task_2x2_4node_0.csv`, `timing_data_task_1x1_4node_0.csv`). This ensures files from different case types don't overwrite each other.
+
+After all array tasks complete, merge the individual timing files into a single CSV:
+
+```bash
+python merge_timing_data.py
+```
+
+This creates `results/timing_data.csv` and automatically deletes the individual timing files to keep the results directory clean. The merged CSV contains the following columns:
 - `case_type`: Discretization case (2x2_4node, 1x1_4node, 2x2_8node)
+- `base_case`: Base case name (h5m, h75m, h145m)
+- `layer1_height_m`: Layer 1 height in meters
 - `rH`, `CV`, `seed`: Parameter values
 - `task_id`: Unique task identifier
 - `total_time_sec`: Total wall time

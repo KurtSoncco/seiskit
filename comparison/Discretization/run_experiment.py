@@ -303,35 +303,34 @@ def run_discretization_case(
     # Calculate total time and breakdown
     total_time = time.time() - t0
 
-    # Save timing information to CSV
-    timing_file = Path("results/timing_data.csv")
+    # Save timing information to task-specific CSV file to avoid race conditions
+    # Each task writes to its own file, then merge_timing_data.py combines them
+    # Include case_type in filename to differentiate between 2x2_4node and 1x1_4node runs
+    timing_file = Path(f"results/timing_data_task_{case_name}_{index}.csv")
     timing_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Check if file exists to determine if we need to write header
-    file_exists = timing_file.exists()
-
-    with open(timing_file, "a", newline="") as f:
+    # Each task writes its own file with header and data (no race condition)
+    with open(timing_file, "w", newline="") as f:
         writer = csv.writer(f)
 
-        # Write header if file is new
-        if not file_exists:
-            writer.writerow(
-                [
-                    "case_type",
-                    "base_case",
-                    "layer1_height_m",
-                    "rH",
-                    "CV",
-                    "seed",
-                    "task_id",
-                    "total_time_sec",
-                    "field_generation_time_sec",
-                    "rediscretization_time_sec",
-                    "model_build_time_sec",
-                    "analysis_time_sec",
-                    "status",
-                ]
-            )
+        # Write header
+        writer.writerow(
+            [
+                "case_type",
+                "base_case",
+                "layer1_height_m",
+                "rH",
+                "CV",
+                "seed",
+                "task_id",
+                "total_time_sec",
+                "field_generation_time_sec",
+                "rediscretization_time_sec",
+                "model_build_time_sec",
+                "analysis_time_sec",
+                "status",
+            ]
+        )
 
         # Write timing data
         writer.writerow(
