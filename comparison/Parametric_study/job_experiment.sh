@@ -9,6 +9,7 @@
 #SBATCH --array=0-44%10
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
+#SBATCH --exclude=n0029
 
 set -euo pipefail
 
