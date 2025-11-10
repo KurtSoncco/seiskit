@@ -86,7 +86,31 @@ After all array tasks complete, merge the individual timing files into a single 
 python merge_timing_data.py
 ```
 
-This creates `results/timing_data.csv` and automatically deletes the individual timing files to keep the results directory clean. The merged CSV contains the following columns:
+The merge script will:
+- Detect and report any missing timing files (indicating failed tasks)
+- Show which case types and indices are missing
+- Merge all available timing data into `results/timing_data.csv`
+- Automatically delete individual timing files after successful merge
+
+**Options:**
+- `--strict`: Fail if any expected files are missing (useful for validation)
+- `--keep-on-missing`: Keep individual files if any are missing (allows investigation)
+- `--results-dir DIR`: Specify custom results directory
+- `--output FILE`: Specify custom output file
+
+**Example with missing files:**
+```bash
+# Merge and report missing files (default behavior)
+python merge_timing_data.py
+
+# Fail if any files are missing (strict validation)
+python merge_timing_data.py --strict
+
+# Keep individual files if any are missing (for debugging)
+python merge_timing_data.py --keep-on-missing
+```
+
+The merged CSV contains the following columns:
 - `case_type`: Discretization case (2x2_4node, 1x1_4node, 2x2_8node)
 - `base_case`: Base case name (h5m, h75m, h145m)
 - `layer1_height_m`: Layer 1 height in meters
