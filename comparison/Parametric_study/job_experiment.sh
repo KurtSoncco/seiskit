@@ -3,27 +3,26 @@
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio3
 #SBATCH --qos=savio_normal
-#SBATCH --cpus-per-task=4
-#SBATCH --mem-per-cpu=2G
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
 #SBATCH --time=02:00:00
-#SBATCH --array=0-44%10
-# Allow scheduler to pack tasks per node; no explicit ntasks-per-node or exclusive
+#SBATCH --array=4-6%3
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
 
-set -x
 set -euo pipefail
 
-# Stagger module loading to reduce Lmod contention (random delay 0-2s)
-# This prevents all tasks from hitting the module system simultaneously
-sleep $((RANDOM % 3))
+# Simple early logging
+echo "$(date -Is) | START | Job=${SLURM_JOB_ID} Task=${SLURM_ARRAY_TASK_ID} Host=$(hostname)" >&2
 
-# Clean module env and load required toolchain
+# Load modules directly. Remove all locking logic.
+echo "$(date -Is) | MODULE | Purging modules..." >&2
 module purge
-module load gcc/13.2.0
-module load openblas/0.3.24 
+echo "$(date -Is) | MODULE | Loading gcc/13.2.0 openblas/0.3.24..." >&2
+module load gcc/13.2.0 openblas/0.3.24
+echo "$(date -Is) | MODULE | Module load complete." >&2
 
-# Force single-threaded math libs to avoid oversubscription and races
+# Force single-threaded math libs (matches --cpus-per-task=1)
 export OMP_NUM_THREADS="1"
 export OPENBLAS_NUM_THREADS="1"
 export MKL_NUM_THREADS="1"
@@ -32,121 +31,81 @@ export NUMEXPR_NUM_THREADS="1"
 # Activate your project venv (absolute path for HPC home)
 source /global/home/users/kurtwal98/seiskit/.venv/bin/activate
 
-# Prevent Python bytecode (.pyc) file writing to avoid NFS contention
-# When multiple tasks import openseespy simultaneously, they fight for file locks
+# Prevent Python bytecode (.pyc) file writing
 export PYTHONDONTWRITEBYTECODE=1
 
 # Make OpenSeesPy's native libs visible
 export LD_LIBRARY_PATH=/global/home/users/kurtwal98/seiskit/.venv/lib/python3.11/site-packages/openseespylinux/lib:${LD_LIBRARY_PATH:-}
 
-# Run from the directory you submitted the job (keeps relative paths sane)
+# Run from the directory you submitted the job
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
 
 # Create logs directory if it doesn't exist
 mkdir -p logs
 
-# Record start time
-START_TIME=$(date +%s)
-START_DATE=$(date)
-
-# Use explicit venv python to avoid PATH/env issues
+# Define key paths
 PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
+RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
+PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6300}" # 1h 45m (job is 2h)
 
-# Print minimal job info
-echo "============================================================================"
-echo "Task ${SLURM_ARRAY_TASK_ID} | Job ${SLURM_JOB_ID} | Node: $SLURMD_NODENAME"
-echo "Start: $START_DATE"
-echo "============================================================================"
-echo ""
+# 3. Add fail-fast checks for key files
+command -v "${PYTHON_BIN}" >/dev/null || { echo "ERROR: Python binary not found at ${PYTHON_BIN}"; exit 2; }
+test -r "${RUNNER_PY}" >/dev/null || { echo "ERROR: Runner script not readable at ${RUNNER_PY}"; exit 2; }
 
-# Quick preflight: verify Python env and OpenSees availability (fail fast if broken)
-echo "[PRE] $(date) - Verifying Python and OpenSees imports..."
-timeout 60s ${PYTHON_BIN} - <<'PYEOF'
+# 4. Use scratch-backed TMPDIR, not node /tmp
+# We use $USER instead of hardcoding your username
+export TMPDIR="/global/scratch/users/$USER/tmp/job_${SLURM_JOB_ID}_task_${SLURM_ARRAY_TASK_ID}"
+mkdir -p "$TMPDIR"
+# Set a trap to clean up the TMPDIR on script exit (normal or error)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+# 5. Simplify preflight check, shorten timeout
+echo "$(date -Is) | PREFLIGHT | Verifying Python and OpenSees..." >&2
+timeout 30s ${PYTHON_BIN} - <<'PYEOF'
 import sys
 print('PYTHON_OK', sys.version.split()[0])
 try:
     import openseespy.opensees as ops  # noqa
     print('OPENSEES_OK')
 except Exception as e:
-    print('OPENSEES_IMPORT_FAIL', e)
+    print(f'OPENSEES_IMPORT_FAIL: {e}')
     sys.exit(3)
 PYEOF
 PRE_RC=$?
-echo "[PRE] $(date) - Preflight exit code: ${PRE_RC}"
 if [ ${PRE_RC} -ne 0 ]; then
-  echo "[PRE] Preflight failed; exiting task ${SLURM_ARRAY_TASK_ID}"
-  echo "[PRE] Check error logs for details: logs/array_job_${SLURM_JOB_ID:-<job_id>}_task_${SLURM_ARRAY_TASK_ID}.err"
+  echo "$(date -Is) | ERROR | Preflight check failed (Code: ${PRE_RC}). Exiting." >&2
   exit ${PRE_RC}
 fi
+echo "$(date -Is) | PREFLIGHT | Preflight success." >&2
 
-# Execute the array task via srun with CPU binding; the script reads SLURM_ARRAY_TASK_ID automatically
-echo "[RUN] $(date) - Launching srun for task ${SLURM_ARRAY_TASK_ID}"
+# Record start time
+START_TIME=$(date +%s)
+START_DATE=$(date)
 
-# Removed heartbeat to avoid pre-step cgroup/binding interference and misleading liveness
+echo "============================================================================" >&2
+echo "Task ${SLURM_ARRAY_TASK_ID} | Job ${SLURM_JOB_ID} | Node: $SLURMD_NODENAME" >&2
+echo "Start: $START_DATE" >&2
+echo "TMPDIR: $TMPDIR" >&2
+echo "============================================================================" >&2
 
-# Set timeout to 1.75 hours (6300s) - less than job walltime of 2 hours
-# This ensures SLURM kills the job before srun timeout, preventing hangs
-PER_TASK_TIMEOUT_SECONDS="${PER_TASK_TIMEOUT_SECONDS:-6300}"
+# 6. Remove nested srun. Execute Python directly.
+echo "$(date -Is) | RUN | Launching Python task ${SLURM_ARRAY_TASK_ID}..." >&2
 
-# Use node-local scratch space for TMPDIR to avoid NFS contention
-# On Savio, /tmp and /dev/shm are per-job directories automatically set up by SLURM
-# They map to /local/job[jobid] and /dev/shm/job[jobid] respectively
-# /tmp uses fast NVMe on savio3_htc; /dev/shm is memory-backed (faster but limited by RAM)
-if [ -n "${SLURM_JOB_ID:-}" ]; then
-    # Running under SLURM on Savio compute node
-    # Use /tmp (job-specific, fast NVMe on savio3_htc)
-    # Create task-specific subdirectory to avoid conflicts between array tasks
-    export TMPDIR="/tmp/task_${SLURM_ARRAY_TASK_ID:-0}"
-    mkdir -p "${TMPDIR}"
-    # Alternative: use /dev/shm for memory-backed storage (very fast but limited by RAM)
-    # Uncomment the following lines and comment out the /tmp lines above to use /dev/shm:
-    # export TMPDIR="/dev/shm/task_${SLURM_ARRAY_TASK_ID:-0}"
-    # mkdir -p "${TMPDIR}"
-else
-    # Running locally - use a local temp directory
-    export TMPDIR="${SLURM_SUBMIT_DIR:-$PWD}/.tmp/task_${SLURM_ARRAY_TASK_ID:-0}"
-    mkdir -p "${TMPDIR}"
-fi
+timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
+    ${PYTHON_BIN} -u "${RUNNER_PY}" --index "${SLURM_ARRAY_TASK_ID}"
 
-# Resolve absolute path to the runner within the SLURM submit directory
-# We already cd'ed into ${SLURM_SUBMIT_DIR} above, but use absolute path to avoid spool dir confusion
-RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
-
-# Add --mpi=none to avoid PMI initialization delays/hangs
-# Note: Job no longer uses --exclusive, so multiple tasks can share nodes efficiently
-srun --export=ALL \
-     --ntasks=1 \
-     --cpus-per-task="${SLURM_CPUS_PER_TASK}" \
-     --cpu-bind=cores \
-     --mpi=none \
-     --kill-on-bad-exit=1 \
-     timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
-     ${PYTHON_BIN} -u "${RUNNER_PY}" --index "${SLURM_ARRAY_TASK_ID}"
 PYTHON_EXIT_CODE=$?
-echo "[RUN] $(date) - Python exit code: ${PYTHON_EXIT_CODE}"
-
-# (no heartbeat to stop)
+echo "$(date -Is) | RUN | Python script finished. Exit Code: ${PYTHON_EXIT_CODE}" >&2
 
 # Record end time
 END_TIME=$(date +%s)
-END_DATE=$(date)
 DURATION=$((END_TIME - START_TIME))
-HOURS=$((DURATION / 3600))
-MINUTES=$(((DURATION % 3600) / 60))
-SECONDS=$((DURATION % 60))
 
-# Print timing summary
-echo ""
-echo "============================================================================"
-echo "Job Completed - Timing Summary"
-echo "============================================================================"
-echo "Task ID: $SLURM_ARRAY_TASK_ID"
-echo "Start Time: $START_DATE"
-echo "End Time: $END_DATE"
-echo "Total Duration: ${HOURS}h ${MINUTES}m ${SECONDS}s"
-echo "Total Duration (seconds): ${DURATION}"
-echo "Python Exit Code: $PYTHON_EXIT_CODE"
-echo "============================================================================"
+echo "============================================================================" >&2
+echo "Task ${SLURM_ARRAY_TASK_ID} Completed" >&2
+echo "Total Duration (seconds): ${DURATION}" >&2
+echo "Python Exit Code: $PYTHON_EXIT_CODE" >&2
+echo "============================================================================" >&2
 
 # Exit with Python's exit code
 exit $PYTHON_EXIT_CODE
