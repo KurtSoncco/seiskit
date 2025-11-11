@@ -106,17 +106,38 @@ def build_model_data(
 
     abs_h = config.hx * 2.0
 
-    # Generate corner nodes
-    for j in range(ndivy_total + 1):
-        y = -abs_h if j == 0 else (j - 1) * config.hy
-        for i in range(ndivx_total + 1):
-            x = (
-                -abs_h
-                if i == 0
-                else (config.Lx + abs_h if i == ndivx_total else (i - 1) * config.hx)
-            )
-            node_tag = j * (ndivx_total + 1) + i + 1
-            model.nodes.append(NodeData(tag=node_tag, x=x - config.Lx / 2.0, y=y))
+    # Generate corner nodes using vectorized operations
+    # Create meshgrid for all node indices
+    j_indices = np.arange(ndivy_total + 1)
+    i_indices = np.arange(ndivx_total + 1)
+
+    # Vectorize y coordinates
+    y_coords = np.where(j_indices == 0, -abs_h, (j_indices - 1) * config.hy)
+
+    # Vectorize x coordinates
+    x_coords = np.where(
+        i_indices == 0,
+        -abs_h,
+        np.where(
+            i_indices == ndivx_total, config.Lx + abs_h, (i_indices - 1) * config.hx
+        ),
+    )
+
+    # Create meshgrid for all node positions using 'ij' indexing for consistency
+    # This matches the original nested loop order: j (rows) then i (columns)
+    X_grid, Y_grid = np.meshgrid(x_coords - config.Lx / 2.0, y_coords, indexing="ij")
+    J_grid, I_grid = np.meshgrid(j_indices, i_indices, indexing="ij")
+
+    # Flatten all arrays (row-major order: all columns for row 0, then row 1, etc.)
+    node_tags = (J_grid * (ndivx_total + 1) + I_grid + 1).flatten()
+    x_flat = X_grid.flatten()
+    y_flat = Y_grid.flatten()
+
+    # Create NodeData objects
+    model.nodes = [
+        NodeData(tag=int(tag), x=float(x), y=float(y))
+        for tag, x, y in zip(node_tags, x_flat, y_flat)
+    ]
 
     # Generate mid-nodes for 8-node elements (disabled - not supported in OpenSees 2D)
     if False and use_8node:
@@ -167,112 +188,176 @@ def build_model_data(
                     NodeData(tag=node_tag, x=x - config.Lx / 2.0, y=y_mid)
                 )
 
-    # 2. Generate Element and Material Data
-    for j in range(ndivy_total):
-        Yflag = "B" if j == 0 else ""
+    # 2. Generate Element and Material Data using vectorized operations
+    # Create meshgrid for all element indices
+    j_elem = np.arange(ndivy_total)
+    i_elem = np.arange(ndivx_total)
+    J_elem, I_elem = np.meshgrid(j_elem, i_elem, indexing="ij")
 
-        for i in range(ndivx_total):
-            Etag = j * ndivx_total + i + 1
-            N1, N2 = j * (ndivx_total + 1) + i + 1, j * (ndivx_total + 1) + i + 2
-            N4, N3 = (
-                (j + 1) * (ndivx_total + 1) + i + 1,
-                (j + 1) * (ndivx_total + 1) + i + 2,
+    # Flatten element indices
+    j_flat = J_elem.flatten()
+    i_flat = I_elem.flatten()
+    n_elements = len(j_flat)
+
+    # Compute element tags
+    elem_tags = j_flat * ndivx_total + i_flat + 1
+
+    # Compute node tags for all elements (vectorized)
+    N1 = j_flat * (ndivx_total + 1) + i_flat + 1
+    N2 = j_flat * (ndivx_total + 1) + i_flat + 2
+    N4 = (j_flat + 1) * (ndivx_total + 1) + i_flat + 1
+    N3 = (j_flat + 1) * (ndivx_total + 1) + i_flat + 2
+
+    # Determine boundary flags (vectorized)
+    is_bottom = j_flat == 0
+    is_left = i_flat == 0
+    is_right = i_flat == ndivx_total - 1
+
+    # Determine boundary types based on boundary condition type
+    if config.boundary_condition_type == "1D":
+        # 1D Site Response: Only bottom boundary is absorbing
+        is_boundary = is_bottom
+        # For 1D: only bottom elements are boundaries
+        btype_array = np.where(
+            is_bottom, np.where(is_left, "LB", np.where(is_right, "RB", "B")), ""
+        )
+    else:  # 2D Free Field
+        # 2D Free Field: All boundaries (L, R, B) are absorbing
+        is_boundary = is_left | is_right | is_bottom
+        # Build boundary type strings
+        btype_array = np.empty(n_elements, dtype=object)
+        btype_array[is_left & is_bottom] = "LB"
+        btype_array[is_right & is_bottom] = "RB"
+        btype_array[is_left & ~is_bottom] = "L"
+        btype_array[is_right & ~is_bottom] = "R"
+        btype_array[is_bottom & ~is_left & ~is_right] = "B"
+        btype_array[~is_boundary] = ""
+
+    # Compute adjusted indices for material property lookup (vectorized)
+    adj_i = np.clip(i_flat, 1, ndivx_total - 2)
+    adj_j = np.clip(j_flat, 1, ndivy_total - 1)
+    row_idx = ndivy_soil - (adj_j - 1) - 1
+    col_idx = adj_i - 1
+
+    # Extract material properties for all elements (vectorized)
+    vs_all = vs_data[row_idx, col_idx]
+    rho_all = rho_data[row_idx, col_idx]
+    nu_all = nu_data[row_idx, col_idx]
+
+    # Compute material properties for all elements (vectorized)
+    G_all = rho_all * vs_all**2
+    E_all = G_all * 2.0 * (1.0 + nu_all)
+
+    # Separate boundary and soil elements
+    boundary_mask = is_boundary
+    soil_mask = ~boundary_mask
+
+    # Process boundary elements
+    if np.any(boundary_mask):
+        boundary_indices = np.where(boundary_mask)[0]
+        model.abs_element_tags = elem_tags[boundary_indices].tolist()
+
+        boundary_elements_list = []
+        for idx in boundary_indices:
+            boundary_elements_list.append(
+                BoundaryElementData(
+                    tag=int(elem_tags[idx]),
+                    nodes=(int(N1[idx]), int(N2[idx]), int(N3[idx]), int(N4[idx])),
+                    btype=str(btype_array[idx]),
+                    G=float(G_all[idx]),
+                    poiss=float(nu_all[idx]),
+                    rho=float(rho_all[idx]),
+                )
             )
-            nodes = (N1, N2, N3, N4)
+        model.boundary_elements = boundary_elements_list
 
-            # Determine element boundary type flag
-            if i == 0:
-                Xflag = "L"
-            elif i == ndivx_total - 1:
-                Xflag = "R"
-            else:
-                Xflag = ""
+    # Process soil elements
+    if np.any(soil_mask):
+        soil_indices = np.where(soil_mask)[0]
 
-            # Apply different logic based on boundary condition type
-            if config.boundary_condition_type == "1D":
-                # 1D Site Response: Only bottom boundary is absorbing
-                if Yflag == "B":
-                    btype = f"{Xflag}{Yflag}"  # "LB", "B", "RB"
-                else:
-                    btype = ""  # Force side elements to be non-absorbing
-            else:  # 2D Free Field
-                # 2D Free Field: All boundaries (L, R, B) are absorbing
-                btype = f"{Xflag}{Yflag}"  # "L", "R", "B", "LB", "RB", or ""
+        # Extract material properties for soil elements only
+        E_soil = E_all[soil_indices]
+        nu_soil = nu_all[soil_indices]
+        rho_soil = rho_all[soil_indices]
 
-            if btype != "":
-                # Absorbing element
-                model.abs_element_tags.append(Etag)
-                adj_i = min(max(1, i), ndivx_total - 2)
-                adj_j = min(max(1, j), ndivy_total - 1)
-                row_idx = ndivy_soil - (adj_j - 1) - 1
-                col_idx = adj_i - 1
-                vs, rho, poiss = (
-                    vs_data[row_idx, col_idx],
-                    rho_data[row_idx, col_idx],
-                    nu_data[row_idx, col_idx],
+        # Create material properties tuples for unique identification
+        # Use structured array for efficient unique computation
+        mat_props_array = np.empty(
+            len(E_soil), dtype=[("E", "f8"), ("nu", "f8"), ("rho", "f8")]
+        )
+        mat_props_array["E"] = E_soil
+        mat_props_array["nu"] = nu_soil
+        mat_props_array["rho"] = rho_soil
+
+        # Find unique material properties
+        _, unique_indices, inverse_indices = np.unique(
+            mat_props_array, return_index=True, return_inverse=True
+        )
+
+        # Create material map from unique properties
+        # Build material tag lookup array directly from unique indices
+        mat_tag_lookup = np.empty(len(unique_indices), dtype=np.int32)
+        mat_tag_counter = 1
+        for i, unique_idx in enumerate(unique_indices):
+            E_val = float(E_soil[unique_idx])
+            nu_val = float(nu_soil[unique_idx])
+            rho_val = float(rho_soil[unique_idx])
+            mat_props_tuple = (E_val, nu_val, rho_val)
+            model.material_map[mat_props_tuple] = mat_tag_counter
+            mat_tag_lookup[i] = mat_tag_counter
+            mat_tag_counter += 1
+
+        # Map inverse indices to material tags efficiently
+        # inverse_indices maps each soil element to its unique material index
+        mat_tags_soil = mat_tag_lookup[inverse_indices]
+
+        # Compute gravity loads
+        gravity_soil = -9.806 * rho_soil
+
+        # Create node tuples for soil elements
+        if use_8node:
+            # 8-node elements: add mid-nodes
+            base_corner_nodes = (ndivy_total + 1) * (ndivx_total + 1)
+            base_horiz_mid = base_corner_nodes
+            base_vert_mid = base_corner_nodes + (ndivy_total + 1) * ndivx_total
+
+            j_soil = j_flat[soil_indices]
+            i_soil = i_flat[soil_indices]
+
+            N5_soil = base_horiz_mid + j_soil * ndivx_total + i_soil + 1
+            N6_soil = base_vert_mid + j_soil * (ndivx_total + 1) + (i_soil + 1) + 1
+            N7_soil = base_horiz_mid + (j_soil + 1) * ndivx_total + i_soil + 1
+            N8_soil = base_vert_mid + j_soil * (ndivx_total + 1) + i_soil + 1
+
+            nodes_soil = [
+                (
+                    int(N1[idx]),
+                    int(N2[idx]),
+                    int(N3[idx]),
+                    int(N4[idx]),
+                    int(N5_soil[i]),
+                    int(N6_soil[i]),
+                    int(N7_soil[i]),
+                    int(N8_soil[i]),
                 )
+                for i, idx in enumerate(soil_indices)
+            ]
+        else:
+            # 4-node elements
+            nodes_soil = [
+                (int(N1[idx]), int(N2[idx]), int(N3[idx]), int(N4[idx]))
+                for idx in soil_indices
+            ]
 
-                model.boundary_elements.append(
-                    BoundaryElementData(
-                        tag=Etag,
-                        nodes=nodes,
-                        btype=btype,
-                        G=rho * vs**2,
-                        poiss=poiss,
-                        rho=rho,
-                    )
-                )
-            else:
-                # Soil element
-                # Use the same indexing logic as the original implementation
-                adj_i = min(max(1, i), ndivx_total - 2)
-                adj_j = min(max(1, j), ndivy_total - 1)
-                row_idx = ndivy_soil - (adj_j - 1) - 1
-                col_idx = adj_i - 1
-                vs, rho, poiss = (
-                    vs_data[row_idx, col_idx],
-                    rho_data[row_idx, col_idx],
-                    nu_data[row_idx, col_idx],
-                )
-
-                G = rho * vs**2
-                E = G * 2.0 * (1.0 + poiss)
-                mat_props = (E, poiss, rho)
-
-                if mat_props not in model.material_map:
-                    model.material_map[mat_props] = mat_tag_counter
-                    mat_tag_counter += 1
-
-                mat_tag = model.material_map[mat_props]
-                gravity = -9.806 * rho
-
-                # For 8-node elements, add mid-nodes
-                if use_8node:
-                    # Node ordering for 8-node quad in OpenSees:
-                    # Corners: N1, N2, N3, N4 (same as 4-node)
-                    # Mid-edges: N5 (between N1-N2), N6 (between N2-N3),
-                    #            N7 (between N3-N4), N8 (between N4-N1)
-                    base_corner_nodes = (ndivy_total + 1) * (ndivx_total + 1)
-                    base_horiz_mid = base_corner_nodes
-                    base_vert_mid = base_corner_nodes + (ndivy_total + 1) * ndivx_total
-
-                    # N5: horizontal mid-node between N1 and N2 (bottom edge)
-                    N5 = base_horiz_mid + j * ndivx_total + i + 1
-                    # N6: vertical mid-node between N2 and N3 (right edge)
-                    N6 = base_vert_mid + j * (ndivx_total + 1) + (i + 1) + 1
-                    # N7: horizontal mid-node between N3 and N4 (top edge)
-                    N7 = base_horiz_mid + (j + 1) * ndivx_total + i + 1
-                    # N8: vertical mid-node between N4 and N1 (left edge)
-                    N8 = base_vert_mid + j * (ndivx_total + 1) + i + 1
-
-                    nodes = (N1, N2, N3, N4, N5, N6, N7, N8)
-                else:
-                    nodes = (N1, N2, N3, N4)
-
-                model.soil_elements.append(
-                    SoilElementData(
-                        tag=Etag, nodes=nodes, mat_tag=mat_tag, gravity_load=gravity
-                    )
-                )
+        # Create soil element data structures
+        model.soil_elements = [
+            SoilElementData(
+                tag=int(elem_tags[idx]),
+                nodes=nodes_soil[i],
+                mat_tag=int(mat_tags_soil[i]),
+                gravity_load=float(gravity_soil[i]),
+            )
+            for i, idx in enumerate(soil_indices)
+        ]
 
     return model
