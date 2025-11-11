@@ -9,7 +9,7 @@
 #SBATCH --array=0-29%7  # 30 combinations: 3 base cases × 2 rH_CV × 5 seeds
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
-#SBATCH --exclude=n0029.savio3, n0060.savio3
+#SBATCH --exclude=n0029.savio3
 
 ## Command(s) to run:
 # Run complete sweep for each case type (30 tasks each):
