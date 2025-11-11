@@ -4,7 +4,7 @@
 #SBATCH --partition=savio3
 #SBATCH --qos=savio_normal
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
+#SBATCH --mem=32G
 #SBATCH --time=03:00:00
 #SBATCH --array=0-29%7  # 30 combinations: 3 base cases × 2 rH_CV × 5 seeds
 #SBATCH --output=logs/array_job_%A_task_%a.out
