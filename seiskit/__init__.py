@@ -14,6 +14,7 @@ from . import (
     optools,
     parallel,
     plot_results,
+    solver_utils,
     utils,
 )
 
@@ -44,6 +45,7 @@ from .parallel import (
     run_parallel_analyses,
     run_parameter_study,
 )
+from .solver_utils import check_mumps_availability, get_solver_info, setup_solver
 from .utils import (
     build_mesh_and_materials,
     compute_ricker,
@@ -59,6 +61,7 @@ __all__ = [
     "optools",
     "parallel",
     "plot_results",
+    "solver_utils",
     "utils",
     # Core classes and functions
     "AnalysisConfig",
@@ -85,4 +88,8 @@ __all__ = [
     "run_parallel_analyses",
     "run_parameter_study",
     "run_isolated_analysis",
+    # Solver utilities
+    "check_mumps_availability",
+    "get_solver_info",
+    "setup_solver",
 ]

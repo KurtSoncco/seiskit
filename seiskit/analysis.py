@@ -19,18 +19,35 @@ except Exception:  # pragma: no cover - OpenSees not available in test env
 
 from seiskit.builder import ModelData, build_model_data
 from seiskit.config import AnalysisConfig
-from seiskit.utils import compute_ricker, load_material_properties
 from seiskit.damping import compute_rayleigh_coefficients
+from seiskit.solver_utils import setup_solver
+from seiskit.utils import compute_ricker, load_material_properties
 
 
 def _run_gravity_analysis(config: AnalysisConfig, run_id: str) -> None:
-    """Helper function to run the static gravity analysis."""
+    """Helper function to run the static gravity analysis.
+    
+    Note: This function is primarily for backward compatibility.
+    The main analysis pipeline uses isolated_runner which has better
+    solver configuration support.
+    """
     if ops is None:
         return
+    
+    # Setup solver based on configuration
+    original_solver = config.solver_type
+    try:
+        setup_solver(config, analysis_type="gravity")
+    except Exception as e:
+        # Fall back to UmfPack if MUMPS is not available
+        if original_solver != "UmfPack":
+            print(f"Warning: Failed to use solver '{original_solver}': {e}")
+            print(f"Warning: Falling back to UmfPack solver for run {run_id}.")
+            config.solver_type = "UmfPack"
+            setup_solver(config, analysis_type="gravity")
+        else:
+            raise
         
-    ops.constraints("Transformation")
-    ops.numberer("RCM")
-    ops.system("UmfPack")
     ops.test("NormUnbalance", config.gravity_tolerance, config.max_gravity_iter, 1)
     ops.algorithm("Newton")
     ops.integrator("LoadControl", 1.0)
@@ -42,16 +59,32 @@ def _run_gravity_analysis(config: AnalysisConfig, run_id: str) -> None:
 
 
 def _run_dynamic_analysis(config: AnalysisConfig, run_id: str) -> None:
-    """Helper function to run the transient dynamic analysis."""
+    """Helper function to run the transient dynamic analysis.
+    
+    Note: This function is primarily for backward compatibility.
+    The main analysis pipeline uses isolated_runner which has better
+    solver configuration support.
+    """
     if ops is None:
         return
         
     alphaM, betaK = compute_rayleigh_coefficients(config.damping_zeta, config.damping_freqs[0], config.damping_freqs[1])
     ops.rayleigh(alphaM, betaK, 0.0, 0.0)
 
-    ops.constraints("Transformation")
-    ops.numberer("RCM")
-    ops.system("UmfPack")
+    # Setup solver based on configuration
+    original_solver = config.solver_type
+    try:
+        setup_solver(config, analysis_type="dynamic")
+    except Exception as e:
+        # Fall back to UmfPack if MUMPS is not available
+        if original_solver != "UmfPack":
+            print(f"Warning: Failed to use solver '{original_solver}': {e}")
+            print(f"Warning: Falling back to UmfPack solver for run {run_id}.")
+            config.solver_type = "UmfPack"
+            setup_solver(config, analysis_type="dynamic")
+        else:
+            raise
+    
     ops.test("NormUnbalance", config.dynamic_tolerance, config.max_dynamic_iter, 1)
     ops.algorithm("Newton")
     ops.integrator("TRBDF2")

@@ -19,6 +19,7 @@ from seiskit.builder import ModelData
 from seiskit.config import AnalysisConfig
 from seiskit.damping import compute_rayleigh_coefficients
 from seiskit.recorders import print_recorder_summary, setup_recorders
+from seiskit.solver_utils import setup_solver
 from seiskit.utils import compute_ricker
 
 
@@ -196,9 +197,21 @@ def run_isolated_analysis(
 
 def _run_gravity_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
     """Run gravity analysis in isolated environment."""
-    ops.constraints("Transformation")
-    ops.numberer("RCM")
-    ops.system("UmfPack")
+    # Setup solver based on configuration
+    original_solver = config.solver_type
+    try:
+        setup_solver(config, analysis_type="gravity")
+    except Exception as e:
+        # Fall back to UmfPack if MUMPS is not available or fails
+        if original_solver != "UmfPack":
+            print(f"Warning: Failed to use solver '{original_solver}': {e}")
+            print(f"Warning: Falling back to UmfPack solver for run {run_id}.")
+            config.solver_type = "UmfPack"
+            setup_solver(config, analysis_type="gravity")
+        else:
+            # If UmfPack also fails, re-raise the error
+            raise
+
     ops.test("NormUnbalance", config.gravity_tolerance, config.max_gravity_iter, 1)
     ops.algorithm("Newton")
     ops.integrator("LoadControl", 1.0)
@@ -237,28 +250,43 @@ def _run_dynamic_analysis_isolated(
     )
 
     # Setup analysis
-    ops.constraints("Transformation")
-    ops.numberer("RCM")
-    ops.system("UmfPack")
+    # Setup solver based on configuration
+    original_solver = config.solver_type
+    try:
+        setup_solver(config, analysis_type="dynamic")
+    except Exception as e:
+        # Fall back to UmfPack if MUMPS is not available or fails
+        if original_solver != "UmfPack":
+            print(f"Warning: Failed to use solver '{original_solver}': {e}")
+            print(f"Warning: Falling back to UmfPack solver for run {run_id}.")
+            config.solver_type = "UmfPack"
+            setup_solver(config, analysis_type="dynamic")
+        else:
+            # If UmfPack also fails, re-raise the error
+            raise
+
     ops.test("NormUnbalance", config.dynamic_tolerance, config.max_dynamic_iter, 1)
     ops.algorithm("Newton", "-initial")
     ops.integrator("TRBDF2")
     ops.analysis("Transient")
 
     # Run analysis in batches with progress tracking to detect hangs
-    nsteps = int(config.duration / config.dt)
+    # Ensure nsteps is an integer
+    nsteps = int(round(config.duration / config.dt))
     print(
         f"[{run_id}] Starting dynamic analysis: {nsteps} steps (dt={config.dt}s, duration={config.duration}s)"
     )
 
     # Use batch processing: run multiple steps per analyze() call for efficiency
     # but small enough to detect hangs quickly
-    batch_size = max(
-        1, min(100, nsteps // 10)
+    # Ensure batch_size is an integer
+    batch_size = int(
+        max(1, min(100, nsteps // 10))
     )  # ~10 batches total, but at least 1 step per batch
 
     # Maximum time per batch (seconds) - if a batch takes longer, likely hung
-    max_time_per_batch = 600  # 10 minutes per batch
+    # Use configurable timeout from AnalysisConfig (default: 600s = 10 min)
+    max_time_per_batch = float(config.max_time_per_batch)
 
     successful_steps = 0
     start_time = time.time()
@@ -266,17 +294,27 @@ def _run_dynamic_analysis_isolated(
 
     while step < nsteps:
         batch_start_time = time.time()
-        remaining_steps = nsteps - step
-        current_batch_size = min(batch_size, remaining_steps)
+        remaining_steps = int(nsteps - step)
+        # Ensure current_batch_size is an integer - OpenSees analyze() requires integer steps
+        current_batch_size = int(min(batch_size, remaining_steps))
+
+        # Double-check that we have a valid integer
+        if not isinstance(current_batch_size, int) or current_batch_size < 1:
+            raise ValueError(
+                f"Invalid batch size: {current_batch_size} (type: {type(current_batch_size)})"
+            )
 
         # Run batch of steps with a guard timeout to avoid indefinite hangs
+        # Convert to int for signal.alarm() which requires an integer
+        timeout_seconds = int(round(max_time_per_batch + 30))
         with _time_limit(
-            max_time_per_batch + 30,
+            timeout_seconds,
             msg=(
                 f"Dynamic batch timeout for run {run_id} at steps {step + 1}-{step + current_batch_size}/{nsteps}"
             ),
         ):
-            result = ops.analyze(current_batch_size, config.dt)
+            # OpenSees analyze() requires integer number of steps
+            result = ops.analyze(current_batch_size, float(config.dt))
 
         batch_time = time.time() - batch_start_time
 
