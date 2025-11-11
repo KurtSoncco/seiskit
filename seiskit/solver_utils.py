@@ -65,6 +65,15 @@ def setup_solver(config, analysis_type: str = "dynamic") -> None:
         ValueError: If solver_type is not supported
         RuntimeError: If MUMPS solver is requested but not available (raised by OpenSees)
     """
+    # Validate solver type first, before checking OpenSees availability
+    # This ensures invalid solver types always raise an error
+    valid_solvers = {"UmfPack", "Mumps", "MumpsParallel"}
+    if config.solver_type not in valid_solvers:
+        raise ValueError(
+            f"Unknown solver_type: {config.solver_type}. "
+            f"Must be one of: 'UmfPack', 'Mumps', 'MumpsParallel'"
+        )
+    
     if ops is None:
         return
 
@@ -114,11 +123,6 @@ def setup_solver(config, analysis_type: str = "dynamic") -> None:
                     ops.setParameter("-val", value, "MumpsICNTL", key)
                 except Exception:
                     pass
-    else:
-        raise ValueError(
-            f"Unknown solver_type: {config.solver_type}. "
-            f"Must be one of: 'UmfPack', 'Mumps', 'MumpsParallel'"
-        )
 
 
 def get_solver_info(config) -> Dict[str, Any]:
