@@ -3,13 +3,13 @@
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio3
 #SBATCH --qos=savio_normal
-#SBATCH --cpus-per-task=1
-#SBATCH --mem=8G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
 #SBATCH --time=03:00:00
 #SBATCH --array=0-29%7  # 30 combinations: 3 base cases × 2 rH_CV × 5 seeds
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
-#SBATCH --exclude=n0029.savio3
+#SBATCH --exclude=n0029.savio3, n0053.savio3
 
 ## Command(s) to run:
 # Run complete sweep for each case type (30 tasks each):
