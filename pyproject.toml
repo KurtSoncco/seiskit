@@ -17,7 +17,8 @@ dependencies = [
     "xara",
     "plotly",
     "kaleido",
-    "joblib"
+    "joblib",
+    "mpi4py",
 ]
 
 [project.optional-dependencies]
