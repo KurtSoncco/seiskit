@@ -254,6 +254,11 @@ def _run_dynamic_analysis_isolated(
     original_solver = config.solver_type
     try:
         setup_solver(config, analysis_type="dynamic")
+        # Print solver information
+        solver_info = f"Solver: {config.solver_type}"
+        if config.solver_type == "MumpsParallel" and config.mumps_parallel_procs > 1:
+            solver_info += f" (parallel, {config.mumps_parallel_procs} procs)"
+        print(solver_info)
     except Exception as e:
         # Fall back to UmfPack if MUMPS is not available or fails
         if original_solver != "UmfPack":
@@ -261,6 +266,7 @@ def _run_dynamic_analysis_isolated(
             print(f"Warning: Falling back to UmfPack solver for run {run_id}.")
             config.solver_type = "UmfPack"
             setup_solver(config, analysis_type="dynamic")
+            print(f"Solver: {config.solver_type}")
         else:
             # If UmfPack also fails, re-raise the error
             raise

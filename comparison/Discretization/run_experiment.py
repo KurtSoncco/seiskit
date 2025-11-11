@@ -30,6 +30,7 @@ from seiskit.gaussian_field import (
     _generate_vs_variability_field,
     plot_realization,
 )
+from seiskit.solver_utils import get_solver_info
 
 # Import re_discretization function
 
@@ -283,6 +284,20 @@ def run_discretization_case(
         element_type=element_type,  # Pass element type to config
         solver_type="Mumps",  # Use Mumps solver
     )
+
+    # Get solver information and print it
+    solver_info = get_solver_info(config)
+    solver_type_str = solver_info["solver_type"]
+    if solver_info["mumps_parallel_procs"]:
+        solver_type_str += f" (parallel, {solver_info['mumps_parallel_procs']} procs)"
+    print(f"  Solver: {solver_type_str}")
+    if solver_info["mumps_icntl"]:
+        print(f"  MUMPS ICNTL parameters: {solver_info['mumps_icntl']}")
+    print(f"  Domain: {Lx}m x {Lz}m")
+    ndivx = int(Lx / dx)
+    ndivy = int(Lz / dx)  # Using dx since hx = hy in config
+    print(f"  Elements: {ndivx} x {ndivy} = {ndivx * ndivy}")
+    print(f"  Time step: {config.dt}s, Duration: {config.duration}s")
 
     # Experiment the change of frequency from 0.75 and 3 Hz only for one realization in each case
     #
