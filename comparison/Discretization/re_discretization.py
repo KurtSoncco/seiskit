@@ -32,11 +32,13 @@ def re_discretization(
     - Requires that dx_old/dx_new and dz_old/dz_new are positive integers.
     - The scale factors can be different for x and z dimensions.
     - If dx_new is not provided, it defaults to dz_new.
+    - Uses vectorized numpy operations for optimal performance.
 
     Parameters
     ----------
     Vs_array : np.ndarray
         Array of shape (nz_old, nx_old) with Vs values at the old discretization.
+        Must be a 2D array with numeric dtype.
     dx_old : float
         Old horizontal discretization size (> 0).
     dz_old : float
@@ -52,40 +54,90 @@ def re_discretization(
         Array of shape (nz_new, nx_new) where:
         - nz_new = nz_old * (dz_old / dz_new)
         - nx_new = nx_old * (dx_old / dx_new)
+        Same dtype as input array.
+
+    Raises
+    ------
+    ValueError
+        If input validation fails (non-positive sizes, non-integer scale factors,
+        invalid array shape, etc.).
+    TypeError
+        If input array is not a numpy array.
     """
+    # Input validation
+    if not isinstance(Vs_array, np.ndarray):
+        raise TypeError(f"Vs_array must be a numpy array, got {type(Vs_array)}")
+
+    if Vs_array.ndim != 2:
+        raise ValueError(
+            f"Vs_array must be 2D, got shape {Vs_array.shape} ({Vs_array.ndim}D)"
+        )
+
+    if not np.issubdtype(Vs_array.dtype, np.number):
+        raise ValueError(f"Vs_array must have numeric dtype, got {Vs_array.dtype}")
+
+    # Handle default dx_new
     if dx_new is None:
         dx_new = dz_new
 
+    # Validate discretization sizes
     if dx_old <= 0 or dx_new <= 0 or dz_old <= 0 or dz_new <= 0:
-        raise ValueError("All discretization sizes must be positive.")
+        raise ValueError(
+            f"All discretization sizes must be positive. "
+            f"Got dx_old={dx_old}, dx_new={dx_new}, dz_old={dz_old}, dz_new={dz_new}"
+        )
 
-    # Calculate scale factors for both dimensions
+    # Calculate scale factors using floating point division first
     scale_x = dx_old / dx_new
     scale_z = dz_old / dz_new
 
-    scale_x_rounded = int(round(scale_x))
-    scale_z_rounded = int(round(scale_z))
+    # Validate and convert to integers
+    # Use a tolerance that accounts for floating point precision
+    tolerance = 1e-9
+    scale_x_int = int(round(scale_x))
+    scale_z_int = int(round(scale_z))
 
-    if not np.isclose(scale_x, scale_x_rounded):
-        raise ValueError(f"dx_old/dx_new must be an integer (got {scale_x:.6f}).")
-    if not np.isclose(scale_z, scale_z_rounded):
-        raise ValueError(f"dz_old/dz_new must be an integer (got {scale_z:.6f}).")
-    if scale_x_rounded < 1:
+    if abs(scale_x - scale_x_int) > tolerance:
         raise ValueError(
-            "dx_new must be less than or equal to dx_old (refinement only)."
+            f"dx_old/dx_new must be an integer. "
+            f"Got dx_old={dx_old}, dx_new={dx_new}, ratio={scale_x:.10f}"
         )
-    if scale_z_rounded < 1:
+    if abs(scale_z - scale_z_int) > tolerance:
         raise ValueError(
-            "dz_new must be less than or equal to dz_old (refinement only)."
+            f"dz_old/dz_new must be an integer. "
+            f"Got dz_old={dz_old}, dz_new={dz_new}, ratio={scale_z:.10f}"
         )
 
-    # Early return if no scaling needed
-    if scale_x_rounded == 1 and scale_z_rounded == 1:
+    # Validate refinement (only allow refinement, not coarsening)
+    if scale_x_int < 1:
+        raise ValueError(
+            f"dx_new ({dx_new}) must be <= dx_old ({dx_old}) for refinement. "
+            f"Got scale factor {scale_x:.6f}"
+        )
+    if scale_z_int < 1:
+        raise ValueError(
+            f"dz_new ({dz_new}) must be <= dz_old ({dz_old}) for refinement. "
+            f"Got scale factor {scale_z:.6f}"
+        )
+
+    # Early return if no scaling needed (avoid unnecessary copy for very large arrays)
+    if scale_x_int == 1 and scale_z_int == 1:
         return Vs_array.copy()
 
-    # Expand along both axes: first rows (axis=0), then columns (axis=1)
-    result = np.repeat(Vs_array, repeats=scale_z_rounded, axis=0)
-    result = np.repeat(result, repeats=scale_x_rounded, axis=1)
+    # Optimize: handle cases where only one dimension needs scaling
+    if scale_z_int == 1:
+        # Only scale in x-direction (columns)
+        return np.repeat(Vs_array, repeats=scale_x_int, axis=1)
+
+    if scale_x_int == 1:
+        # Only scale in z-direction (rows)
+        return np.repeat(Vs_array, repeats=scale_z_int, axis=0)
+
+    # Both dimensions need scaling - use vectorized operations
+    # Expand along z-axis (rows) first, then x-axis (columns)
+    # This order is optimal for memory access patterns in row-major arrays
+    result = np.repeat(Vs_array, repeats=scale_z_int, axis=0)
+    result = np.repeat(result, repeats=scale_x_int, axis=1)
 
     return result
 
