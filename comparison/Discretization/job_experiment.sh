@@ -9,7 +9,7 @@
 #SBATCH --array=0-29%7  # 30 combinations: 3 base cases × 2 rH_CV × 5 seeds
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
-#SBATCH --exclude=n0029.savio3
+#SBATCH --exclude=n0029.savio3, n0060.savio3, n00
 
 ## Command(s) to run:
 # Run complete sweep for each case type (30 tasks each):
@@ -39,11 +39,6 @@ if [ -n "${SLURM_JOB_ID:-}" ]; then
     echo "$(date -Is) | MODULE | Module load complete." >&2
 fi
 
-# Force single-threaded math libs (matches --cpus-per-task=1)
-export OMP_NUM_THREADS="1"
-export OPENBLAS_NUM_THREADS="1"
-export MKL_NUM_THREADS="1"
-export NUMEXPR_NUM_THREADS="1"
 
 # Activate your project venv (absolute path for HPC home)
 source /global/home/users/kurtwal98/seiskit/.venv/bin/activate

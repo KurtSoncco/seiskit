@@ -281,6 +281,7 @@ def run_discretization_case(
         boundary_condition_type="2D",
         record_all_surface_nodes=True,
         element_type=element_type,  # Pass element type to config
+        solver_type="Mumps",  # Use Mumps solver
     )
 
     # Experiment the change of frequency from 0.75 and 3 Hz only for one realization in each case
