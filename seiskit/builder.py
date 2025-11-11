@@ -124,8 +124,10 @@ def build_model_data(
     )
 
     # Create meshgrid for all node positions using 'ij' indexing for consistency
-    # This matches the original nested loop order: j (rows) then i (columns)
-    X_grid, Y_grid = np.meshgrid(x_coords - config.Lx / 2.0, y_coords, indexing="ij")
+    # With 'ij' indexing: first arg varies along j (rows), second arg varies along i (columns)
+    # We want: X to vary with i (columns), Y to vary with j (rows)
+    # So: Y_grid first (varies with j), X_grid second (varies with i)
+    Y_grid, X_grid = np.meshgrid(y_coords, x_coords - config.Lx / 2.0, indexing="ij")
     J_grid, I_grid = np.meshgrid(j_indices, i_indices, indexing="ij")
 
     # Flatten all arrays (row-major order: all columns for row 0, then row 1, etc.)
@@ -248,116 +250,108 @@ def build_model_data(
     G_all = rho_all * vs_all**2
     E_all = G_all * 2.0 * (1.0 + nu_all)
 
-    # Separate boundary and soil elements
-    boundary_mask = is_boundary
-    soil_mask = ~boundary_mask
+    # Process elements in original order (maintain compatibility with OpenSees)
+    # First, find unique material properties for soil elements only (for material map)
+    soil_mask = ~is_boundary
+    if np.any(soil_mask):
+        soil_indices_temp = np.where(soil_mask)[0]
+        E_soil_temp = E_all[soil_indices_temp]
+        nu_soil_temp = nu_all[soil_indices_temp]
+        rho_soil_temp = rho_all[soil_indices_temp]
 
-    # Process boundary elements
-    if np.any(boundary_mask):
-        boundary_indices = np.where(boundary_mask)[0]
-        model.abs_element_tags = elem_tags[boundary_indices].tolist()
+        # Create material properties tuples for unique identification
+        mat_props_array = np.empty(
+            len(E_soil_temp), dtype=[("E", "f8"), ("nu", "f8"), ("rho", "f8")]
+        )
+        mat_props_array["E"] = E_soil_temp
+        mat_props_array["nu"] = nu_soil_temp
+        mat_props_array["rho"] = rho_soil_temp
 
-        boundary_elements_list = []
-        for idx in boundary_indices:
+        # Find unique material properties
+        _, unique_indices_temp, inverse_indices_temp = np.unique(
+            mat_props_array, return_index=True, return_inverse=True
+        )
+
+        # Create material map from unique properties
+        mat_tag_lookup_soil = np.empty(len(unique_indices_temp), dtype=np.int32)
+        mat_tag_counter = 1
+        for i, unique_idx in enumerate(unique_indices_temp):
+            E_val = float(E_soil_temp[unique_idx])
+            nu_val = float(nu_soil_temp[unique_idx])
+            rho_val = float(rho_soil_temp[unique_idx])
+            mat_props_tuple = (E_val, nu_val, rho_val)
+            model.material_map[mat_props_tuple] = mat_tag_counter
+            mat_tag_lookup_soil[i] = mat_tag_counter
+            mat_tag_counter += 1
+
+        # Create lookup for all soil elements
+        mat_tags_all_soil = np.zeros(n_elements, dtype=np.int32)
+        mat_tags_all_soil[soil_indices_temp] = mat_tag_lookup_soil[inverse_indices_temp]
+    else:
+        mat_tags_all_soil = np.zeros(n_elements, dtype=np.int32)
+
+    # Process all elements in original order (boundary and soil interleaved)
+    boundary_elements_list = []
+    soil_elements_list = []
+
+    # Process elements in the original nested loop order
+    for idx in range(n_elements):
+        elem_tag = int(elem_tags[idx])
+        nodes_tuple = (int(N1[idx]), int(N2[idx]), int(N3[idx]), int(N4[idx]))
+
+        if is_boundary[idx]:
+            # Boundary element
+            model.abs_element_tags.append(elem_tag)
             boundary_elements_list.append(
                 BoundaryElementData(
-                    tag=int(elem_tags[idx]),
-                    nodes=(int(N1[idx]), int(N2[idx]), int(N3[idx]), int(N4[idx])),
+                    tag=elem_tag,
+                    nodes=nodes_tuple,
                     btype=str(btype_array[idx]),
                     G=float(G_all[idx]),
                     poiss=float(nu_all[idx]),
                     rho=float(rho_all[idx]),
                 )
             )
-        model.boundary_elements = boundary_elements_list
+        else:
+            # Soil element
+            # For 8-node elements, add mid-nodes
+            if use_8node:
+                base_corner_nodes = (ndivy_total + 1) * (ndivx_total + 1)
+                base_horiz_mid = base_corner_nodes
+                base_vert_mid = base_corner_nodes + (ndivy_total + 1) * ndivx_total
 
-    # Process soil elements
-    if np.any(soil_mask):
-        soil_indices = np.where(soil_mask)[0]
+                j_val = j_flat[idx]
+                i_val = i_flat[idx]
 
-        # Extract material properties for soil elements only
-        E_soil = E_all[soil_indices]
-        nu_soil = nu_all[soil_indices]
-        rho_soil = rho_all[soil_indices]
+                N5 = base_horiz_mid + j_val * ndivx_total + i_val + 1
+                N6 = base_vert_mid + j_val * (ndivx_total + 1) + (i_val + 1) + 1
+                N7 = base_horiz_mid + (j_val + 1) * ndivx_total + i_val + 1
+                N8 = base_vert_mid + j_val * (ndivx_total + 1) + i_val + 1
 
-        # Create material properties tuples for unique identification
-        # Use structured array for efficient unique computation
-        mat_props_array = np.empty(
-            len(E_soil), dtype=[("E", "f8"), ("nu", "f8"), ("rho", "f8")]
-        )
-        mat_props_array["E"] = E_soil
-        mat_props_array["nu"] = nu_soil
-        mat_props_array["rho"] = rho_soil
-
-        # Find unique material properties
-        _, unique_indices, inverse_indices = np.unique(
-            mat_props_array, return_index=True, return_inverse=True
-        )
-
-        # Create material map from unique properties
-        # Build material tag lookup array directly from unique indices
-        mat_tag_lookup = np.empty(len(unique_indices), dtype=np.int32)
-        mat_tag_counter = 1
-        for i, unique_idx in enumerate(unique_indices):
-            E_val = float(E_soil[unique_idx])
-            nu_val = float(nu_soil[unique_idx])
-            rho_val = float(rho_soil[unique_idx])
-            mat_props_tuple = (E_val, nu_val, rho_val)
-            model.material_map[mat_props_tuple] = mat_tag_counter
-            mat_tag_lookup[i] = mat_tag_counter
-            mat_tag_counter += 1
-
-        # Map inverse indices to material tags efficiently
-        # inverse_indices maps each soil element to its unique material index
-        mat_tags_soil = mat_tag_lookup[inverse_indices]
-
-        # Compute gravity loads
-        gravity_soil = -9.806 * rho_soil
-
-        # Create node tuples for soil elements
-        if use_8node:
-            # 8-node elements: add mid-nodes
-            base_corner_nodes = (ndivy_total + 1) * (ndivx_total + 1)
-            base_horiz_mid = base_corner_nodes
-            base_vert_mid = base_corner_nodes + (ndivy_total + 1) * ndivx_total
-
-            j_soil = j_flat[soil_indices]
-            i_soil = i_flat[soil_indices]
-
-            N5_soil = base_horiz_mid + j_soil * ndivx_total + i_soil + 1
-            N6_soil = base_vert_mid + j_soil * (ndivx_total + 1) + (i_soil + 1) + 1
-            N7_soil = base_horiz_mid + (j_soil + 1) * ndivx_total + i_soil + 1
-            N8_soil = base_vert_mid + j_soil * (ndivx_total + 1) + i_soil + 1
-
-            nodes_soil = [
-                (
+                nodes_tuple = (
                     int(N1[idx]),
                     int(N2[idx]),
                     int(N3[idx]),
                     int(N4[idx]),
-                    int(N5_soil[i]),
-                    int(N6_soil[i]),
-                    int(N7_soil[i]),
-                    int(N8_soil[i]),
+                    int(N5),
+                    int(N6),
+                    int(N7),
+                    int(N8),
                 )
-                for i, idx in enumerate(soil_indices)
-            ]
-        else:
-            # 4-node elements
-            nodes_soil = [
-                (int(N1[idx]), int(N2[idx]), int(N3[idx]), int(N4[idx]))
-                for idx in soil_indices
-            ]
 
-        # Create soil element data structures
-        model.soil_elements = [
-            SoilElementData(
-                tag=int(elem_tags[idx]),
-                nodes=nodes_soil[i],
-                mat_tag=int(mat_tags_soil[i]),
-                gravity_load=float(gravity_soil[i]),
+            mat_tag = int(mat_tags_all_soil[idx])
+            gravity = -9.806 * float(rho_all[idx])
+
+            soil_elements_list.append(
+                SoilElementData(
+                    tag=elem_tag,
+                    nodes=nodes_tuple,
+                    mat_tag=mat_tag,
+                    gravity_load=gravity,
+                )
             )
-            for i, idx in enumerate(soil_indices)
-        ]
+
+    model.boundary_elements = boundary_elements_list
+    model.soil_elements = soil_elements_list
 
     return model
