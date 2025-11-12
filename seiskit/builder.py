@@ -36,12 +36,14 @@ class SoilElementData:
         nodes: Tuple of node tags (4 for 4-node, 8 for 8-node elements)
         mat_tag: Material tag reference
         gravity_load: Gravity load value
+        vs_value: Shear wave velocity for this element (m/s)
     """
 
     tag: int
     nodes: Tuple[int, ...]  # 4 nodes for 4-node, 8 nodes for 8-node
     mat_tag: int
     gravity_load: float
+    vs_value: float
 
 
 @dataclass
@@ -341,6 +343,7 @@ def build_model_data(
 
             mat_tag = int(mat_tags_all_soil[idx])
             gravity = -9.806 * float(rho_all[idx])
+            vs_val = float(vs_all[idx])
 
             soil_elements_list.append(
                 SoilElementData(
@@ -348,6 +351,7 @@ def build_model_data(
                     nodes=nodes_tuple,
                     mat_tag=mat_tag,
                     gravity_load=gravity,
+                    vs_value=vs_val,
                 )
             )
 

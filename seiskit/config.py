@@ -44,6 +44,8 @@ class AnalysisConfig:
     # Damping Parameters
     damping_zeta: float = 0.02
     damping_freqs: tuple[float, float] = field(default_factory=lambda: (1.0, 5.0))
+    damping_method: str = "global_avg"  # "global_avg", "elemental_varying", "elemental_mass_only"
+    damping_f_target: float = 0.75  # Target frequency for mass-only damping (default matches motion_freq)
 
     # Analysis Constants
     gravity_tolerance: float = 1.0e-4

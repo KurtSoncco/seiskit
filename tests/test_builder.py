@@ -15,7 +15,7 @@ def test_model_data_creation():
     
     # Add some test data
     model_data.nodes = [NodeData(1, 0.0, 0.0), NodeData(2, 1.0, 0.0)]
-    model_data.soil_elements = [SoilElementData(1, (1, 2, 3, 4), 1, 0.0)]
+    model_data.soil_elements = [SoilElementData(1, (1, 2, 3, 4), 1, 0.0, 200.0)]
     model_data.material_map = {(200.0, 0.3, 1800.0): 1}
     model_data.abs_element_tags = [1, 2]
     
@@ -34,7 +34,7 @@ def test_model_data_validation():
     from seiskit.builder import NodeData, SoilElementData
     
     model_data.nodes = [NodeData(1, 0.0, 0.0)]
-    model_data.soil_elements = [SoilElementData(1, (1, 2, 3, 4), 1, 0.0)]
+    model_data.soil_elements = [SoilElementData(1, (1, 2, 3, 4), 1, 0.0, 200.0)]
     
     assert len(model_data.nodes) == 1
     assert len(model_data.soil_elements) == 1
@@ -85,7 +85,7 @@ def test_model_data_properties():
     from seiskit.builder import NodeData, SoilElementData
     
     model_data.nodes = [NodeData(1, 0.0, 0.0), NodeData(2, 1.0, 0.0)]
-    model_data.soil_elements = [SoilElementData(1, (1, 2, 3, 4), 1, 0.0)]
+    model_data.soil_elements = [SoilElementData(1, (1, 2, 3, 4), 1, 0.0, 200.0)]
     model_data.material_map = {(200.0, 0.3, 1800.0): 1}
     
     # Test that all properties are accessible

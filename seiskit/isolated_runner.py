@@ -17,7 +17,13 @@ except Exception:  # pragma: no cover - OpenSees not available in test env
 
 from seiskit.builder import ModelData
 from seiskit.config import AnalysisConfig
-from seiskit.damping import compute_rayleigh_coefficients
+from seiskit.damping import (
+    compute_average_damping_harmonic,
+    compute_damping_from_Q,
+    compute_quality_factor,
+    compute_rayleigh_coefficients,
+    compute_rayleigh_mass_only,
+)
 from seiskit.recorders import print_recorder_summary, setup_recorders
 from seiskit.solver_utils import setup_solver
 from seiskit.utils import compute_ricker
@@ -227,6 +233,140 @@ def _run_gravity_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
     ops.wipeAnalysis()
 
 
+def _apply_damping(
+    config: AnalysisConfig,
+    model_data: ModelData,
+    interior_soil_element_tags: list[int],
+) -> None:
+    """Apply damping based on the configured damping method.
+
+    Supports three methods:
+    - global_avg: Harmonic mean Q from soil layer only, applied to all soil elements
+    - elemental_varying: Each element gets damping based on its Vs and Q
+    - elemental_mass_only: Each element gets mass-only damping based on its Vs and Q
+    """
+    # Threshold to distinguish soil from bedrock (Vs < 500 m/s = soil)
+    SOIL_VS_THRESHOLD = 500.0
+
+    if config.damping_method == "global_avg":
+        # Model A: Global Average Damping
+        # Separate soil and bedrock elements
+        soil_elements = []
+        bedrock_elements = []
+
+        for elem in model_data.soil_elements:
+            if elem.vs_value < SOIL_VS_THRESHOLD:
+                soil_elements.append(elem)
+            else:
+                bedrock_elements.append(elem)
+
+        # Calculate harmonic mean Q from soil layer elements only
+        if not soil_elements:
+            raise ValueError("No soil layer elements found for global average damping")
+
+        Q_values_soil = [
+            compute_quality_factor(elem.vs_value) for elem in soil_elements
+        ]
+        avg_damping_soil = compute_average_damping_harmonic(Q_values_soil)
+
+        # Compute Rayleigh coefficients for soil layer
+        alphaM_soil, betaK_soil = compute_rayleigh_coefficients(
+            avg_damping_soil, config.damping_freqs[0], config.damping_freqs[1]
+        )
+
+        # Apply average damping to all soil layer elements
+        soil_tags = [elem.tag for elem in soil_elements]
+        if soil_tags:
+            ops.region(
+                1,
+                "-ele",
+                *soil_tags,
+                "-rayleigh",
+                alphaM_soil,
+                betaK_soil,
+                0.0,
+                0.0,
+            )
+
+        # Apply bedrock-specific damping to bedrock elements
+        if bedrock_elements:
+            # Use bedrock Vs (typically 1500 m/s) for consistent damping
+            bedrock_Vs = 1500.0
+            Q_bedrock = compute_quality_factor(bedrock_Vs)
+            xi_bedrock = compute_damping_from_Q(Q_bedrock)
+            alphaM_bedrock, betaK_bedrock = compute_rayleigh_coefficients(
+                xi_bedrock, config.damping_freqs[0], config.damping_freqs[1]
+            )
+
+            bedrock_tags = [elem.tag for elem in bedrock_elements]
+            # Use region tag 2 for bedrock
+            ops.region(
+                2,
+                "-ele",
+                *bedrock_tags,
+                "-rayleigh",
+                alphaM_bedrock,
+                betaK_bedrock,
+                0.0,
+                0.0,
+            )
+
+    elif config.damping_method == "elemental_varying":
+        # Model B: Elemental Varying Damping
+        # Each element gets its own damping based on its Vs
+        region_tag = 1
+        for elem in model_data.soil_elements:
+            Q = compute_quality_factor(elem.vs_value)
+            xi = compute_damping_from_Q(Q)
+            alphaM, betaK = compute_rayleigh_coefficients(
+                xi, config.damping_freqs[0], config.damping_freqs[1]
+            )
+            # Use element tag as region tag for uniqueness
+            ops.region(
+                region_tag,
+                "-ele",
+                elem.tag,
+                "-rayleigh",
+                alphaM,
+                betaK,
+                0.0,
+                0.0,
+            )
+            region_tag += 1
+
+    elif config.damping_method == "elemental_mass_only":
+        # Model C: Elemental Mass-Only Damping
+        # Each element gets mass-only damping based on its Vs
+        f_target = (
+            config.damping_f_target
+            if config.damping_f_target > 0
+            else config.motion_freq
+        )
+        region_tag = 1
+        for elem in model_data.soil_elements:
+            Q = compute_quality_factor(elem.vs_value)
+            xi = compute_damping_from_Q(Q)
+            alphaM, betaK = compute_rayleigh_mass_only(xi, f_target)
+            # Use element tag as region tag for uniqueness
+            ops.region(
+                region_tag,
+                "-ele",
+                elem.tag,
+                "-rayleigh",
+                alphaM,
+                betaK,
+                0.0,
+                0.0,
+            )
+            region_tag += 1
+
+    else:
+        raise ValueError(
+            f"Unknown damping method: {config.damping_method}. "
+            f"Must be one of: 'global_avg', 'elemental_varying', 'elemental_mass_only'"
+        )
+
+
 def _run_dynamic_analysis_isolated(
     config: AnalysisConfig,
     model_data: ModelData,
@@ -239,15 +379,8 @@ def _run_dynamic_analysis_isolated(
     """
     import time
 
-    # Setup damping - apply only to interior soil elements, not boundary elements
-    alphaM, betaK = compute_rayleigh_coefficients(
-        config.damping_zeta, config.damping_freqs[0], config.damping_freqs[1]
-    )
-    # Apply damping using region() to only interior soil elements
-    # The tags were collected when creating the soil elements above
-    ops.region(
-        1, "-ele", *interior_soil_element_tags, "-rayleigh", alphaM, betaK, 0.0, 0.0
-    )
+    # Setup damping based on configured method
+    _apply_damping(config, model_data, interior_soil_element_tags)
 
     # Setup analysis
     # Setup solver based on configuration
