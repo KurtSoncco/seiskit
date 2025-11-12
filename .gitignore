@@ -81,6 +81,13 @@ test_results/
 # Ignore data txt 
 *.txt
 
+# Ignore comparison results
+comparison/Damping_study/results/
+
+# Ignore comparison results
+*.html
+*.png
+
 # Ignore results directory
 results/
 results/*

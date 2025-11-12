@@ -22,12 +22,18 @@ import signal
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
 from seiskit.analysis import run_opensees_analysis
 from seiskit.builder import build_model_data
 from seiskit.config import AnalysisConfig
+from seiskit.damping import (
+    compute_average_damping_harmonic,
+    compute_damping_from_Q,
+    compute_quality_factor,
+)
 from seiskit.gaussian_field import (
     _extend_profile,
     _generate_vs_variability_field,
@@ -80,6 +86,108 @@ def _fmt_hms(seconds: float) -> str:
     """Format seconds as HH:MM:SS."""
     total_seconds = int(seconds)
     return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+
+
+def plot_damping_realization(
+    Vs_extended: np.ndarray,
+    damping_method: str,
+    Lx: float,
+    Lz: float,
+    dx: float,
+    dz: float,
+    save_path: str,
+    title: Optional[str] = None,
+):
+    """
+    Plot damping zeta values for each element based on the damping method.
+
+    Args:
+        Vs_extended: 2D array of Vs values (nz, nx)
+        damping_method: Damping method ("global_avg", "elemental_varying", "elemental_mass_only")
+        Lx: Domain width [m]
+        Lz: Domain height [m]
+        dx: Horizontal grid spacing [m]
+        dz: Vertical grid spacing [m]
+        save_path: Path to save the plot
+    """
+    import matplotlib.pyplot as plt
+
+    SOIL_VS_THRESHOLD = 500.0
+    nz, nx = Vs_extended.shape
+
+    # Calculate zeta for each element based on damping method
+    zeta_grid = np.zeros_like(Vs_extended)
+
+    if damping_method == "global_avg":
+        # Calculate harmonic mean Q from soil layer only
+        soil_mask = Vs_extended < SOIL_VS_THRESHOLD
+        soil_Vs = Vs_extended[soil_mask]
+
+        if len(soil_Vs) > 0:
+            Q_values_soil = [compute_quality_factor(vs) for vs in soil_Vs]
+            avg_damping_soil = compute_average_damping_harmonic(Q_values_soil)
+            # Apply to all soil elements
+            zeta_grid[soil_mask] = avg_damping_soil
+
+        # Bedrock elements get bedrock damping
+        bedrock_mask = Vs_extended >= SOIL_VS_THRESHOLD
+        if np.any(bedrock_mask):
+            bedrock_Vs = 1500.0
+            Q_bedrock = compute_quality_factor(bedrock_Vs)
+            xi_bedrock = compute_damping_from_Q(Q_bedrock)
+            zeta_grid[bedrock_mask] = xi_bedrock
+
+    elif damping_method in ["elemental_varying", "elemental_mass_only"]:
+        # Each element gets damping based on its Vs
+        for i in range(nz):
+            for j in range(nx):
+                vs = Vs_extended[i, j]
+                Q = compute_quality_factor(vs)
+                xi = compute_damping_from_Q(Q)
+                zeta_grid[i, j] = xi
+    else:
+        raise ValueError(f"Unknown damping method: {damping_method}")
+
+    # Plot the damping realization
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(12, 5))
+
+    # Compute physical extents
+    computed_Lx = nx * dx
+    computed_Lz = nz * dz
+    extent = (0, computed_Lx, computed_Lz, 0)
+
+    # Determine color scale limits
+    vmin = zeta_grid.min()
+    vmax = zeta_grid.max()
+
+    # Use a colormap suitable for damping values
+    cmap = plt.colormaps.get_cmap("viridis")
+
+    im = ax.imshow(
+        zeta_grid,
+        extent=extent,
+        aspect="auto",
+        cmap=cmap,
+        interpolation="nearest",
+        vmin=vmin,
+        vmax=vmax,
+    )
+
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("Damping Ratio $\\zeta$", fontsize=12)
+
+    ax.set_xlabel("Distance (m)", fontsize=12)
+    ax.set_ylabel("Depth (m)", fontsize=12)
+    ax.set_title(
+        title or f"Damping Realization ({damping_method.replace('_', ' ').title()})",
+        fontsize=14,
+    )
+    ax.grid(False)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300)
+    plt.close()
 
 
 def run_damping_case(index: int = 0):
@@ -223,11 +331,11 @@ def run_damping_case(index: int = 0):
         Lx=Lx,
         hx=dx,  # Element size
         dt=0.01,
-        duration=15.0,
+        duration=25.0,
         motion_freq=motion_freq,  # Fixed at 3.0 Hz
-        motion_t_shift=1.4,
+        motion_t_shift=0.5,
         damping_zeta=0.0075,
-        damping_freqs=(0.75, 2.25),
+        damping_freqs=(0.75, 8.25),
         damping_method=damping_method,  # Set damping method
         damping_f_target=motion_freq,  # For mass-only damping
         boundary_condition_type="2D",
@@ -259,6 +367,19 @@ def run_damping_case(index: int = 0):
     t_model_start = time.time()
     model_data = build_model_data(config, Vs_extended, rho, nu)
     model_build_time = time.time() - t_model_start
+
+    # Plot damping realization
+    damping_plot_path = f"{output_dir}/damping_realization.png"
+    plot_damping_realization(
+        Vs_extended,
+        damping_method,
+        Lx,
+        Lz,
+        dx,
+        dz,
+        damping_plot_path,
+        title=f"Damping Realization ({damping_method.replace('_', ' ').title()}) rH={rH:.0f} CV={CV:.3f} seed={seed}",
+    )
 
     # Run analysis
     t_analysis_start = time.time()
