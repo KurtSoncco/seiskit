@@ -362,9 +362,9 @@ def test_absorbing_boundary_elements_no_damping():
     
     # Add soil elements (should get damping)
     model_data.soil_elements = [
-        SoilElementData(tag=1, nodes=(1, 2, 3, 4), mat_tag=1, gravity_load=-19612.0),
-        SoilElementData(tag=2, nodes=(5, 6, 7, 8), mat_tag=1, gravity_load=-19612.0),
-        SoilElementData(tag=3, nodes=(9, 10, 11, 12), mat_tag=1, gravity_load=-19612.0),
+        SoilElementData(tag=1, nodes=(1, 2, 3, 4), mat_tag=1, gravity_load=-19612.0, vs_value=200.0),
+        SoilElementData(tag=2, nodes=(5, 6, 7, 8), mat_tag=1, gravity_load=-19612.0, vs_value=250.0),
+        SoilElementData(tag=3, nodes=(9, 10, 11, 12), mat_tag=1, gravity_load=-19612.0, vs_value=300.0),
     ]
     
     # Add boundary elements (should NOT get damping)
@@ -404,7 +404,7 @@ def test_rayleigh_damping_only_applied_to_soil_elements():
     soil_tags = [1, 2, 3, 4, 5]
     for tag in soil_tags:
         model_data.soil_elements.append(
-            SoilElementData(tag=tag, nodes=(tag, tag+1, tag+2, tag+3), mat_tag=1, gravity_load=-19612.0)
+            SoilElementData(tag=tag, nodes=(tag, tag+1, tag+2, tag+3), mat_tag=1, gravity_load=-19612.0, vs_value=200.0 + tag * 10.0)
         )
     
     # Add boundary elements
