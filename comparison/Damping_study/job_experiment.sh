@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=damping_study
 #SBATCH --account=fc_tfsurrogate
-#SBATCH --partition=savio3
+#SBATCH --partition=savio2
 #SBATCH --qos=savio_normal
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
@@ -9,7 +9,7 @@
 #SBATCH --array=0-39%7  # 40 combinations: 4 damping methods × 2 rH/CV × 5 seeds
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
-#SBATCH --exclude=n0029.savio3,n0053.savio3
+##SBATCH --exclude=n0029.savio3,n0053.savio3
 
 ## Command(s) to run:
 # Run complete sweep (40 tasks):
