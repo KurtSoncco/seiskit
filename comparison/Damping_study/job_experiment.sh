@@ -6,13 +6,13 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=03:00:00
-#SBATCH --array=0-29%7  # 30 combinations: 3 damping methods × 2 rH/CV × 5 seeds
+#SBATCH --array=0-39%7  # 40 combinations: 4 damping methods × 2 rH/CV × 5 seeds
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
 #SBATCH --exclude=n0029.savio3,n0053.savio3
 
 ## Command(s) to run:
-# Run complete sweep (30 tasks):
+# Run complete sweep (40 tasks):
 # sbatch job_experiment.sh
 
 set -euo pipefail

@@ -1,9 +1,10 @@
 """Damping study experiment.
 
-This experiment compares three damping methods:
+This experiment compares four damping methods:
 - Model A: Global Average Damping (harmonic mean of Q values from soil layer only)
 - Model B: Elemental Varying Damping (each element gets damping based on its Vs and Q)
 - Model C: Elemental Mass-Only Damping (mass-proportional only, per element)
+- Model D: Uniform Damping (same damping for all elements: zeta=0.0075, freqs=(0.75, 8.25))
 
 Base case parameters:
 - Fixed discretization: 2x2_4node only
@@ -12,7 +13,7 @@ Base case parameters:
 - 5 realizations (seeds: 10, 20, 30, 40, 50)
 - Fixed frequency: 3.0 Hz
 
-Total combinations: 3 damping methods × 2 rH/CV combinations × 5 seeds = 30 combinations
+Total combinations: 4 damping methods × 2 rH/CV combinations × 5 seeds = 40 combinations
 """
 
 import argparse
@@ -103,7 +104,7 @@ def plot_damping_realization(
 
     Args:
         Vs_extended: 2D array of Vs values (nz, nx)
-        damping_method: Damping method ("global_avg", "elemental_varying", "elemental_mass_only")
+        damping_method: Damping method ("global_avg", "elemental_varying", "elemental_mass_only", "uniform")
         Lx: Domain width [m]
         Lz: Domain height [m]
         dx: Horizontal grid spacing [m]
@@ -145,6 +146,10 @@ def plot_damping_realization(
                 Q = compute_quality_factor(vs)
                 xi = compute_damping_from_Q(Q)
                 zeta_grid[i, j] = xi
+    elif damping_method == "uniform":
+        # Uniform damping: same damping for all elements
+        uniform_zeta = 0.0075
+        zeta_grid.fill(uniform_zeta)
     else:
         raise ValueError(f"Unknown damping method: {damping_method}")
 
@@ -196,10 +201,10 @@ def run_damping_case(index: int = 0):
 
     Args:
         index: Parameter combination index (0-based) for:
-            - 3 damping methods (global_avg, elemental_varying, elemental_mass_only)
+            - 4 damping methods (global_avg, elemental_varying, elemental_mass_only, uniform)
             - 2 rH/CV combinations (rH=10/CV=0.3, rH=50/CV=0.1)
             - 5 seed values (10, 20, 30, 40, 50)
-            Total: 30 combinations (0-29)
+            Total: 40 combinations (0-39)
 
     Returns:
         Result status message
@@ -213,7 +218,7 @@ def run_damping_case(index: int = 0):
     dx, dz = 2.0, 2.0  # 2x2 discretization
     aHV = 10.0
     interlayer_seed = 42
-    Vs1 = 100.0  # Layer 1 velocity
+    Vs1 = 80.0  # Layer 1 velocity
     Vs2 = 1500.0  # Layer 2 (bedrock) velocity
     dz_1D = 5.0  # Vertical spacing for 1D profile
     layer1_height = 75.0  # Fixed at 75m
@@ -222,7 +227,12 @@ def run_damping_case(index: int = 0):
     motion_freq = 3.0  # Fixed at 3.0 Hz
 
     # Parameter variations
-    damping_methods = ["global_avg", "elemental_varying", "elemental_mass_only"]
+    damping_methods = [
+        "global_avg",
+        "elemental_varying",
+        "elemental_mass_only",
+        "uniform",
+    ]
     rH_CV_combinations = [
         (10.0, 0.3),  # rH=10, CV=0.3
         (50.0, 0.1),  # rH=50, CV=0.1
@@ -234,7 +244,7 @@ def run_damping_case(index: int = 0):
     BC_width = 500.0
     Lx = Lx_variability + 2 * BC_width  # 1500m total
 
-    # Total combinations: 3 damping methods × 2 rH/CV combinations × 5 seeds = 30
+    # Total combinations: 4 damping methods × 2 rH/CV combinations × 5 seeds = 40
     total_combinations = (
         len(damping_methods) * len(rH_CV_combinations) * len(seed_values)
     )
@@ -449,7 +459,7 @@ def _parse_args():
     p.add_argument(
         "--index",
         type=int,
-        help="Parameter combination index (0-29). If not provided, uses SLURM_ARRAY_TASK_ID",
+        help="Parameter combination index (0-39). If not provided, uses SLURM_ARRAY_TASK_ID",
     )
     return p.parse_args()
 

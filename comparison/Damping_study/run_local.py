@@ -10,7 +10,7 @@ Usage:
     # Run a range of cases
     python run_local.py --start 0 --end 9
 
-    # Run all 30 cases sequentially
+    # Run all 40 cases sequentially
     python run_local.py --all
 
     # Run all cases in parallel (4 workers)
@@ -203,7 +203,7 @@ Examples:
   # Run a range of cases
   python run_local.py --start 0 --end 9
 
-  # Run all 30 cases sequentially
+  # Run all 40 cases sequentially
   python run_local.py --all
 
   # Run all cases in parallel (4 workers)
@@ -222,7 +222,7 @@ Examples:
     case_group.add_argument(
         "--index",
         type=int,
-        help="Run a single case with the specified index (0-29)",
+        help="Run a single case with the specified index (0-39)",
     )
     case_group.add_argument(
         "--start",
@@ -232,7 +232,7 @@ Examples:
     case_group.add_argument(
         "--all",
         action="store_true",
-        help="Run all 30 cases",
+        help="Run all 40 cases",
     )
     case_group.add_argument(
         "--indices",
@@ -265,8 +265,8 @@ Examples:
     parser.add_argument(
         "--total",
         type=int,
-        default=30,
-        help="Total number of cases (default: 30)",
+        default=40,
+        help="Total number of cases (default: 40)",
     )
 
     args = parser.parse_args()
@@ -344,4 +344,3 @@ Examples:
 
 if __name__ == "__main__":
     main()
-
