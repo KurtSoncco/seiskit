@@ -3,6 +3,7 @@ import sys
 from itertools import product
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -159,12 +160,26 @@ def compute_tf_statistics(datasets, dz=2.5, Vs_min=None):
         mean_tf = np.nanmean(tf_matrix, axis=0)
         std_tf = np.nanstd(tf_matrix, axis=0, ddof=1)
 
+        # Computing the median and the geometric mean
+        median_tf = np.nanmedian(tf_matrix, axis=0)
+        geomean_tf = np.exp(np.nanmean(np.log(tf_matrix), axis=0))
+
+        # Computing the logarithmic standard deviation (std of log(TF))
+        log_tf_matrix = np.log(tf_matrix)
+        log_std_tf = np.nanstd(log_tf_matrix, axis=0, ddof=1)
+
         # Filter out NaN values from the output
         valid_idx = ~np.isnan(mean_tf)
         common_freq = common_freq[valid_idx]
         mean_tf = mean_tf[valid_idx]
         std_tf = std_tf[valid_idx]
+        median_tf = median_tf[valid_idx]
+        geomean_tf = geomean_tf[valid_idx]
+        log_std_tf = log_std_tf[valid_idx]
         valid_counts = valid_counts[valid_idx]
+
+        # Filter individual TFs to match the filtered frequency array
+        tf_interpolated_filtered = [tf[valid_idx] for tf in tf_interpolated]
 
         # Diagnostics for small std values and contributor counts
         finite_std = std_tf[np.isfinite(std_tf)]
@@ -185,8 +200,12 @@ def compute_tf_statistics(datasets, dz=2.5, Vs_min=None):
         stats[(rH, CV)] = {
             "freq": common_freq,
             "mean": mean_tf,
+            "median": median_tf,
+            "geomean": geomean_tf,
             "std": std_tf,
+            "log_std": log_std_tf,
             "n_realizations": len(data_list),
+            "individual_tfs": tf_interpolated_filtered,  # Store filtered individual TFs for plotting
         }
 
     if skipped_realizations:
@@ -566,6 +585,305 @@ def plot_tf_cov(stats, output_path: Path, show_fig: bool = False):
         fig.show()
 
 
+def plot_tf_logstd(stats, output_path: Path, show_fig: bool = False):
+    """
+    Plot logarithmic standard deviation (std of log(TF)) of transfer functions as lines
+    across frequency for each (rH, CV) combination.
+
+    Args:
+        stats: Dictionary from compute_tf_statistics containing 'freq' and 'log_std'
+        output_path: Path to save the HTML file
+        show_fig: If True, displays the figure interactively
+    """
+    # Same color/style mapping as other plots
+    rh_colors = {
+        10.0: {0.1: "#0b3d91", 0.2: "#1f77b4", 0.3: "#85b6e2"},
+        30.0: {0.1: "#145a32", 0.2: "#2ca02c", 0.3: "#98df8a"},
+        50.0: {0.1: "#7f0000", 0.2: "#d62728", 0.3: "#f28e8e"},
+    }
+    cv_linestyles = {0.1: "solid", 0.2: "dash", 0.3: "dot"}
+
+    fig = go.Figure()
+
+    sorted_keys = sorted(stats.keys())
+
+    for rH, CV in sorted_keys:
+        data = stats[(rH, CV)]
+        color = rh_colors.get(rH, {}).get(CV, "#7f7f7f")
+        linestyle = cv_linestyles.get(CV, "solid")
+        label = f"rH={rH:.0f}, CV={CV}"
+
+        fig.add_trace(
+            go.Scatter(
+                x=data["freq"],
+                y=data["log_std"],
+                mode="lines",
+                name=label,
+                line=dict(color=color, dash=linestyle, width=2),
+            )
+        )
+
+    fig.update_xaxes(title_text="Frequency (Hz)", type="log")
+    fig.update_yaxes(title_text="TF Logarithmic Standard Deviation")
+    fig.update_layout(
+        height=700,
+        width=1200,
+        title_text="Transfer Function Logarithmic Standard Deviation across Realizations",
+        showlegend=True,
+        hovermode="closest",
+    )
+
+    fig.write_html(str(output_path))
+    print(f"Transfer function logarithmic std plot saved to {output_path}")
+
+    if show_fig:
+        fig.show()
+
+
+def plot_tf_subplots_matplotlib(
+    stats, statistic_type: str, output_path: Path, show_fig: bool = False
+):
+    """
+    Plot transfer functions as subplots with rH as rows and CV as columns.
+    All individual realizations are plotted in gray, and the statistic is highlighted.
+
+    Args:
+        stats: Dictionary of statistics computed by compute_tf_statistics
+        statistic_type: One of 'mean', 'geomean', or 'median'
+        output_path: Path to save the figure
+        show_fig: If True, displays the figure interactively
+    """
+    if statistic_type not in ["mean", "geomean", "median"]:
+        raise ValueError("statistic_type must be 'mean', 'geomean', or 'median'")
+
+    # Define rH and CV values in order
+    rH_values = sorted(set(rH for rH, _ in stats.keys()))
+    CV_values = sorted(set(CV for _, CV in stats.keys()))
+
+    # Create subplots: rows = rH, columns = CV
+    n_rows = len(rH_values)
+    n_cols = len(CV_values)
+
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=(4 * n_cols, 3.5 * n_rows), sharex=True, sharey=True
+    )
+
+    # Ensure axes is 2D
+    if n_rows == 1:
+        axes = axes.reshape(1, -1)
+    if n_cols == 1:
+        axes = axes.reshape(-1, 1)
+
+    # Colors: gray for individual realizations, highlighted color for statistic
+    highlight_color = "#d62728"  # Red
+    individual_color = "gray"
+    individual_alpha = 0.4
+
+    # Plot each subplot
+    for row_idx, rH in enumerate(rH_values):
+        for col_idx, CV in enumerate(CV_values):
+            ax = axes[row_idx, col_idx]
+            key = (rH, CV)
+
+            if key not in stats:
+                ax.set_title(f"rH={rH:.0f}, CV={CV}")
+                continue
+
+            data = stats[key]
+            freq = data["freq"]
+            statistic = data[statistic_type]
+            individual_tfs = data["individual_tfs"]
+
+            # Plot all individual realizations in gray
+            for tf in individual_tfs:
+                # Only plot valid (non-NaN) values
+                valid_mask = ~np.isnan(tf)
+                if np.any(valid_mask):
+                    ax.loglog(
+                        freq[valid_mask],
+                        tf[valid_mask],
+                        color=individual_color,
+                        alpha=individual_alpha,
+                        linewidth=0.5,
+                    )
+
+            # Plot the statistic in highlighted color
+            valid_stat_mask = ~np.isnan(statistic)
+            if np.any(valid_stat_mask):
+                ax.loglog(
+                    freq[valid_stat_mask],
+                    statistic[valid_stat_mask],
+                    color=highlight_color,
+                    linewidth=2,
+                )
+
+            # Set title
+            ax.set_title(f"rH={rH:.0f}, CV={CV}", fontsize=10)
+            ax.grid(True, alpha=0.3, which="both")
+
+    # Set main title based on statistic type
+    title_map = {
+        "mean": "Mean Transfer Functions",
+        "geomean": "Geometric Mean Transfer Functions",
+        "median": "Median Transfer Functions",
+    }
+    fig.suptitle(title_map[statistic_type], fontsize=14, fontweight="bold", y=0.995)
+
+    # Set common labels
+    fig.text(0.5, 0.02, "Frequency (Hz)", ha="center", fontsize=12)
+    fig.text(
+        0.02,
+        0.5,
+        "Transfer Function Magnitude",
+        va="center",
+        rotation="vertical",
+        fontsize=12,
+    )
+
+    plt.tight_layout(rect=(0.03, 0.03, 1, 0.96))
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    print(f"Transfer function {statistic_type} subplot saved to {output_path}")
+
+    if show_fig:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_tf_comparison_matplotlib(stats, output_path: Path, show_fig: bool = False):
+    """
+    Plot transfer functions comparing mean, median, and geomean in subplots.
+    rH as rows and CV as columns. Mean in red, median in blue, geomean in purple.
+
+    Args:
+        stats: Dictionary of statistics computed by compute_tf_statistics
+        output_path: Path to save the figure
+        show_fig: If True, displays the figure interactively
+    """
+    # Define rH and CV values in order
+    rH_values = sorted(set(rH for rH, _ in stats.keys()))
+    CV_values = sorted(set(CV for _, CV in stats.keys()))
+
+    # Create subplots: rows = rH, columns = CV
+    n_rows = len(rH_values)
+    n_cols = len(CV_values)
+
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=(4 * n_cols, 3.5 * n_rows), sharex=True, sharey=True
+    )
+
+    # Ensure axes is 2D
+    if n_rows == 1:
+        axes = axes.reshape(1, -1)
+    if n_cols == 1:
+        axes = axes.reshape(-1, 1)
+
+    # Colorblind-friendly colors
+    mean_color = "#d62728"  # Red
+    median_color = "#1f77b4"  # Blue
+    geomean_color = "#9467bd"  # Purple
+    individual_color = "gray"
+    individual_alpha = 0.4
+
+    # Plot each subplot
+    for row_idx, rH in enumerate(rH_values):
+        for col_idx, CV in enumerate(CV_values):
+            ax = axes[row_idx, col_idx]
+            key = (rH, CV)
+
+            if key not in stats:
+                ax.set_title(f"rH={rH:.0f}, CV={CV}")
+                continue
+
+            data = stats[key]
+            freq = data["freq"]
+            individual_tfs = data["individual_tfs"]
+
+            # Plot all individual realizations in gray (no label for legend)
+            for tf in individual_tfs:
+                valid_mask = ~np.isnan(tf)
+                if np.any(valid_mask):
+                    ax.loglog(
+                        freq[valid_mask],
+                        tf[valid_mask],
+                        color=individual_color,
+                        alpha=individual_alpha,
+                        linewidth=1.0,  # Thicker than before (was 0.5)
+                    )
+
+            # Plot mean
+            mean_tf = data["mean"]
+            valid_mean_mask = ~np.isnan(mean_tf)
+            if np.any(valid_mean_mask):
+                ax.loglog(
+                    freq[valid_mean_mask],
+                    mean_tf[valid_mean_mask],
+                    color=mean_color,
+                    linewidth=2,
+                    label="Mean" if (row_idx == 0 and col_idx == 0) else "",
+                )
+
+            # Plot median
+            median_tf = data["median"]
+            valid_median_mask = ~np.isnan(median_tf)
+            if np.any(valid_median_mask):
+                ax.loglog(
+                    freq[valid_median_mask],
+                    median_tf[valid_median_mask],
+                    color=median_color,
+                    linewidth=2,
+                    label="Median" if (row_idx == 0 and col_idx == 0) else "",
+                )
+
+            # Plot geomean
+            geomean_tf = data["geomean"]
+            valid_geomean_mask = ~np.isnan(geomean_tf)
+            if np.any(valid_geomean_mask):
+                ax.loglog(
+                    freq[valid_geomean_mask],
+                    geomean_tf[valid_geomean_mask],
+                    color=geomean_color,
+                    linewidth=2,
+                    label="Geometric Mean" if (row_idx == 0 and col_idx == 0) else "",
+                )
+
+            # Set title
+            ax.set_title(f"rH={rH:.0f}, CV={CV}", fontsize=10)
+            ax.grid(True, alpha=0.3, which="both", linestyle=":")
+
+            # Add legend only to first subplot
+            if row_idx == 0 and col_idx == 0:
+                ax.legend(loc="best", fontsize=9)
+
+    # Set main title
+    fig.suptitle(
+        "Transfer Function Statistics Comparison",
+        fontsize=14,
+        fontweight="bold",
+        y=0.995,
+    )
+
+    # Set common labels
+    fig.text(0.5, 0.02, "Frequency (Hz)", ha="center", fontsize=12)
+    fig.text(
+        0.02,
+        0.5,
+        "Transfer Function Magnitude",
+        va="center",
+        rotation="vertical",
+        fontsize=12,
+    )
+
+    plt.tight_layout(rect=(0.03, 0.03, 1, 0.96))
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    print(f"Transfer function comparison plot saved to {output_path}")
+
+    if show_fig:
+        plt.show()
+    else:
+        plt.close()
+
+
 def plot_time_history_statistics(stats, output_path: Path, show_fig: bool = False):
     """
     Plot time history statistics with mean lines and ±1 std regions.
@@ -721,9 +1039,9 @@ def main():
     parser.add_argument(
         "--plots",
         nargs="+",
-        choices=["tf", "tfstd", "tfcov", "time", "surface", "all"],
+        choices=["tf", "tfstd", "tfcov", "tflogstd", "time", "surface", "all"],
         default=["all"],
-        help="Which plots to generate: tf, tfstd, tfcov, time, surface, or all",
+        help="Which plots to generate: tf, tfstd, tfcov, tflogstd, time, surface, or all",
     )
     parser.add_argument(
         "--show",
@@ -736,6 +1054,7 @@ def main():
     do_tf = do_all or ("tf" in args.plots)
     do_tfstd = do_all or ("tfstd" in args.plots)
     do_tfcov = do_all or ("tfcov" in args.plots)
+    do_tflogstd = do_all or ("tflogstd" in args.plots)
     do_time = do_all or ("time" in args.plots)
     do_surface = do_all or ("surface" in args.plots)
 
@@ -768,8 +1087,8 @@ def main():
         print("Make sure all array jobs have completed successfully.")
         sys.exit(1)
 
-    # Transfer functions: compute Vs_min and TF stats only if requested (tf, tfstd, or tfcov)
-    if do_tf or do_tfstd or do_tfcov:
+    # Transfer functions: compute Vs_min and TF stats only if requested (tf, tfstd, tfcov, or tflogstd)
+    if do_tf or do_tfstd or do_tfcov or do_tflogstd:
         print("Generating sample realization to extract Vs_min...")
         Vs_profile_1D = np.array([180.0] * 8 + [1300.0] * 1)
         Lz = 50.0
@@ -818,6 +1137,41 @@ def main():
             print("Plotting transfer function coefficient of variation...")
             plot_tf_cov(stats, Path("transfer_functions_cov.html"), show_fig=args.show)
 
+        if do_tflogstd:
+            print("Plotting transfer function logarithmic standard deviation...")
+            plot_tf_logstd(
+                stats, Path("transfer_functions_logstd.html"), show_fig=args.show
+            )
+
+        # Plot matplotlib subplots for mean, geomean, and median
+        print("Plotting transfer function mean subplots...")
+        plot_tf_subplots_matplotlib(
+            stats,
+            "mean",
+            Path("transfer_functions_mean_subplots.png"),
+            show_fig=args.show,
+        )
+        print("Plotting transfer function geomean subplots...")
+        plot_tf_subplots_matplotlib(
+            stats,
+            "geomean",
+            Path("transfer_functions_geomean_subplots.png"),
+            show_fig=args.show,
+        )
+        print("Plotting transfer function median subplots...")
+        plot_tf_subplots_matplotlib(
+            stats,
+            "median",
+            Path("transfer_functions_median_subplots.png"),
+            show_fig=args.show,
+        )
+
+        # Plot combined comparison of mean, median, and geomean
+        print("Plotting transfer function comparison (mean, median, geomean)...")
+        plot_tf_comparison_matplotlib(
+            stats, Path("transfer_functions_comparison.png"), show_fig=args.show
+        )
+
     # Time history statistics
     if do_time:
         print("\nComputing time history statistics...")
@@ -841,7 +1195,7 @@ def main():
 
             print("Plotting stacked surface accelerations...")
             plot_stacked_acceleration(
-                datasets=data, data_config=DATA_CONFIG, vertical_spacing=3.0
+                datasets=data, data_config=DATA_CONFIG, vertical_spacing=2.5
             )
         except Exception as e:
             print(
@@ -852,5 +1206,8 @@ def main():
 
 
 if __name__ == "__main__":
-    ## Usage: python analyze_statistics.py --plots tf tfstd tfcov time surface --show
+    ## Usage: python analyze_statistics.py --plots tf tfstd tfcov tflogstd time surface --show
+    import os
+
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     main()
