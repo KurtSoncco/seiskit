@@ -240,10 +240,11 @@ def _apply_damping(
 ) -> None:
     """Apply damping based on the configured damping method.
 
-    Supports three methods:
+    Supports four methods:
     - global_avg: Harmonic mean Q from soil layer only, applied to all soil elements
     - elemental_varying: Each element gets damping based on its Vs and Q
     - elemental_mass_only: Each element gets mass-only damping based on its Vs and Q
+    - uniform: Same damping (zeta=0.0075) for all elements at frequencies (0.75, 8.25)
     """
     # Threshold to distinguish soil from bedrock (Vs < 500 m/s = soil)
     SOIL_VS_THRESHOLD = 500.0
@@ -360,10 +361,31 @@ def _apply_damping(
             )
             region_tag += 1
 
+    elif config.damping_method == "uniform":
+        # Model D: Uniform Damping
+        # Same damping for all elements: zeta=0.0075 at frequencies (0.75, 8.25)
+        uniform_zeta = config.damping_zeta  # Use config value (0.0075)
+        alphaM_uniform, betaK_uniform = compute_rayleigh_coefficients(
+            uniform_zeta, config.damping_freqs[0], config.damping_freqs[1]
+        )
+        # Apply uniform damping to all soil elements
+        all_soil_tags = [elem.tag for elem in model_data.soil_elements]
+        if all_soil_tags:
+            ops.region(
+                1,
+                "-ele",
+                *all_soil_tags,
+                "-rayleigh",
+                alphaM_uniform,
+                betaK_uniform,
+                0.0,
+                0.0,
+            )
+
     else:
         raise ValueError(
             f"Unknown damping method: {config.damping_method}. "
-            f"Must be one of: 'global_avg', 'elemental_varying', 'elemental_mass_only'"
+            f"Must be one of: 'global_avg', 'elemental_varying', 'elemental_mass_only', 'uniform'"
         )
 
 

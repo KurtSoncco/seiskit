@@ -10,20 +10,20 @@ from dataclasses import dataclass, field
 @dataclass
 class AnalysisConfig:
     """Configuration settings for a 2D site response analysis.
-    
+
     This class holds all configuration parameters for running seismic site
     response analyses, including domain geometry, analysis parameters, damping,
     boundary conditions, recorders, and solver configuration.
-    
+
     Solver Configuration:
         The solver_type field controls which linear solver is used:
         - "UmfPack": Default solver, always available
         - "Mumps": MUMPS solver (requires OpenSees built with MUMPS support)
         - "MumpsParallel": Parallel MUMPS solver (requires MPI and MUMPS support)
-        
+
         Note: MUMPS support is compile-time in OpenSees. If MUMPS is requested
         but not available, the code will automatically fall back to UmfPack.
-        
+
         For MumpsParallel, set mumps_parallel_procs to the number of MPI processes.
         MUMPS control parameters can be set via mumps_icntl dictionary.
     """
@@ -44,8 +44,10 @@ class AnalysisConfig:
     # Damping Parameters
     damping_zeta: float = 0.02
     damping_freqs: tuple[float, float] = field(default_factory=lambda: (1.0, 5.0))
-    damping_method: str = "global_avg"  # "global_avg", "elemental_varying", "elemental_mass_only"
-    damping_f_target: float = 0.75  # Target frequency for mass-only damping (default matches motion_freq)
+    damping_method: str = "global_avg"  # "global_avg", "elemental_varying", "elemental_mass_only", "uniform"
+    damping_f_target: float = (
+        0.75  # Target frequency for mass-only damping (default matches motion_freq)
+    )
 
     # Analysis Constants
     gravity_tolerance: float = 1.0e-4
@@ -73,11 +75,13 @@ class AnalysisConfig:
 
     # Solver Configuration
     solver_type: str = "UmfPack"  # "UmfPack", "Mumps", or "MumpsParallel"
-    mumps_parallel_procs: int = 1  # Number of MPI processes for MumpsParallel (ignored for other solvers)
+    mumps_parallel_procs: int = (
+        1  # Number of MPI processes for MumpsParallel (ignored for other solvers)
+    )
     mumps_icntl: dict[int, int] = field(
         default_factory=dict
     )  # Optional MUMPS control parameters (ICNTL array)
-    
+
     # Analysis Timeout Configuration
     max_time_per_batch: float = 600.0  # Maximum time (seconds) per dynamic analysis batch before timeout (default: 600s = 10 min)
 
