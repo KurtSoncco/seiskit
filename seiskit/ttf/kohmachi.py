@@ -1,4 +1,5 @@
-import numpy as np 
+import numpy as np
+
 
 def kohmachi(signal, freq_array, smooth_coeff=500):
     """

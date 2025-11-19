@@ -81,6 +81,13 @@ test_results/
 # Ignore data txt 
 *.txt
 
+# Ignore emulator results
+*.npy
+*.json
+
+# Ignore wandb folder
+wandb/
+
 # Ignore comparison results
 comparison/Damping_study/results/
 

@@ -5,9 +5,10 @@ parameters for running seismic site response analyses.
 """
 
 from dataclasses import dataclass, field
+from typing import Optional
 
 
-@dataclass
+@dataclass(slots=False)
 class AnalysisConfig:
     """Configuration settings for a 2D site response analysis.
 
@@ -62,6 +63,9 @@ class AnalysisConfig:
     record_center_nodes: bool = (
         True  # Enable/disable recording of center nodes (base and surface)
     )
+    center_node_y_positions: Optional[list[float]] = field(
+        default_factory=lambda: None
+    )  # List of Y positions (depths) to record center nodes at. If None, records only base (y=0) and surface (y=Ly). If specified, records at these Y positions instead of default base/surface.
     record_all_surface_nodes: bool = (
         False  # Enable/disable recording of all surface nodes
     )

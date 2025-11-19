@@ -4,7 +4,7 @@ This experiment compares three damping methods for 2D site response analysis:
 - **Model A (global_avg)**: Global Average Damping - harmonic mean of Q values from soil layer only, applied to all soil elements
 - **Model B (elemental_varying)**: Elemental Varying Damping - each element gets damping based on its Vs and Q
 - **Model C (elemental_mass_only)**: Elemental Mass-Only Damping - mass-proportional only, per element
-
+- **Model D (Normal)**: Uniform Rayleigh Damping - similar to cases proposed in box folder (0.75% at 0.75 and 8.25 Hz)
 ## Experiment Parameters
 
 - **Discretization**: 2x2_4node only (2m × 2m elements with 4-node quadrilateral elements)

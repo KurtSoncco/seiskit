@@ -419,6 +419,16 @@ def plot_realization(
     # Add 'extend' to the colorbar to show there are values beyond its max
     cbar = fig.colorbar(im, ax=ax, extend="max")
     cbar.set_label("Soil $V_s$ (m/s)", fontsize=12)
+    # Add label for the extension showing Vs2 value
+    cbar.ax.text(
+        0.5,
+        1.15,
+        f"$V_{{s2}}$ = {Vs2:.0f} m/s",
+        transform=cbar.ax.transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=10,
+    )
 
     ax.set_xlabel("Distance (m)", fontsize=12)
     ax.set_ylabel("Depth (m)", fontsize=12)

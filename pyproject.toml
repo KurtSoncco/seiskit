@@ -19,6 +19,11 @@ dependencies = [
     "kaleido",
     "joblib",
     "mpi4py",
+    "markupsafe==2.1.3",
+    "torch",
+    "wandb",
+    "tqdm",
+    "scipy",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +42,7 @@ pythonpath = ["."]
 
 [tool.uv]
 package = true
+extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 
 [dependency-groups]
 dev = [
