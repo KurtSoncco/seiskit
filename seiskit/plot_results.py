@@ -80,13 +80,26 @@ def load_datasets(config: Mapping[str, Mapping[str, PathType]]) -> DataSet:
         datasets[model_name] = {}
         for location, file_path in paths.items():
             if location in ("base", "top", "surface"):
-                data = np.loadtxt(file_path)
-                if location == "surface" and data.shape[1] > 2:
-                    # For surface data with multiple nodes, return (time, all_accel_columns)
-                    datasets[model_name][location] = (data[:, 0], data[:, 1:])
-                else:
-                    # For base/top data or single-column surface data
-                    datasets[model_name][location] = (data[:, 0], data[:, 1])
+                try:
+                    data = np.loadtxt(file_path)
+                    # Handle empty files or 1D arrays
+                    if data.size == 0:
+                        raise ValueError(f"File {file_path} is empty")
+                    if data.ndim == 1:
+                        raise ValueError(
+                            f"File {file_path} contains 1D data (expected 2D with time and values)"
+                        )
+                    if location == "surface" and data.shape[1] > 2:
+                        # For surface data with multiple nodes, return (time, all_accel_columns)
+                        datasets[model_name][location] = (data[:, 0], data[:, 1:])
+                    else:
+                        # For base/top data or single-column surface data
+                        datasets[model_name][location] = (data[:, 0], data[:, 1])
+                except ValueError as e:
+                    raise ValueError(
+                        f"Error loading {file_path}: {e}. "
+                        f"File may be empty or malformed."
+                    ) from e
     return datasets
 
 
