@@ -150,3 +150,8 @@ class PGAEmulator(nn.Module):
         x = self.fc(x)  # (B, 1)
 
         return x
+
+
+# Alias for backward compatibility (TransferFunctionEmulator not yet implemented)
+# TODO: Implement TransferFunctionEmulator for time-series prediction
+TransferFunctionEmulator = PGAEmulator

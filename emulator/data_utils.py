@@ -8,7 +8,7 @@ import numpy as np
 
 
 def load_recorder_outputs(
-    output_dir: Path, sim_id: str, recorder_quantity: str = "accel"
+    output_dir: Path, sim_id: str, recorder_quantity: str = "accel", Ly: float = 150.0
 ) -> np.ndarray:
     """Load and combine recorder outputs into 4-channel format.
 
@@ -19,14 +19,43 @@ def load_recorder_outputs(
         output_dir: Directory containing recorder output files
         sim_id: Simulation identifier
         recorder_quantity: Type of recorder output ("accel", "disp", "vel")
+        Ly: Domain height (used to determine surface Y position, default: 150.0)
 
     Returns:
         Array of shape (T, 4) with [base_ax, base_ay, surf_ax, surf_ay]
+        Returns None if files are not found
     """
-    base_dof1_file = output_dir / f"soil_base_dof1_{recorder_quantity}.txt"
-    base_dof2_file = output_dir / f"soil_base_dof2_{recorder_quantity}.txt"
-    top_dof1_file = output_dir / f"soil_top_dof1_{recorder_quantity}.txt"
-    top_dof2_file = output_dir / f"soil_top_dof2_{recorder_quantity}.txt"
+    # Try new naming convention first (Y-position based)
+    base_dof1_file = output_dir / f"center_node_y0.00_dof1_{recorder_quantity}.txt"
+    base_dof2_file = output_dir / f"center_node_y0.00_dof2_{recorder_quantity}.txt"
+    top_dof1_file = output_dir / f"center_node_y{Ly:.2f}_dof1_{recorder_quantity}.txt"
+    top_dof2_file = output_dir / f"center_node_y{Ly:.2f}_dof2_{recorder_quantity}.txt"
+
+    # If new naming convention files don't exist, try old naming convention
+    if not base_dof1_file.exists():
+        base_dof1_file = output_dir / f"soil_base_dof1_{recorder_quantity}.txt"
+        base_dof2_file = output_dir / f"soil_base_dof2_{recorder_quantity}.txt"
+        top_dof1_file = output_dir / f"soil_top_dof1_{recorder_quantity}.txt"
+        top_dof2_file = output_dir / f"soil_top_dof2_{recorder_quantity}.txt"
+
+    # Check if files exist
+    missing_files = []
+    for name, path in [
+        ("base_dof1", base_dof1_file),
+        ("base_dof2", base_dof2_file),
+        ("top_dof1", top_dof1_file),
+        ("top_dof2", top_dof2_file),
+    ]:
+        if not path.exists():
+            missing_files.append(f"{name}: {path}")
+
+    if missing_files:
+        raise FileNotFoundError(
+            f"Recorder output files not found in {output_dir}:\n"
+            + "\n".join(f"  - {f}" for f in missing_files)
+            + f"\n\nAvailable files in directory:"
+            + "\n".join(f"  - {f.name}" for f in sorted(output_dir.glob("*.txt")))
+        )
 
     # Load data (first column is time, second is value)
     base_ax = np.loadtxt(base_dof1_file)[:, 1]

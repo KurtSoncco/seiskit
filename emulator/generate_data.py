@@ -235,7 +235,7 @@ def generate_dataset(
             motion_freq=freq_x,  # Use X component frequency for Ricker wave
             motion_t_shift=t_shift,
             damping_zeta=0.0075,
-            damping_freqs=(0.75, 2.25),
+            damping_freqs=(0.75, 11.25),
             boundary_condition_type="1D",
             recorder_dofs=[1, 2],  # Record both DOFs
             recorder_quantity="accel",
@@ -261,7 +261,7 @@ def generate_dataset(
                 # Load recorder outputs
                 run_output_path_lf = temp_output_dir / run_id_lf
                 output_accel_lf = load_recorder_outputs(
-                    run_output_path_lf, run_id_lf, recorder_quantity="accel"
+                    run_output_path_lf, run_id_lf, recorder_quantity="accel", Ly=Lz
                 )
                 if output_accel_lf is not None:
                     np.save(lf_output_dir / f"sim_{sim_id:04d}.npy", output_accel_lf)
@@ -291,7 +291,7 @@ def generate_dataset(
                 motion_freq=freq_x,
                 motion_t_shift=t_shift,
                 damping_zeta=0.0075,
-                damping_freqs=(0.75, 2.25),
+                damping_freqs=(0.75, 11.25),
                 boundary_condition_type="1D",
                 recorder_dofs=[1, 2],
                 recorder_quantity="accel",
@@ -319,7 +319,7 @@ def generate_dataset(
                     # Load recorder outputs
                     run_output_path_hf = temp_output_dir / run_id_hf
                     output_accel_hf = load_recorder_outputs(
-                        run_output_path_hf, run_id_hf, recorder_quantity="accel"
+                        run_output_path_hf, run_id_hf, recorder_quantity="accel", Ly=Lz
                     )
                     if output_accel_hf is not None:
                         np.save(

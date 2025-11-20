@@ -8,7 +8,7 @@ set -euo pipefail
 DATA_DIR="${DATA_DIR:-data}"
 OUTPUT_ZIP="${OUTPUT_ZIP:-}"
 REMOVE_ORIGINAL="${REMOVE_ORIGINAL:-false}"
-INCLUDE_MATERIALS="${INCLUDE_MATERIALS:-false}"
+INCLUDE_TEMP="${INCLUDE_TEMP:-false}"
 AFTER_JOB="${AFTER_JOB:-}"
 
 # Parse command line arguments
@@ -26,8 +26,8 @@ while [[ $# -gt 0 ]]; do
             REMOVE_ORIGINAL="true"
             shift
             ;;
-        --include_materials)
-            INCLUDE_MATERIALS="true"
+        --include_temp)
+            INCLUDE_TEMP="true"
             shift
             ;;
         --after_job)
@@ -44,7 +44,7 @@ Options:
   --data_dir DIR          Data directory (default: data)
   --output_zip FILE       Output zip file path (default: data_dir/high_fidelity.zip)
   --remove_original       Remove original files after compression (use with caution!)
-  --include_materials     Also include HF material grids in the archive
+  --include_temp         Include temp_outputs directory in the archive
   --after_job JOB_ID      Run after specified job completes (dependency)
   --help                  Show this help message
 
@@ -56,7 +56,7 @@ Examples:
   $0 --remove_original
 
   # Include material grids
-  $0 --include_materials
+  $0 --include_temp
 
   # Run after HF generation job completes
   HF_JOB_ID=\$(sbatch --parsable job_generate_hf.sh)
@@ -66,7 +66,7 @@ Examples:
   $0 --output_zip /path/to/hf_data.zip
 
 Environment variables can also be used:
-  DATA_DIR, OUTPUT_ZIP, REMOVE_ORIGINAL, INCLUDE_MATERIALS, AFTER_JOB
+  DATA_DIR, OUTPUT_ZIP, REMOVE_ORIGINAL, INCLUDE_TEMP, AFTER_JOB
 EOF
             exit 0
             ;;
@@ -89,7 +89,7 @@ else
     echo "  Output ZIP:          ${DATA_DIR}/high_fidelity.zip (default)"
 fi
 echo "  Remove Original:     $REMOVE_ORIGINAL"
-echo "  Include Materials:   $INCLUDE_MATERIALS"
+echo "  Include Temp:        $INCLUDE_TEMP"
 if [ -n "$AFTER_JOB" ]; then
     echo "  Dependency:          afterok:$AFTER_JOB"
 fi
@@ -138,7 +138,7 @@ if [ -n "$OUTPUT_ZIP" ]; then
     sed -i "s|OUTPUT_ZIP=\"\${OUTPUT_ZIP:-}\"|OUTPUT_ZIP=\"${OUTPUT_ZIP}\"|" "$TEMP_JOB_SCRIPT"
 fi
 sed -i "s|REMOVE_ORIGINAL=\"\${REMOVE_ORIGINAL:-false}\"|REMOVE_ORIGINAL=\"${REMOVE_ORIGINAL}\"|" "$TEMP_JOB_SCRIPT"
-sed -i "s|INCLUDE_MATERIALS=\"\${INCLUDE_MATERIALS:-false}\"|INCLUDE_MATERIALS=\"${INCLUDE_MATERIALS}\"|" "$TEMP_JOB_SCRIPT"
+sed -i "s|INCLUDE_TEMP=\"\${INCLUDE_TEMP:-false}\"|INCLUDE_TEMP=\"${INCLUDE_TEMP}\"|" "$TEMP_JOB_SCRIPT"
 
 # Make it executable
 chmod +x "$TEMP_JOB_SCRIPT"

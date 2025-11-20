@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=compress_hf
 #SBATCH --account=fc_tfsurrogate
-#SBATCH --partition=savio3
+#SBATCH --partition=savio2
 #SBATCH --qos=savio_normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -53,7 +53,7 @@ mkdir -p logs
 
 # Define key paths
 PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
-COMPRESS_SCRIPT="${SLURM_SUBMIT_DIR:-$PWD}/compress_hf_data.py"
+COMPRESS_SCRIPT="${SLURM_SUBMIT_DIR:-$PWD}/compress_data.py"
 
 # Add fail-fast checks
 command -v "${PYTHON_BIN}" >/dev/null || { echo "ERROR: Python binary not found at ${PYTHON_BIN}" >&2; exit 2; }
@@ -73,7 +73,7 @@ echo "==========================================================================
 DATA_DIR="${DATA_DIR:-data}"
 OUTPUT_ZIP="${OUTPUT_ZIP:-}"
 REMOVE_ORIGINAL="${REMOVE_ORIGINAL:-false}"
-INCLUDE_MATERIALS="${INCLUDE_MATERIALS:-false}"
+INCLUDE_TEMP="${INCLUDE_TEMP:-false}"
 
 # Build command
 CMD="${PYTHON_BIN} -u ${COMPRESS_SCRIPT} --data_dir ${DATA_DIR}"
@@ -86,8 +86,8 @@ if [ "${REMOVE_ORIGINAL}" = "true" ]; then
     CMD="${CMD} --remove_original"
 fi
 
-if [ "${INCLUDE_MATERIALS}" = "true" ]; then
-    CMD="${CMD} --include_materials"
+if [ "${INCLUDE_TEMP}" = "true" ]; then
+    CMD="${CMD} --include_temp"
 fi
 
 # Execute compression
