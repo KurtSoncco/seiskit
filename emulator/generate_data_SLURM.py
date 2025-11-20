@@ -120,13 +120,39 @@ def run_hf_simulation(
     temp_output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[run_hf_simulation] Starting HF simulation for sim_id={sim_id:04d}")
+    print(f"[run_hf_simulation] Current working directory: {os.getcwd()}")
+    print(f"[run_hf_simulation] Data directory (resolved): {data_dir.resolve()}")
+    print(f"[run_hf_simulation] Materials directory: {materials_dir.resolve()}")
+
+    # Check if materials directory exists
+    if not materials_dir.exists():
+        raise FileNotFoundError(
+            f"Materials directory not found: {materials_dir.resolve()}\n"
+            f"Current working directory: {os.getcwd()}\n"
+            f"Data directory: {data_dir.resolve()}\n"
+            f"Make sure LF data generation has been completed and data is available on the cluster."
+        )
 
     # Load existing material grid (LF resolution)
     material_file = materials_dir / f"sim_{sim_id:04d}.npy"
+    material_file_abs = material_file.resolve()
     if not material_file.exists():
+        # Check if any material files exist to help diagnose
+        existing_files = list(materials_dir.glob("sim_*.npy"))
+        existing_count = len(existing_files)
+        existing_range = ""
+        if existing_files:
+            indices = sorted([int(f.stem.split("_")[1]) for f in existing_files])
+            existing_range = f" (indices {min(indices)}-{max(indices)})"
+
         raise FileNotFoundError(
-            f"Material file not found: {material_file}. "
-            f"Make sure LF data generation has been completed first."
+            f"Material file not found: {material_file_abs}\n"
+            f"Current working directory: {os.getcwd()}\n"
+            f"Materials directory: {materials_dir.resolve()}\n"
+            f"Found {existing_count} material files{existing_range}\n"
+            f"Looking for sim_id={sim_id:04d} (test_start_idx + array_index)\n"
+            f"Make sure LF data generation has been completed first, "
+            f"or adjust --test_start_idx to match existing data."
         )
 
     material_grid = np.load(material_file)
@@ -135,9 +161,12 @@ def run_hf_simulation(
 
     # Load material parameters (for frequency and t_shift)
     params_file = material_params_dir / f"sim_{sim_id:04d}.json"
+    params_file_abs = params_file.resolve()
     if not params_file.exists():
         raise FileNotFoundError(
-            f"Parameters file not found: {params_file}. "
+            f"Parameters file not found: {params_file_abs}\n"
+            f"Current working directory: {os.getcwd()}\n"
+            f"Material params directory: {material_params_dir.resolve()}\n"
             f"Make sure LF data generation has been completed first."
         )
 

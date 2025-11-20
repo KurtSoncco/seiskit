@@ -103,6 +103,61 @@ if [ ${PRE_RC} -ne 0 ]; then
 fi
 echo "$(date -Is) | PREFLIGHT | Preflight success." >&2
 
+# Data preflight check - verify LF data exists on cluster
+echo "$(date -Is) | PREFLIGHT | Checking for LF data on cluster..." >&2
+DATA_DIR="${SLURM_SUBMIT_DIR:-$PWD}/data"
+MATERIALS_DIR="${DATA_DIR}/materials"
+MATERIAL_PARAMS_DIR="${DATA_DIR}/material_params"
+
+# Calculate expected sim_id from test_start_idx and array task
+# Allow override via environment variable (set in submit script or sbatch command)
+TEST_START_IDX="${TEST_START_IDX:-1000}"
+TASK_ID=${SLURM_ARRAY_TASK_ID:-${1:-0}}
+EXPECTED_SIM_ID=$((TEST_START_IDX + TASK_ID))
+EXPECTED_SIM_ID_PADDED=$(printf "%04d" ${EXPECTED_SIM_ID})
+
+MATERIAL_FILE="${MATERIALS_DIR}/sim_${EXPECTED_SIM_ID_PADDED}.npy"
+PARAMS_FILE="${MATERIAL_PARAMS_DIR}/sim_${EXPECTED_SIM_ID_PADDED}.json"
+
+if [ ! -d "${MATERIALS_DIR}" ]; then
+    echo "$(date -Is) | ERROR | Materials directory not found: ${MATERIALS_DIR}" >&2
+    echo "$(date -Is) | ERROR | Current directory: $(pwd)" >&2
+    echo "$(date -Is) | ERROR | Submit directory: ${SLURM_SUBMIT_DIR:-$PWD}" >&2
+    echo "$(date -Is) | ERROR | LF data must be transferred to the cluster before running HF jobs." >&2
+    echo "$(date -Is) | ERROR | Transfer data/materials/ and data/material_params/ to the cluster." >&2
+    exit 4
+fi
+
+if [ ! -f "${MATERIAL_FILE}" ]; then
+    echo "$(date -Is) | ERROR | Material file not found: ${MATERIAL_FILE}" >&2
+    echo "$(date -Is) | ERROR | Expected sim_id: ${EXPECTED_SIM_ID_PADDED} (test_start_idx=${TEST_START_IDX} + task_id=${TASK_ID})" >&2
+    echo "$(date -Is) | ERROR | Materials directory: ${MATERIALS_DIR}" >&2
+    echo "$(date -Is) | ERROR | Current directory: $(pwd)" >&2
+    
+    # Check what files exist to help diagnose
+    if [ -d "${MATERIALS_DIR}" ]; then
+        FILE_COUNT=$(find "${MATERIALS_DIR}" -name "sim_*.npy" 2>/dev/null | wc -l)
+        echo "$(date -Is) | INFO | Found ${FILE_COUNT} material files in ${MATERIALS_DIR}" >&2
+        if [ ${FILE_COUNT} -gt 0 ]; then
+            FIRST_FILE=$(find "${MATERIALS_DIR}" -name "sim_*.npy" 2>/dev/null | sort | head -1)
+            LAST_FILE=$(find "${MATERIALS_DIR}" -name "sim_*.npy" 2>/dev/null | sort | tail -1)
+            echo "$(date -Is) | INFO | File range: ${FIRST_FILE##*/} to ${LAST_FILE##*/}" >&2
+        fi
+    fi
+    
+    echo "$(date -Is) | ERROR | LF data must be transferred to the cluster before running HF jobs." >&2
+    echo "$(date -Is) | ERROR | Or adjust --test_start_idx in the job script to match existing data." >&2
+    exit 4
+fi
+
+if [ ! -f "${PARAMS_FILE}" ]; then
+    echo "$(date -Is) | ERROR | Parameters file not found: ${PARAMS_FILE}" >&2
+    echo "$(date -Is) | ERROR | LF data must be transferred to the cluster before running HF jobs." >&2
+    exit 4
+fi
+
+echo "$(date -Is) | PREFLIGHT | Data check passed. Found material file: ${MATERIAL_FILE}" >&2
+
 # Record start time
 START_TIME=$(date +%s)
 START_DATE=$(date)
@@ -117,7 +172,7 @@ echo "==========================================================================
 echo "$(date -Is) | RUN | Launching HF simulation for task ${TASK_ID}..." >&2
 
 # Default parameters (adjust as needed):
-# --test_start_idx: Starting index for test data (default: 1000, assuming 1000 train + 100 val)
+# --test_start_idx: Starting index for test data (default: 1000, can be overridden via TEST_START_IDX env var)
 # --data_dir: Data directory (default: data)
 # --hx: LF element size (default: 10.0 m)
 # --hx_hf: HF element size (default: 1.0 m)
@@ -127,7 +182,7 @@ echo "$(date -Is) | RUN | Launching HF simulation for task ${TASK_ID}..." >&2
 timeout "${PER_TASK_TIMEOUT_SECONDS}"s \
     ${PYTHON_BIN} -u "${RUNNER_PY}" \
         --data_dir data \
-        --test_start_idx 1000 \
+        --test_start_idx "${TEST_START_IDX}" \
         --hx 10.0 \
         --hx_hf 1.0 \
         --Lx 150.0 \

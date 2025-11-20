@@ -10,6 +10,11 @@ The HF data generation is split into two parts:
 
 ## Files
 
+### LF Material Generation
+- `generate_lf_materials_SLURM.py`: Python script that generates material grids and parameters for a single simulation
+- `job_generate_lf_materials.sh`: SLURM batch script for submitting array jobs to generate materials
+- `submit_lf_materials.sh`: Helper script to easily submit material generation jobs with custom parameters
+
 ### HF Generation
 - `generate_data_SLURM.py`: Python script that runs a single HF simulation based on SLURM array task ID
 - `job_generate_hf.sh`: SLURM batch script for submitting array jobs
@@ -25,7 +30,21 @@ The HF data generation is split into two parts:
 
 ## Prerequisites
 
-1. **LF data must be generated first**: The HF script assumes that LF data (materials, base motion, parameters) have already been generated using `generate_data.py` or `main.py`.
+1. **LF material data must be available**: The HF script requires LF material grids and parameters. You have two options:
+
+   **Option A: Generate on the cluster (Recommended)**
+   - Since data files (`.npy`, `.json`) are gitignored, it's easier to generate them directly on the cluster
+   - Use `job_generate_lf_materials.sh` to generate materials in parallel
+   - See "Step 1" below for details
+
+   **Option B: Transfer from local machine**
+   - Generate LF data locally using `generate_data.py` or `main.py`
+   - Transfer to the cluster:
+     ```bash
+     # From your local machine, transfer the data directory to the cluster
+     rsync -avz data/materials/ user@cluster:/path/to/seiskit/emulator/data/materials/
+     rsync -avz data/material_params/ user@cluster:/path/to/seiskit/emulator/data/material_params/
+     ```
 
 2. **SLURM environment**: Access to a SLURM cluster with:
    - Python environment with seiskit and OpenSeesPy installed
@@ -33,22 +52,38 @@ The HF data generation is split into two parts:
 
 ## Quick Start
 
-### Step 1: Generate LF Data (if not already done)
+### Step 1: Generate LF Material Data (on the cluster)
 
-First, generate the LF datasets including test set:
+Since data files are gitignored, it's recommended to generate material data directly on the cluster:
 
 ```bash
-cd /path/to/opensees/emulator
-python main.py --mode generate --n_train 1000 --n_val 100 --n_test 100
+# On the cluster, generate materials for 100 test samples
+./submit_lf_materials.sh --n_test 100 --start_idx 1000
+
+# Or generate for 200 samples
+./submit_lf_materials.sh --n_test 200 --start_idx 1000
+
+# Custom configuration
+./submit_lf_materials.sh \
+    --data_dir data \
+    --n_test 100 \
+    --start_idx 1000 \
+    --hx 10.0 \
+    --hx_hf 1.0 \
+    --Lx 150.0 \
+    --Lz 150.0
 ```
 
 This will create:
-- Material grids in `data/materials/` and `data/materials_hf/`
-- Base motions in `data/base_motion/`
+- Material grids in `data/materials/` (LF resolution)
+- Material grids in `data/materials_hf/` (HF resolution, for model input)
 - Material parameters in `data/material_params/`
-- LF simulation results in `data/low_fidelity/`
 
-### Step 2: Submit HF Generation Jobs
+**Note**: This only generates material data, not simulation results. The HF generation script will use these materials to run simulations.
+
+**Alternative**: If you already have LF data locally, you can transfer it (see Prerequisites above).
+
+### Step 2: Submit HF Generation Jobs (after materials are ready)
 
 #### Option A: All-in-one pipeline (recommended for first-time use)
 
@@ -158,9 +193,16 @@ ls data/high_fidelity/pga/*.npy | wc -l
 ## Troubleshooting
 
 ### Job fails immediately
-- Check that LF data exists: `ls data/materials/sim_*.npy`
-- Verify test_start_idx matches your LF data generation
-- Check preflight output in job logs
+- **Data not found on cluster**: The most common issue is that LF material data doesn't exist on the cluster. Solutions:
+  - **Option 1 (Recommended)**: Generate materials on the cluster using `./submit_lf_materials.sh`
+  - **Option 2**: Transfer materials from local machine (see Prerequisites)
+  - The pre-flight check will show:
+    - The expected file path
+    - How many files exist (if any)
+    - The file range if files exist
+- Check that LF data exists on cluster: `ls data/materials/sim_*.npy` (run on the cluster)
+- Verify test_start_idx matches your material generation start_idx
+- Check preflight output in job logs for detailed diagnostics
 
 ### Simulation timeouts
 - Increase `--time` in `job_generate_hf.sh`
@@ -179,20 +221,23 @@ ls data/high_fidelity/pga/*.npy | wc -l
 
 ## Example Workflow
 
+### Complete Workflow (Generate Everything on Cluster)
+
 ```bash
-# 1. Generate LF data (including test set)
-python main.py --mode generate --n_train 1000 --n_val 100 --n_test 100
+# 1. Generate LF material data on cluster (100 test samples, starting at index 1000)
+./submit_lf_materials.sh --n_test 100 --start_idx 1000
 
-# 2. Verify LF data exists
-ls data/materials/sim_*.npy | wc -l  # Should show 1200 files
+# 2. Monitor material generation
+watch -n 10 'squeue -u $USER'
+watch -n 30 'ls data/materials/sim_*.npy 2>/dev/null | wc -l'
 
-# 3. Submit HF generation jobs
+# 3. After materials are ready, submit HF generation jobs
 ./submit_hf_jobs.sh --n_test 100 --test_start_idx 1000
 
-# 4. Monitor jobs
+# 4. Monitor HF generation jobs
 watch -n 10 'squeue -u $USER'
 
-# 5. Check progress
+# 5. Check HF progress
 watch -n 30 'ls data/high_fidelity/pga/*.npy 2>/dev/null | wc -l'
 
 # 6. After completion, verify all HF data
@@ -200,6 +245,25 @@ ls data/high_fidelity/pga/*.npy | wc -l  # Should show 100 files
 
 # 7. Compress HF data for better data management
 ./submit_compress_hf.sh --after_job <HF_JOB_ID>
+```
+
+### Alternative Workflow (Generate Locally, Transfer, Run HF on Cluster)
+
+```bash
+# 1. Generate LF data locally (including test set)
+python main.py --mode generate --n_train 1000 --n_val 100 --n_test 100
+
+# 2. Verify LF data exists locally
+ls data/materials/sim_*.npy | wc -l  # Should show 1200 files
+
+# 3. Transfer materials to cluster
+rsync -avz data/materials/ user@cluster:/path/to/seiskit/emulator/data/materials/
+rsync -avz data/material_params/ user@cluster:/path/to/seiskit/emulator/data/material_params/
+
+# 4. On cluster, submit HF generation jobs
+./submit_hf_jobs.sh --n_test 100 --test_start_idx 1000
+
+# 5. Monitor and verify (same as above)
 ```
 
 ## Step 3: Compress HF Data (Optional but Recommended)
