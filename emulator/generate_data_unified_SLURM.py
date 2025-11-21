@@ -101,6 +101,35 @@ def _sample_hf_to_lf_with_jitter(
     return material_grid_lf, delta_x, delta_z
 
 
+def _interpolate_material_grid(
+    material_grid: np.ndarray, h_old: int, w_old: int, h_new: int, w_new: int
+) -> np.ndarray:
+    """Interpolate material grid to new resolution."""
+    material_grid_new = np.zeros((h_new, w_new, 2))
+
+    for c in range(2):
+        # Create interpolator for old grid
+        x_old = np.linspace(0, 1, w_old)
+        y_old = np.linspace(0, 1, h_old)
+        interp_func = RegularGridInterpolator(
+            (y_old, x_old),
+            material_grid[:, :, c],
+            method="linear",
+            bounds_error=False,
+            fill_value=None,
+        )
+
+        # Create coordinate grids for new sampling points
+        x_new = np.linspace(0, 1, w_new)
+        y_new = np.linspace(0, 1, h_new)
+        X_new, Y_new = np.meshgrid(x_new, y_new)
+        points = np.column_stack([Y_new.ravel(), X_new.ravel()])
+
+        # Interpolate
+        material_grid_new[:, :, c] = interp_func(points).reshape(h_new, w_new)
+
+    return material_grid_new
+
 def compute_pga(accel: np.ndarray) -> float:
     """Compute Peak Ground Acceleration from acceleration time series."""
     if accel.ndim == 1:
