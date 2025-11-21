@@ -5,6 +5,7 @@ Computes Absolute Relative Error (ARE) and generates parity plot.
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -12,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from matplotlib.figure import Figure
+from tqdm import tqdm
 
 import wandb
 
@@ -80,17 +82,21 @@ def evaluate_model(
     all_sim_ids = []
 
     with torch.no_grad():
-        for i in range(len(test_dataset)):
+        pbar = tqdm(range(len(test_dataset)), desc="Evaluating")
+        for i in pbar:
             sample = test_dataset[i]
 
-            # Skip if HF oracle not available
+            # Skip if HF oracle not available (check for NaN)
             if "pga_hf" not in sample:
+                continue
+            pga_hf_tensor = sample["pga_hf"]
+            # Check if it's a tensor and contains NaN
+            if isinstance(pga_hf_tensor, torch.Tensor) and torch.isnan(pga_hf_tensor).any():
                 continue
 
             # Extract tensors with type checking
             vs_field_tensor = sample["vs_field"]
             pga_lf_tensor = sample["pga_lf"]
-            pga_hf_tensor = sample["pga_hf"]
             sim_id = sample["sim_id"]
 
             # Ensure they are tensors
@@ -118,6 +124,9 @@ def evaluate_model(
             all_pga_lf.append(pga_lf)
             all_pga_pred.append(pga_pred)
             all_sim_ids.append(sim_id)
+            
+            # Update progress bar
+            pbar.set_postfix({"samples": len(all_pga_hf)})
 
     # Convert to numpy arrays
     all_pga_hf = np.array(all_pga_hf)
@@ -358,6 +367,12 @@ def main(wandb_run=None):
         default="plots",
         help="Directory to save plots",
     )
+    parser.add_argument(
+        "--wandb_run_id",
+        type=str,
+        default=None,
+        help="W&B run ID to resume (for continuing an existing run)",
+    )
 
     args = parser.parse_args()
 
@@ -368,18 +383,28 @@ def main(wandb_run=None):
     plots_dir = Path(args.plots_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
 
-    # Initialize W&B (use existing run if provided)
-    if wandb_run is None:
+    # Initialize W&B (use existing run if provided, or resume by ID)
+    if wandb_run is not None:
+        run = wandb_run
+        # Update config with evaluation parameters
+        run.config.update(args.__dict__)
+        run.config["job_type"] = "evaluate"
+    elif args.wandb_run_id is not None:
+        # Resume existing run by ID
+        run = wandb.init(
+            project=args.wandb_project,
+            id=args.wandb_run_id,
+            resume="allow",
+            job_type="evaluate",
+        )
+        run.config.update(args.__dict__)
+        run.config["job_type"] = "evaluate"
+    else:
         run = wandb.init(
             project=args.wandb_project,
             job_type="evaluate",
             config=args.__dict__,
         )
-    else:
-        run = wandb_run
-        # Update config with evaluation parameters
-        run.config.update(args.__dict__)
-        run.config["job_type"] = "evaluate"
 
     # Load normalization stats path (dataset will load it)
     normalizer_path = data_dir / "normalizer.npy"
@@ -423,12 +448,28 @@ def main(wandb_run=None):
             f"Test data must have both LF and HF PGA files."
         )
 
-    # Use available test indices (limit to requested number)
-    test_indices = available_test_indices[: args.n_test]
+    # Filter by test_start_idx and limit to requested number
+    filtered_indices = [idx for idx in available_test_indices if idx >= args.test_start_idx]
+    
+    # Auto-adjust test_start_idx if it's too high
+    if len(filtered_indices) == 0:
+        print(
+            f"Warning: No test samples found >= {args.test_start_idx}. "
+            f"Available indices range from {available_test_indices[0]} to {available_test_indices[-1]}. "
+            f"Using all available test samples instead."
+        )
+        filtered_indices = available_test_indices
+    
+    test_indices = filtered_indices[: args.n_test]
+    
     if len(test_indices) < args.n_test:
         print(
-            f"Warning: Only {len(test_indices)} test samples available, but requested {args.n_test}"
+            f"Warning: Only {len(test_indices)} test samples available (starting from index {filtered_indices[0] if filtered_indices else 'N/A'}), "
+            f"but requested {args.n_test}. Available indices: {len(available_test_indices)} total, "
+            f"{len(filtered_indices)} >= {args.test_start_idx if len(filtered_indices) > 0 else 'auto-adjusted'}"
         )
+    else:
+        print(f"Using {len(test_indices)} test samples (indices {test_indices[0]} to {test_indices[-1]})")
 
     # Create test dataset
     test_dataset = PGADataset(
@@ -490,6 +531,59 @@ def main(wandb_run=None):
             "pga_hf_hist": wandb.Histogram(pga_hf),
         }
     )
+
+    # Save metrics to JSON file
+    metrics_json_path = plots_dir / "evaluation_metrics.json"
+    metrics_data = {
+        "summary": summary,
+        "superiority_statistics": {
+            "geometric_mean_xi": float(summary["geometric_mean_xi"]),
+            "arithmetic_mean_xi": float(summary["arithmetic_mean_xi"]),
+            "median_xi": float(summary["median_xi"]),
+            "std_xi": float(np.std(xi)),
+            "min_xi": float(np.min(xi)),
+            "max_xi": float(np.max(xi)),
+            "percentile_25_xi": float(np.percentile(xi, 25)),
+            "percentile_75_xi": float(np.percentile(xi, 75)),
+            "win_rate_percent": float(summary["win_rate"]),
+            "n_samples_xi_lt_1": int(np.sum(xi < 1.0)),
+            "n_samples_xi_lt_0_5": int(np.sum(xi < 0.5)),
+            "n_samples_xi_lt_0_8": int(np.sum(xi < 0.8)),
+        },
+        "error_metrics": {
+            "mean_are_lf": float(summary["mean_are_lf"]),
+            "mean_are_emulator": float(summary["mean_are_nn"]),
+            "std_are_lf": float(summary["std_are_lf"]),
+            "std_are_emulator": float(summary["std_are_nn"]),
+            "mre_lf": float(summary["mre_lf"]),
+            "mre_emulator": float(summary["mre_emulator"]),
+            "relative_error_reduction_percent": float(summary["relative_error_reduction"]),
+        },
+        "pga_statistics": {
+            "pga_hf_mean": float(np.mean(pga_hf)),
+            "pga_hf_std": float(np.std(pga_hf)),
+            "pga_hf_min": float(np.min(pga_hf)),
+            "pga_hf_max": float(np.max(pga_hf)),
+            "pga_lf_mean": float(np.mean(pga_lf)),
+            "pga_lf_std": float(np.std(pga_lf)),
+            "pga_pred_mean": float(np.mean(pga_pred)),
+            "pga_pred_std": float(np.std(pga_pred)),
+        },
+        "test_configuration": {
+            "n_samples": int(summary["n_samples"]),
+            "test_start_idx": args.test_start_idx,
+            "test_indices": test_indices.tolist() if isinstance(test_indices, np.ndarray) else list(test_indices),
+            "model_path": str(model_path),
+        },
+    }
+    
+    with open(metrics_json_path, "w") as f:
+        json.dump(metrics_data, f, indent=2)
+    
+    print(f"Saved evaluation metrics to {metrics_json_path}")
+    
+    # Also log JSON file to wandb
+    wandb.save(str(metrics_json_path))
 
     # Print summary following exact protocol
     print("\n" + "=" * 70)

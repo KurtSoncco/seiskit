@@ -32,23 +32,73 @@ from seiskit.config import AnalysisConfig
 from seiskit.gaussian_field import create_vs_realization
 
 
-def _interpolate_material_grid(
-    material_grid: np.ndarray, h_lf: int, w_lf: int, h_hf: int, w_hf: int
+def _sample_hf_to_lf_with_jitter(
+    material_grid_hf: np.ndarray,
+    h_lf: int,
+    w_lf: int,
+    hx_lf: float,
+    hx_hf: float,
+    jitter_percent: float,
+    rng: np.random.Generator,
 ) -> np.ndarray:
-    """Interpolate material grid from LF to HF resolution."""
-    material_grid_hf = np.zeros((h_hf, w_hf, 2))
+    """Sample HF material grid to LF resolution with random jitter.
+
+    Args:
+        material_grid_hf: HF material grid (H_hf, W_hf, 2)
+        h_lf, w_lf: LF grid dimensions
+        hx_lf: LF element size
+        hx_hf: HF element size
+        jitter_percent: Maximum jitter as percentage of LF element size (0.0 to 0.5)
+        rng: Random number generator
+
+    Returns:
+        LF material grid (H_lf, W_lf, 2)
+    """
+    h_hf, w_hf = material_grid_hf.shape[:2]
+    material_grid_lf = np.zeros((h_lf, w_lf, 2))
+
+    # Calculate max jitter in meters
+    max_jitter = jitter_percent * hx_lf
+
+    # Generate random jitter for the entire grid (uniform shift)
+    # We shift the sampling points, effectively shifting the grid
+    delta_x = rng.uniform(-max_jitter, max_jitter)
+    delta_z = rng.uniform(-max_jitter, max_jitter)
+
     for c in range(2):
-        x_lf = np.linspace(0, 1, w_lf)
-        y_lf = np.linspace(0, 1, h_lf)
+        # Create interpolator for HF grid
+        x_hf = np.linspace(0, (w_hf - 1) * hx_hf, w_hf)
+        y_hf = np.linspace(0, (h_hf - 1) * hx_hf, h_hf)  # Assuming dz_hf = dx_hf
+        
+        # Use nearest neighbor to preserve sharp boundaries if preferred, 
+        # or linear for smoother interpolation. Linear is safer for now.
         interp_func = RegularGridInterpolator(
-            (y_lf, x_lf), material_grid[:, :, c], method="linear"
+            (y_hf, x_hf), material_grid_hf[:, :, c], method="linear", bounds_error=False, fill_value=None
         )
-        x_hf = np.linspace(0, 1, w_hf)
-        y_hf = np.linspace(0, 1, h_hf)
-        X_hf, Y_hf = np.meshgrid(x_hf, y_hf)
-        points = np.column_stack([Y_hf.ravel(), X_hf.ravel()])
-        material_grid_hf[:, :, c] = interp_func(points).reshape(h_hf, w_hf)
-    return material_grid_hf
+
+        # Create coordinate grids for LF sampling points
+        # Nominal LF centers: dx/2, 3dx/2, ...
+        x_lf = np.linspace(hx_lf / 2, (w_lf - 1) * hx_lf + hx_lf / 2, w_lf)
+        y_lf = np.linspace(hx_lf / 2, (h_lf - 1) * hx_lf + hx_lf / 2, h_lf)
+        
+        # Apply jitter
+        x_lf_jittered = x_lf + delta_x
+        y_lf_jittered = y_lf + delta_z
+
+        # Create meshgrid of sampling points
+        X_lf, Y_lf = np.meshgrid(x_lf_jittered, y_lf_jittered)
+        points = np.column_stack([Y_lf.ravel(), X_lf.ravel()])
+
+        # Interpolate
+        sampled_values = interp_func(points).reshape(h_lf, w_lf)
+        
+        # Handle out-of-bounds (fill with nearest edge value or similar)
+        # RegularGridInterpolator with bounds_error=False and fill_value=None 
+        # extrapolates, which is okay for small jitters.
+        
+        material_grid_lf[:, :, c] = sampled_values
+
+    return material_grid_lf, delta_x, delta_z
 
 
 def compute_pga(accel: np.ndarray) -> float:
@@ -67,6 +117,7 @@ def generate_materials(
     Lz: float = 150.0,
     hx_hf: float = 1.0,
     seed_base: int = 42,
+    jitter_percent: float = 0.0,
 ) -> bool:
     """Generate material grid and parameters for a single simulation."""
     t0 = time.time()
@@ -99,14 +150,14 @@ def generate_materials(
     CV = rng.uniform(CV_min, CV_max)
     seed = seed_base + sim_id
 
-    # Generate material grid
+    # Generate material grid at HF RESOLUTION (Ground Truth)
     Vs_realization, x_coords, z_coords, h_mean = create_vs_realization(
         Vs_profile=Vs_profile_1D,
         Lx=150,
         Lx_variability=50,
         Lz=150,
-        dx=hx,
-        dz=hx,
+        dx=hx_hf, # Generate at HF resolution
+        dz=hx_hf, # Generate at HF resolution
         rH=rH,
         aHV=aHV,
         CV=CV,
@@ -115,20 +166,26 @@ def generate_materials(
     )
 
     density = np.full_like(Vs_realization, 2000.0)
-    material_grid = np.stack([Vs_realization, density], axis=2)
+    material_grid_hf = np.stack([Vs_realization, density], axis=2)
+
+    # Save HF material grid (Ground Truth)
+    material_hf_file = materials_hf_dir / f"sim_{sim_id:04d}.npy"
+    np.save(material_hf_file, material_grid_hf)
+
+    # Create LF material grid by sampling HF grid with Jitter
+    h_lf, w_lf = int(Lz / hx), int(Lx / hx)
+    
+    material_grid_lf, delta_x, delta_z = _sample_hf_to_lf_with_jitter(
+        material_grid_hf, 
+        h_lf, w_lf, 
+        hx, hx_hf, 
+        jitter_percent, 
+        rng
+    )
 
     # Save LF material grid
     material_file = materials_dir / f"sim_{sim_id:04d}.npy"
-    np.save(material_file, material_grid)
-
-    # Interpolate to HF resolution
-    h_lf, w_lf = material_grid.shape[:2]
-    h_hf, w_hf = int(Lz / hx_hf), int(Lx / hx_hf)
-    material_grid_hf_input = _interpolate_material_grid(material_grid, h_lf, w_lf, h_hf, w_hf)
-
-    # Save HF material grid
-    material_hf_file = materials_hf_dir / f"sim_{sim_id:04d}.npy"
-    np.save(material_hf_file, material_grid_hf_input)
+    np.save(material_file, material_grid_lf)
 
     # Sample base motion parameters
     freq_x = rng.uniform(freq_min, freq_max)
@@ -160,6 +217,9 @@ def generate_materials(
         "freq_x": float(freq_x),
         "freq_y": float(freq_y),
         "t_shift": float(t_shift),
+        "jitter_percent": float(jitter_percent),
+        "delta_x": float(delta_x),
+        "delta_z": float(delta_z),
     }
     params_file = material_params_dir / f"sim_{sim_id:04d}.json"
     with open(params_file, "w") as f:

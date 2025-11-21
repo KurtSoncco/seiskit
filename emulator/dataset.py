@@ -135,9 +135,11 @@ class PGADataset(Dataset):
         # Load LF PGA (scalar)
         pga_lf = float(np.load(self.lf_pga_dir / f"sim_{sim_id:04d}.npy"))
 
-        # Load HF PGA (oracle) if available (for test/val)
-        pga_hf = None
-        if self.split in ["test", "val"]:
+        # Load HF PGA (oracle) if available (only for test split, not val)
+        # Always include the key to avoid KeyError during batch collation
+        # Use NaN as placeholder if HF data doesn't exist
+        pga_hf = float('nan')
+        if self.split == "test":
             hf_pga_file = self.hf_pga_dir / f"sim_{sim_id:04d}.npy"
             if hf_pga_file.exists():
                 pga_hf = float(np.load(hf_pga_file))
@@ -150,14 +152,13 @@ class PGADataset(Dataset):
             vs_field = vs_field[np.newaxis, :, :]  # (1, H, W)
 
         # Convert to tensors
+        # Always include pga_hf key to ensure consistent batch structure
         result = {
             "vs_field": torch.FloatTensor(vs_field),  # (1, 150, 150)
             "pga_lf": torch.FloatTensor([pga_lf]),  # (1,) - scalar as tensor
+            "pga_hf": torch.FloatTensor([pga_hf]),  # (1,) - oracle (NaN if not available)
             "sim_id": sim_id,
         }
-
-        if pga_hf is not None:
-            result["pga_hf"] = torch.FloatTensor([pga_hf])  # (1,) - oracle
 
         return result
 

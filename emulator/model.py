@@ -71,17 +71,33 @@ class PGAEmulator(nn.Module):
         Args:
             input_size: Size of input Vs field (H, W)
             num_classes: Number of output classes (1 for scalar PGA)
+        
+        ============================================================================
+        MODEL ARCHITECTURE CONFIGURATION
+        ============================================================================
+        To modify the model architecture, edit the sections below:
+        
+        1. Input size: Change 'input_size' parameter (line 68)
+        2. Initial conv layer: Line 79 (channels, kernel_size, stride)
+        3. Residual layers: Lines 85-88 (number of blocks, channels, stride)
+        4. MLP head: Lines 94-102 (hidden dimensions, dropout rates, activation)
+        5. ResidualBlock: Lines 13-55 (conv layers, batch norm, activation)
+        ============================================================================
         """
         super().__init__()
         self.input_size = input_size
 
         # Initial convolution layer (1 channel input)
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        # MODIFY: Change channels (64), kernel_size (7), stride (1) here
+        # Changed stride from 2 to 1 to preserve high-frequency information (Option B)
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=1, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         # Residual blocks (ResNet-18: [2, 2, 2, 2] blocks)
+        # MODIFY: Change number of blocks, channels, stride here
+        # Format: _make_layer(in_channels, out_channels, num_blocks, stride)
         self.layer1 = self._make_layer(64, 64, 2, stride=1)
         self.layer2 = self._make_layer(64, 128, 2, stride=2)
         self.layer3 = self._make_layer(128, 256, 2, stride=2)
@@ -91,14 +107,15 @@ class PGAEmulator(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
         # MLP head for regression
+        # MODIFY: Change hidden dimensions (256, 128), dropout (0.5), activation here
         self.fc = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, num_classes),
+            nn.Linear(512, 256),      # First hidden layer
+            nn.ReLU(),                # Activation
+            nn.Dropout(0.5),          # Dropout rate
+            nn.Linear(256, 128),      # Second hidden layer
+            nn.ReLU(),                # Activation
+            nn.Dropout(0.5),          # Dropout rate
+            nn.Linear(128, num_classes),  # Output layer
         )
 
     def _make_layer(
