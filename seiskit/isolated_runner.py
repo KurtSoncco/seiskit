@@ -132,9 +132,14 @@ def run_isolated_analysis(
                 )
             interior_soil_element_tags.append(elem.tag)
 
-        # 5. Create Boundary Elements
+        # 5. Create Boundary Elements (ASDAbsorbingBoundary2D)
+        # Stage 0 (default): Elements act as stiff constraints for gravity analysis
+        # Stage 1 (switched later): Elements act as viscous dashpots (absorbing boundaries)
+        # Bottom elements (containing "B") also receive time series for input motion
         for elem in model_data.boundary_elements:
             if "B" in elem.btype:
+                # Bottom boundary: Absorber + input source (Force-Based Input method)
+                # The -fx argument introduces shear stress history for upward wave injection
                 ops.element(
                     "ASDAbsorbingBoundary2D",
                     elem.tag,
@@ -148,6 +153,7 @@ def run_isolated_analysis(
                     ts_tag,
                 )
             else:
+                # Side boundaries (L, R): Pure absorbers (no input motion)
                 ops.element(
                     "ASDAbsorbingBoundary2D",
                     elem.tag,
@@ -162,17 +168,32 @@ def run_isolated_analysis(
         # ---------------------------------------------------------
         # 6. RUN GRAVITY ANALYSIS
         # ---------------------------------------------------------
-        if config.boundary_condition_type == "2D":
-            # For 2D case, apply temporary constraints, run gravity, then remove constraints
-            bottom_nodes = _apply_gravity_constraints_2d(config)
-            _run_gravity_analysis_isolated(config, run_id)
-            # _remove_gravity_constraints_2d(bottom_nodes)
-        else:
-            # For 1D case, run gravity analysis normally
-            _run_gravity_analysis_isolated(config, run_id)
+        # ASDA elements are in Stage 0 by default, acting as stiff constraints
+        # Stage 0: Boundaries act as rigid supports (fixed in X and Y) to support soil weight
+        # - For 1D: equalDOF constraints + ASDA elements in Stage 0 provide support
+        # - For 2D: ASDA elements in Stage 0 provide rigid support (no equalDOF - allows 2D behavior)
+        bc_type_str = "2D" if config.boundary_condition_type == "2D" else "1D"
+        print(
+            f"Gravity analysis ({bc_type_str}): ASDA elements in Stage 0 (rigid supports)"
+        )
+        _run_gravity_analysis_isolated(config, run_id)
 
-        # 7. Setup Recorders
+        # ---------------------------------------------------------
+        # 7. SWITCH TO DYNAMIC MODE (Stage 1)
+        # ---------------------------------------------------------
+        # Switch ASDA elements to Stage 1: viscous dashpots (absorbing boundaries)
+        # Stage 1 behavior:
+        #   - The internal "fix" is removed (boundaries become compliant)
+        #   - A constant vertical force (from Stage 0 reaction) maintains equilibrium
+        #   - Viscous dashpots activate to absorb reflected waves
+        #   - Bottom boundary injects input motion via Force-Based Input method
+        # Note: For 2D, nodes can move independently (no equalDOF); for 1D, equalDOF remains active
+        print(
+            "Switching ASDA elements to Stage 1 (absorbing boundaries) for dynamic analysis"
+        )
         ops.setParameter("-val", 1, "-ele", *model_data.abs_element_tags, "stage")
+
+        # 8. Setup Recorders
         ndivx_total = int(config.Lx / config.hx) + 2
         ndivy_total = int(config.Ly / config.hy) + 1
 
@@ -182,12 +203,12 @@ def run_isolated_analysis(
         )
         print_recorder_summary(recorder_info)
 
-        # 8. Run Dynamic Analysis
+        # 9. Run Dynamic Analysis
         _run_dynamic_analysis_isolated(
             config, model_data, interior_soil_element_tags, run_id
         )
 
-        # 9. Clean up completely
+        # 10. Clean up completely
         ops.wipe()
 
         elapsed = timeit.default_timer() - start_time
@@ -593,8 +614,18 @@ def _apply_1d_boundary_conditions(config: AnalysisConfig) -> None:
 
 
 def _apply_2d_boundary_conditions(config: AnalysisConfig) -> None:
-    """Apply 2D free field boundary conditions."""
-    print("Applying 2D free field boundary conditions (no constraints applied).")
+    """Apply 2D free field boundary conditions.
+
+    For 2D analysis, NO kinematic constraints (equalDOF) are applied.
+    The ASDAbsorbingBoundary2D elements on left and right sides will handle boundary
+    conditions, allowing independent motion of nodes on each side. This enables true
+    2D wave propagation with heterogeneity and scattering effects.
+
+    The ASDA elements use the stage mechanism:
+    - Stage 0: Act as rigid supports during gravity analysis (fixed in X and Y)
+    - Stage 1: Switch to absorbing boundaries during dynamic analysis (compliant with viscous dashpots)
+    """
+    print("Applying 2D free field boundary conditions (no kinematic constraints).")
 
 
 def _apply_gravity_constraints_2d(config: AnalysisConfig) -> list[int]:

@@ -213,7 +213,12 @@ def build_model_data(
     N3 = (j_flat + 1) * (ndivx_total + 1) + i_flat + 2
 
     # Determine boundary flags (vectorized)
+    # Note: Top surface (y=Ly) is a FREE SURFACE - no absorbing boundary elements
+    # Only bottom, left, and right boundaries use ASDAbsorbingBoundary2D elements
     is_bottom = j_flat == 0
+    is_top = (
+        j_flat == ndivy_total - 1
+    )  # Top surface (free surface - NO boundary elements)
     is_left = i_flat == 0
     is_right = i_flat == ndivx_total - 1
 
@@ -226,18 +231,25 @@ def build_model_data(
             is_bottom, np.where(is_left, "LB", np.where(is_right, "RB", "B")), ""
         )
     else:  # 2D Free Field
-        # 2D Free Field: All boundaries (L, R, B) are absorbing
-        is_boundary = is_left | is_right | is_bottom
-        # Build boundary type strings
+        # 2D Free Field: Left, Right, and Bottom boundaries are absorbing
+        # Top surface is FREE SURFACE (no absorbing boundaries) - exclude top row
+        # Surface nodes at y=Ly are completely free to move (no constraints)
+        is_boundary = (is_left | is_right | is_bottom) & ~is_top
+        # Build boundary type strings (excluding top surface)
         btype_array = np.empty(n_elements, dtype=object)
-        btype_array[is_left & is_bottom] = "LB"
-        btype_array[is_right & is_bottom] = "RB"
-        btype_array[is_left & ~is_bottom] = "L"
-        btype_array[is_right & ~is_bottom] = "R"
-        btype_array[is_bottom & ~is_left & ~is_right] = "B"
+        btype_array[is_left & is_bottom & ~is_top] = "LB"
+        btype_array[is_right & is_bottom & ~is_top] = "RB"
+        btype_array[is_left & ~is_bottom & ~is_top] = "L"
+        btype_array[is_right & ~is_bottom & ~is_top] = "R"
+        btype_array[is_bottom & ~is_left & ~is_right & ~is_top] = "B"
         btype_array[~is_boundary] = ""
 
     # Compute adjusted indices for material property lookup (vectorized)
+    # For boundary elements, properties are taken from the adjacent interior columns:
+    # - Left boundaries (i=0): use col_idx=0 (leftmost soil column)
+    # - Right boundaries (i=ndivx_total-1): use col_idx=ndivx_soil-1 (rightmost soil column)
+    # - Bottom boundaries: use properties from bottom row
+    # This ensures boundary elements use material properties from the edge of the soil domain
     adj_i = np.clip(i_flat, 1, ndivx_total - 2)
     adj_j = np.clip(j_flat, 1, ndivy_total - 1)
     row_idx = ndivy_soil - (adj_j - 1) - 1
@@ -303,13 +315,19 @@ def build_model_data(
 
         if is_boundary[idx]:
             # Boundary element
+            # Material properties (G, poiss, rho) are computed from vs_data at the adjacent
+            # interior column/row. For lateral boundaries:
+            # - Left (L): Uses vs_data[:, 0] (leftmost column, varies with depth)
+            # - Right (R): Uses vs_data[:, ndivx_soil-1] (rightmost column, varies with depth)
+            # - Bottom (B): Uses vs_data at corresponding depth
+            # The Vs value used is: vs_all[idx] = vs_data[row_idx, col_idx]
             model.abs_element_tags.append(elem_tag)
             boundary_elements_list.append(
                 BoundaryElementData(
                     tag=elem_tag,
                     nodes=nodes_tuple,
                     btype=str(btype_array[idx]),
-                    G=float(G_all[idx]),
+                    G=float(G_all[idx]),  # Computed as rho * vs^2 from vs_data
                     poiss=float(nu_all[idx]),
                     rho=float(rho_all[idx]),
                 )
