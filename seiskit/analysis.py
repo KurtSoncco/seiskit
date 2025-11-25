@@ -6,8 +6,6 @@ All functions are designed to work with the structured ModelData and
 AnalysisConfig classes for parallelization readiness.
 """
 
-import timeit
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -21,19 +19,19 @@ from seiskit.builder import ModelData, build_model_data
 from seiskit.config import AnalysisConfig
 from seiskit.damping import compute_rayleigh_coefficients
 from seiskit.solver_utils import setup_solver
-from seiskit.utils import compute_ricker, load_material_properties
+from seiskit.utils import load_material_properties
 
 
 def _run_gravity_analysis(config: AnalysisConfig, run_id: str) -> None:
     """Helper function to run the static gravity analysis.
-    
+
     Note: This function is primarily for backward compatibility.
     The main analysis pipeline uses isolated_runner which has better
     solver configuration support.
     """
     if ops is None:
         return
-    
+
     # Setup solver based on configuration
     original_solver = config.solver_type
     try:
@@ -47,7 +45,7 @@ def _run_gravity_analysis(config: AnalysisConfig, run_id: str) -> None:
             setup_solver(config, analysis_type="gravity")
         else:
             raise
-        
+
     ops.test("NormUnbalance", config.gravity_tolerance, config.max_gravity_iter, 1)
     ops.algorithm("Newton")
     ops.integrator("LoadControl", 1.0)
@@ -60,16 +58,20 @@ def _run_gravity_analysis(config: AnalysisConfig, run_id: str) -> None:
 
 def _run_dynamic_analysis(config: AnalysisConfig, run_id: str) -> None:
     """Helper function to run the transient dynamic analysis.
-    
+
     Note: This function is primarily for backward compatibility.
     The main analysis pipeline uses isolated_runner which has better
     solver configuration support.
     """
     if ops is None:
         return
-        
-    alphaM, betaK = compute_rayleigh_coefficients(config.damping_zeta, config.damping_freqs[0], config.damping_freqs[1])
-    ops.rayleigh(alphaM, betaK, 0.0, 0.0)
+
+    # Apply damping only if not set to "none"
+    if config.damping_method != "none":
+        alphaM, betaK = compute_rayleigh_coefficients(
+            config.damping_zeta, config.damping_freqs[0], config.damping_freqs[1]
+        )
+        ops.rayleigh(alphaM, betaK, 0.0, 0.0)
 
     # Setup solver based on configuration
     original_solver = config.solver_type
@@ -84,7 +86,7 @@ def _run_dynamic_analysis(config: AnalysisConfig, run_id: str) -> None:
             setup_solver(config, analysis_type="dynamic")
         else:
             raise
-    
+
     ops.test("NormUnbalance", config.dynamic_tolerance, config.max_dynamic_iter, 1)
     ops.algorithm("Newton")
     ops.integrator("TRBDF2")
@@ -102,7 +104,7 @@ def run_opensees_analysis(
     output_dir: str = "results",
 ) -> str:
     """Perform a 2D site response analysis using pre-built model data structure.
-    
+
     This function delegates to the isolated runner for parallelization compatibility.
     For parallel execution, use the parallel module instead.
 
@@ -116,9 +118,10 @@ def run_opensees_analysis(
         Status message indicating success or failure
     """
     print(f"--- Starting OpenSees Analysis: {run_id} ---")
-    
+
     # Use the isolated runner for consistency with parallel execution
     from .isolated_runner import run_isolated_analysis
+
     return run_isolated_analysis(config, model_data, run_id, output_dir)
 
 
@@ -168,7 +171,7 @@ def perform_analysis_spatial(
     # Check if OpenSees is available
     if ops is None:
         return "no-opensees"
-        
+
     # Create config from provided values or defaults
     cfg = AnalysisConfig()
     if Ly is not None:
@@ -208,8 +211,8 @@ def run_analysis(
     t_shift: float = 1.4,
 ) -> str:
     """High-level entry point for spatial analysis with file-based inputs.
-    
-    This function loads material property files and delegates to the 
+
+    This function loads material property files and delegates to the
     structured analysis pipeline.
 
     Args:

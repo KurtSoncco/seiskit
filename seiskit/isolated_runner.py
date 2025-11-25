@@ -65,24 +65,31 @@ def run_isolated_analysis(
         ops.wipe()
         ops.model("basic", "-ndm", 2, "-ndf", 2)
 
-        # 1. Create Time Series
+        # ---------------------------------------------------------
+        # 1. TIME SERIES SETUP
+        # ---------------------------------------------------------
+        # Compute Ricker values (acceleration input)
         ts_vals = compute_ricker(
             config.motion_freq, config.motion_t_shift, config.duration, config.dt
         )
+
         ts_tag = 1
         ops.timeSeries(
             "Path", ts_tag, "-dt", config.dt, "-values", *ts_vals, "-factor", 1
         )
 
-        # 2. Create Nodes
+        # ---------------------------------------------------------
+        # 3. MESH GENERATION
+        # ---------------------------------------------------------
+        # Create Nodes
         for node in model_data.nodes:
             ops.node(node.tag, node.x, node.y)
 
-        # 2.5. Apply Boundary Conditions (1D or 2D)
+        # Apply Boundary Conditions
         if config.boundary_condition_type == "1D":
             _apply_1d_boundary_conditions(config)
         elif config.boundary_condition_type == "2D":
-            _apply_2d_boundary_conditions(config)
+            _apply_2d_boundary_conditions(config)  # Assuming free field
         else:
             raise ValueError(
                 f"Unknown boundary condition type: {config.boundary_condition_type}. Use '1D' or '2D'."
@@ -94,15 +101,9 @@ def run_isolated_analysis(
             ops.nDMaterial("ElasticIsotropic", mat_tag, E, poiss, rho)
 
         # 4. Create Soil Elements
-        # Collect interior soil element tags for damping application
         interior_soil_element_tags = []
         for elem in model_data.soil_elements:
-            # Check element type from config to determine element formulation
-            # For higher-order case, use enhancedQuad (Enhanced Strain formulation)
-            # which provides better accuracy than standard quad
             if config.element_type == "8node":
-                # Use enhancedQuad (Enhanced Strain Quadrilateral) for higher-order accuracy
-                # This uses enhanced strain formulation for improved performance
                 nodes_to_use = elem.nodes[:4] if len(elem.nodes) == 8 else elem.nodes
                 ops.element(
                     "enhancedQuad",
@@ -117,7 +118,6 @@ def run_isolated_analysis(
                     elem.gravity_load,
                 )
             else:
-                # Standard 4-node element with standard formulation
                 ops.element(
                     "quad",
                     elem.tag,
@@ -130,7 +130,6 @@ def run_isolated_analysis(
                     0.0,
                     elem.gravity_load,
                 )
-            # Store the tag for damping application (only interior soil elements)
             interior_soil_element_tags.append(elem.tag)
 
         # 5. Create Boundary Elements
@@ -160,12 +159,14 @@ def run_isolated_analysis(
                     elem.btype,
                 )
 
-        # 6. Run Gravity Analysis
+        # ---------------------------------------------------------
+        # 6. RUN GRAVITY ANALYSIS
+        # ---------------------------------------------------------
         if config.boundary_condition_type == "2D":
             # For 2D case, apply temporary constraints, run gravity, then remove constraints
             bottom_nodes = _apply_gravity_constraints_2d(config)
             _run_gravity_analysis_isolated(config, run_id)
-            _remove_gravity_constraints_2d(bottom_nodes)
+            # _remove_gravity_constraints_2d(bottom_nodes)
         else:
             # For 1D case, run gravity analysis normally
             _run_gravity_analysis_isolated(config, run_id)
@@ -238,18 +239,15 @@ def _apply_damping(
     model_data: ModelData,
     interior_soil_element_tags: list[int],
 ) -> None:
-    """Apply damping based on the configured damping method.
-
-    Supports four methods:
-    - global_avg: Harmonic mean Q from soil layer only, applied to all soil elements
-    - elemental_varying: Each element gets damping based on its Vs and Q
-    - elemental_mass_only: Each element gets mass-only damping based on its Vs and Q
-    - uniform: Same damping (zeta=0.0075) for all elements at frequencies (0.75, 8.25)
-    """
+    """Apply damping based on the configured damping method."""
     # Threshold to distinguish soil from bedrock (Vs < 500 m/s = soil)
     SOIL_VS_THRESHOLD = 500.0
 
-    if config.damping_method == "global_avg":
+    if config.damping_method == "none":
+        # No damping: skip damping setup entirely
+        return
+
+    elif config.damping_method == "global_avg":
         # Model A: Global Average Damping
         # Separate soil and bedrock elements
         soil_elements = []
@@ -385,7 +383,7 @@ def _apply_damping(
     else:
         raise ValueError(
             f"Unknown damping method: {config.damping_method}. "
-            f"Must be one of: 'global_avg', 'elemental_varying', 'elemental_mass_only', 'uniform'"
+            f"Must be one of: 'none', 'global_avg', 'elemental_varying', 'elemental_mass_only', 'uniform'"
         )
 
 
@@ -395,10 +393,7 @@ def _run_dynamic_analysis_isolated(
     interior_soil_element_tags: list[int],
     run_id: str,
 ) -> None:
-    """Run dynamic analysis in isolated environment with progress tracking.
-
-    Runs step-by-step to detect hangs and provide progress information.
-    """
+    """Run dynamic analysis in isolated environment with progress tracking."""
     import time
 
     # Setup damping based on configured method
@@ -548,15 +543,7 @@ def validate_analysis_setup(
     config: AnalysisConfig,
     model_data: ModelData,
 ) -> Optional[str]:
-    """Validate that the analysis setup is correct without running OpenSees.
-
-    Args:
-        config: Analysis configuration
-        model_data: Model data
-
-    Returns:
-        None if valid, error message if invalid
-    """
+    """Validate that the analysis setup is correct without running OpenSees."""
     # Check configuration
     if config.duration <= 0:
         return "Duration must be positive"
@@ -582,17 +569,11 @@ def validate_analysis_setup(
 
 
 def _apply_1d_boundary_conditions(config: AnalysisConfig) -> None:
-    """Apply 1D site response boundary conditions.
-
-    This is the correct implementation for 1D site response (simple shear deformation).
-    It fixes all nodes in the Y-direction and ties X-DOFs of all other nodes to the master node
-    at each elevation.
-    """
+    """Apply 1D site response boundary conditions."""
     ndivx_total = int(config.Lx / config.hx) + 2
     ndivy_total = int(config.Ly / config.hy) + 1
 
-    # Store node IDs for applying boundary conditions
-    nodes_by_elevation = []  # List of lists
+    nodes_by_elevation = []
 
     for j in range(ndivy_total + 1):
         current_elevation_nodes = []
@@ -602,48 +583,32 @@ def _apply_1d_boundary_conditions(config: AnalysisConfig) -> None:
         nodes_by_elevation.append(current_elevation_nodes)
 
     for j, node_row in enumerate(nodes_by_elevation):
-        # Get the master node (the first node, i=0, at this elevation)
         master_node_id = node_row[0]
 
         for i, node_id in enumerate(node_row):
-            # 1. Fix ALL nodes in the Y-direction (DOF 2)
-            #    (1=fixed, 0=free)
             ops.fix(node_id, 0, 1)
 
-            # 2. Tie X-DOF (DOF 1) of all other nodes to the master node
             if i > 0:
-                # ops.equalDOF(masterNode, slaveNode, *dofs)
                 ops.equalDOF(master_node_id, node_id, 1)
 
 
 def _apply_2d_boundary_conditions(config: AnalysisConfig) -> None:
-    """Apply 2D free field boundary conditions.
-
-    This implements 2D free field conditions where the model is free to deform in 2D.
-    No equalDOF or Y-direction constraints are applied.
-    """
+    """Apply 2D free field boundary conditions."""
     print("Applying 2D free field boundary conditions (no constraints applied).")
 
 
 def _apply_gravity_constraints_2d(config: AnalysisConfig) -> list[int]:
-    """Apply temporary constraints for gravity analysis in 2D case.
-
-    For 2D free field, we need to temporarily fix some nodes to prevent rigid body motion
-    during gravity analysis, then remove these constraints before dynamic analysis.
-    """
+    """Apply temporary constraints for gravity analysis in 2D case."""
     ndivx_total = int(config.Lx / config.hx) + 2
 
-    # Fix bottom nodes for gravity analysis to prevent rigid body motion
     bottom_nodes = []
     for i in range(ndivx_total + 1):
-        bottom_nodes.append(i + 1)  # Node IDs at j=0
+        bottom_nodes.append(i + 1)
 
-    # Fix bottom nodes in X and Y for gravity
-    # This assumes the absorbing layer (j=0) has nodes (1) to (ndivx+1)
-    ops.fix(bottom_nodes[0], 1, 1)  # Fix first node in X and Y
-    ops.fix(bottom_nodes[-1], 0, 1)  # Fix last node in Y only (allows contraction)
+    ops.fix(bottom_nodes[0], 1, 1)
+    ops.fix(bottom_nodes[-1], 0, 1)
     for node_id in bottom_nodes[1:-1]:
-        ops.fix(node_id, 0, 1)  # Fix intermediate nodes in Y only
+        ops.fix(node_id, 0, 1)
 
     print("Applying temporary fixes for gravity analysis...")
 

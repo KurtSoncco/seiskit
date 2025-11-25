@@ -16,6 +16,11 @@ class AnalysisConfig:
     response analyses, including domain geometry, analysis parameters, damping,
     boundary conditions, recorders, and solver configuration.
 
+    Boundary Conditions:
+        The boundary_condition_type field controls the boundary condition type:
+        - "1D": 1D site response (simple shear deformation)
+        - "2D": 2D free field conditions
+
     Solver Configuration:
         The solver_type field controls which linear solver is used:
         - "UmfPack": Default solver, always available
@@ -45,7 +50,7 @@ class AnalysisConfig:
     # Damping Parameters
     damping_zeta: float = 0.02
     damping_freqs: tuple[float, float] = field(default_factory=lambda: (1.0, 5.0))
-    damping_method: str = "global_avg"  # "global_avg", "elemental_varying", "elemental_mass_only", "uniform"
+    damping_method: str = "global_avg"  # "none", "global_avg", "elemental_varying", "elemental_mass_only", "uniform"
     damping_f_target: float = (
         0.75  # Target frequency for mass-only damping (default matches motion_freq)
     )
@@ -83,7 +88,7 @@ class AnalysisConfig:
         1  # Number of MPI processes for MumpsParallel (ignored for other solvers)
     )
     mumps_icntl: dict[int, int] = field(
-        default_factory=dict
+        default_factory=lambda: {}
     )  # Optional MUMPS control parameters (ICNTL array)
 
     # Analysis Timeout Configuration
