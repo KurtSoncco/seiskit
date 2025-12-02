@@ -164,7 +164,7 @@ def plot_acceleration_comparison(
 
     fig = _setup_figure(
         title="Comparison of Acceleration Time Histories",
-        subplot_titles=("Base Acceleration", "Top (Surface) Acceleration"),
+        subplot_titles=("Top (Surface) Acceleration", "Base Acceleration"),
         y_axis_title="Acceleration ($m/s^2$)",
     )
 
@@ -194,7 +194,10 @@ def plot_acceleration_comparison(
         )
         model_styles[model_name] = {"color": color, "line_style": line_style}
 
-    for i, location in enumerate(["base", "top"], 1):
+    # Plot top (surface) at row 1, base at row 2
+    location_to_row = {"top": 1, "base": 2}
+    for location in ["top", "base"]:
+        i = location_to_row[location]
         # Plot other models first to ensure reference is plotted on top
         for model_name, model_data in datasets.items():
             if model_name == reference_name or location not in model_data:

@@ -84,6 +84,7 @@ test_results/
 # Ignore emulator results
 *.npy
 *.json
+*.pt
 
 # Ignore wandb folder
 wandb/

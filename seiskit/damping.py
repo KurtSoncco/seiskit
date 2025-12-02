@@ -104,9 +104,7 @@ def compute_quality_factor(Vs: float) -> float:
     """Calculate quality factor Q from shear wave velocity.
     Model 2 by Campbell (2009)
 
-    Uses a common empirical relationship for soil materials:
-    - For Vs < 800 m/s: Q = 7.17 + 0.00276 * Vs
-    - For Vs >= 800 m/s: Q = 50.0
+    Uses Taborda (2013) empirical relationship for soil materials.
 
     Args:
         Vs: Shear wave velocity in m/s
@@ -114,10 +112,15 @@ def compute_quality_factor(Vs: float) -> float:
     Returns:
         Quality factor Q (dimensionless)
     """
-    if Vs >= 800.0:
-        return 50.0
-    else:
-        return 7.17 + 0.00276 * Vs
+    return (
+        10.5
+        - 16 * (Vs / 1000)
+        + 153 * (Vs / 1000) ** 2
+        - 103 * (Vs / 1000) ** 3
+        + 34.7 * (Vs / 1000) ** 4
+        - 5.29 * (Vs / 1000) ** 5
+        + 0.31 * (Vs / 1000) ** 6
+    )
 
 
 def compute_damping_from_Q(Q: float) -> float:
@@ -175,17 +178,6 @@ def print_rayleigh_coefficients(
 
 # Example usage
 if __name__ == "__main__":
-    zeta = 0.0075  # 0.75% damping
-    f1 = 0.75  # Hz
-    f2 = 2.25  # Hz
-
-    alphaM, betaK = compute_rayleigh_coefficients(zeta, f1, f2)
-    print_rayleigh_coefficients(zeta, f1, f2, alphaM, betaK)
-
-    # Test mass-only damping
-    alphaM_mass, betaK_mass = compute_rayleigh_mass_only(zeta, f1)
-    print(f"\nMass-only damping: alphaM={alphaM_mass}, betaK={betaK_mass}")
-
     # Test Q factor calculations
     Vs_test = 200.0
     Q = compute_quality_factor(Vs_test)
