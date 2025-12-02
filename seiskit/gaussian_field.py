@@ -69,6 +69,7 @@ def _generate_vs_variability_field(
     seed: Optional[int] = 42,
     dz_1D: float = 5.0,
     interlayer_seed: Optional[int] = None,
+    interlayer_amplitude: float = 5.0 / 2,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """
     Generates a 2D Vs variability field for the top layer using a lognormal
@@ -87,6 +88,7 @@ def _generate_vs_variability_field(
         interlayer_seed: Random seed for interlayer (wavy boundary) generation.
                         If None, uses the same seed as spatial field. Useful for
                         keeping interlayer variability fixed while varying spatial field.
+        interlayer_amplitude: Amplitude of the interlayer variability [m]. Default is 5.0 m, equal to half the grid spacing.
     Returns:
         A tuple containing:
         - var_Vs_field (np.ndarray): The 2D Vs variability field of shape (nz, nx_var).
@@ -138,7 +140,7 @@ def _generate_vs_variability_field(
     freq2 = interlayer_rng.uniform(1 / 40, 1 / 20)
     freq3 = interlayer_rng.uniform(1 / 20, 1 / 10)
     phase_offset = interlayer_rng.uniform(0, 2 * np.pi)
-    wave_amplitude = (dz / 2) * (
+    wave_amplitude = (interlayer_amplitude) * (
         np.sin(2 * np.pi * freq1 * x_var + phase_offset)
         + np.sin(2 * np.pi * freq2 * x_var + phase_offset)
         + np.sin(2 * np.pi * freq3 * x_var + phase_offset)

@@ -583,10 +583,10 @@ def plot_damping_realization(
     plt.style.use("seaborn-v0_8-whitegrid")
     fig, ax = plt.subplots(figsize=(12, 5))
 
-    # Compute physical extents
-    computed_Lx = nx * dx
-    computed_Lz = nz * dz
-    extent = (0, computed_Lx, computed_Lz, 0)
+    # Use provided domain dimensions for plot extent
+    # Note: These should match nx*dx and nz*dz, but we use the provided values
+    # to ensure consistency with the caller's expectations
+    extent = (0, Lx, Lz, 0)
 
     # Determine color scale limits
     vmin = zeta_grid.min()
@@ -598,7 +598,8 @@ def plot_damping_realization(
         cmap = sns.color_palette("rocket", as_cmap=True)
     else:
         # Fallback to a colorblind-friendly matplotlib colormap
-        cmap = plt.colormaps.get_cmap("viridis")
+        # Use modern matplotlib API: plt.colormaps["viridis"]
+        cmap = plt.colormaps["viridis"]
 
     im = ax.imshow(
         zeta_grid,
