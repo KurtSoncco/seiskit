@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=damping_study
+#SBATCH --job-name=sensitivity_analysis
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio2
 #SBATCH --qos=savio_normal
@@ -12,8 +12,8 @@
 ##SBATCH --exclude=n0029.savio3,n0053.savio3
 
 ## Command(s) to run:
-# Run complete sweep (40 tasks):
-# sbatch job_experiment.sh
+# Run complete sweep (270 tasks):
+# sbatch job_run.sh
 
 set -euo pipefail
 
