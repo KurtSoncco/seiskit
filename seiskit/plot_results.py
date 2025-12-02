@@ -15,6 +15,19 @@ from typing import Dict, Mapping, Tuple, Union
 import numpy as np
 from scipy.interpolate import interp1d
 
+try:
+    import seaborn as sns
+
+    SEABORN_AVAILABLE = True
+except ImportError:
+    sns = None  # type: ignore[assignment]
+    SEABORN_AVAILABLE = False
+
+from seiskit.damping import (
+    compute_average_damping_harmonic,
+    compute_damping_from_Q,
+    compute_quality_factor,
+)
 from seiskit.ttf.TTF import TTF
 
 # It's good practice to guard optional imports.
@@ -46,17 +59,41 @@ DataSet = Dict[
 ]  # e.g., {"SPECFEM": ModelResult, "PLAXIS": ModelResult}
 PathType = Union[str, Path, PathLike]
 
-# [IMPROVEMENT] Centralized styling for consistent plots.
-MODEL_COLORS = {
-    "My_New_Run": "#1f77b4",  # Muted blue
-    "PLAXIS": "#ff7f0e",  # Safety orange
-    "OpenSeesPy_Prev": "#2ca02c",  # Cooked asparagus green
-    # Add more models here for consistent colors
-}
-# A cycle for any models not in the map above
-FALLBACK_COLORS = itertools.cycle(
-    ["#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"]
-)
+# [IMPROVEMENT] Centralized styling for consistent plots using colorblind-friendly palette.
+if SEABORN_AVAILABLE and sns is not None:
+    # Use seaborn's colorblind-friendly palette
+    COLORBLIND_PALETTE = sns.color_palette("colorblind", as_cmap=False)
+    COLORBLIND_COLORS = [
+        f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
+        for r, g, b in COLORBLIND_PALETTE
+    ]
+    MODEL_COLORS = {
+        "My_New_Run": COLORBLIND_COLORS[0],
+        "PLAXIS": COLORBLIND_COLORS[1],
+        "OpenSeesPy_Prev": COLORBLIND_COLORS[2],
+        # Add more models here for consistent colors
+    }
+    # A cycle for any models not in the map above
+    FALLBACK_COLORS = itertools.cycle(COLORBLIND_COLORS)
+else:
+    # Fallback to colorblind-friendly colors if seaborn not available
+    # These are approximate colorblind-friendly colors
+    COLORBLIND_COLORS = [
+        "#0173b2",
+        "#de8f05",
+        "#029e73",
+        "#cc78bc",
+        "#56b4e9",
+        "#ece133",
+        "#0072b2",
+        "#d55e00",
+    ]
+    MODEL_COLORS = {
+        "My_New_Run": COLORBLIND_COLORS[0],
+        "PLAXIS": COLORBLIND_COLORS[1],
+        "OpenSeesPy_Prev": COLORBLIND_COLORS[2],
+    }
+    FALLBACK_COLORS = itertools.cycle(COLORBLIND_COLORS)
 
 
 def load_datasets(config: Mapping[str, Mapping[str, PathType]]) -> DataSet:
@@ -170,15 +207,7 @@ def plot_acceleration_comparison(
 
     # Create consistent color and line style mapping for each model name
     line_styles = ["dash", "dot", "dashdot"]
-    fallback_colors = [
-        "#d62728",
-        "#9467bd",
-        "#8c564b",
-        "#e377c2",
-        "#7f7f7f",
-        "#17becf",
-        "#bcbd22",
-    ]
+    fallback_colors = COLORBLIND_COLORS
 
     # Get all model names (including reference)
     all_model_names = list(datasets.keys())
@@ -479,6 +508,122 @@ def plot_transfer_functions(
     print(f"Transfer function plot saved to {output_path}")
     if show_fig:
         fig.show()
+
+
+def plot_damping_realization(
+    Vs_extended: np.ndarray,
+    damping_method: str,
+    Lx: float,
+    Lz: float,
+    dx: float,
+    dz: float,
+    save_path: PathType,
+    title: str | None = None,
+) -> None:
+    """
+    Plot damping zeta values for each element based on the damping method.
+
+    Args:
+        Vs_extended: 2D array of Vs values (nz, nx)
+        damping_method: Damping method ("global_avg", "elemental_varying", "elemental_mass_only", "uniform")
+        Lx: Domain width [m]
+        Lz: Domain height [m]
+        dx: Horizontal grid spacing [m]
+        dz: Vertical grid spacing [m]
+        save_path: Path to save the plot
+        title: Optional title for the plot
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("Matplotlib is not installed. Skipping plot generation.")
+        return
+
+    SOIL_VS_THRESHOLD = 750.0
+    nz, nx = Vs_extended.shape
+
+    # Calculate zeta for each element based on damping method
+    zeta_grid = np.zeros_like(Vs_extended)
+
+    if damping_method == "global_avg":
+        # Calculate harmonic mean Q from soil layer only
+        soil_mask = Vs_extended < SOIL_VS_THRESHOLD
+        soil_Vs = Vs_extended[soil_mask]
+
+        if len(soil_Vs) > 0:
+            Q_values_soil = [compute_quality_factor(vs) for vs in soil_Vs]
+            avg_damping_soil = compute_average_damping_harmonic(Q_values_soil)
+            # Apply to all soil elements
+            zeta_grid[soil_mask] = avg_damping_soil
+
+        # Bedrock elements get bedrock damping
+        bedrock_mask = Vs_extended >= SOIL_VS_THRESHOLD
+        if np.any(bedrock_mask):
+            bedrock_Vs = 1500.0
+            Q_bedrock = compute_quality_factor(bedrock_Vs)
+            xi_bedrock = compute_damping_from_Q(Q_bedrock)
+            zeta_grid[bedrock_mask] = xi_bedrock
+
+    elif damping_method in ["elemental_varying", "elemental_mass_only"]:
+        # Each element gets damping based on its Vs
+        for i in range(nz):
+            for j in range(nx):
+                vs = Vs_extended[i, j]
+                Q = compute_quality_factor(vs)
+                xi = compute_damping_from_Q(Q)
+                zeta_grid[i, j] = xi
+    elif damping_method == "uniform":
+        # Uniform damping: same damping for all elements
+        uniform_zeta = 0.0075
+        zeta_grid.fill(uniform_zeta)
+    else:
+        raise ValueError(f"Unknown damping method: {damping_method}")
+
+    # Plot the damping realization
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(12, 5))
+
+    # Compute physical extents
+    computed_Lx = nx * dx
+    computed_Lz = nz * dz
+    extent = (0, computed_Lx, computed_Lz, 0)
+
+    # Determine color scale limits
+    vmin = zeta_grid.min()
+    vmax = zeta_grid.max()
+
+    # Use a colorblind-friendly colormap suitable for damping values
+    if SEABORN_AVAILABLE and sns is not None:
+        # Use seaborn's colorblind-friendly colormap
+        cmap = sns.color_palette("rocket", as_cmap=True)
+    else:
+        # Fallback to a colorblind-friendly matplotlib colormap
+        cmap = plt.colormaps.get_cmap("viridis")
+
+    im = ax.imshow(
+        zeta_grid,
+        extent=extent,
+        aspect="auto",
+        cmap=cmap,
+        interpolation="nearest",
+        vmin=vmin,
+        vmax=vmax,
+    )
+
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("Damping Ratio $\\zeta$", fontsize=12)
+
+    ax.set_xlabel("Distance (m)", fontsize=12)
+    ax.set_ylabel("Depth (m)", fontsize=12)
+    ax.set_title(
+        title or f"Damping Realization ({damping_method.replace('_', ' ').title()})",
+        fontsize=14,
+    )
+    ax.grid(False)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300)
+    plt.close()
 
 
 # --- Main Execution ---
