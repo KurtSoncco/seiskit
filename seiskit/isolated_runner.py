@@ -7,11 +7,8 @@ that can be safely called in separate processes without global state conflicts.
 import contextlib
 import signal
 import timeit
-from collections import defaultdict
 from pathlib import Path
 from typing import Optional
-
-import numpy as np
 
 try:
     import openseespy.opensees as ops  # type: ignore
@@ -258,32 +255,6 @@ def _run_gravity_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
     ops.wipeAnalysis()
 
 
-def _get_element_depth(elem, model_data: ModelData, config: AnalysisConfig) -> float:
-    """Get the depth (y-coordinate) of an element.
-
-    Args:
-        elem: SoilElementData object
-        model_data: ModelData containing node information
-        config: AnalysisConfig with element size information
-
-    Returns:
-        Average y-coordinate of element nodes (depth)
-    """
-    # Create a lookup dictionary for nodes by tag
-    node_dict = {node.tag: node for node in model_data.nodes}
-
-    # Get y-coordinates of all element nodes
-    y_coords = [
-        node_dict[node_tag].y for node_tag in elem.nodes if node_tag in node_dict
-    ]
-
-    if not y_coords:
-        raise ValueError(f"Could not find nodes for element {elem.tag}")
-
-    # Return average depth (more negative = deeper)
-    return float(np.mean(y_coords))
-
-
 def _identify_bedrock_from_mask(
     model_data: ModelData,
 ) -> tuple[list, list]:
@@ -325,17 +296,10 @@ def _apply_damping(
 
     elif config.damping_method == "global_avg":
         # Model A: Global Average Damping
-        # Separate soil and bedrock elements
-        # Prefer using is_bedrock flag if available (from create_vs_realization)
-        # Otherwise fall back to variability-based detection
-        if any(elem.is_bedrock for elem in model_data.soil_elements):
-            # Use bedrock mask from create_vs_realization
-            soil_elements, bedrock_elements = _identify_bedrock_from_mask(model_data)
-        else:
-            # Fall back to variability-based detection (for backward compatibility)
-            soil_elements, bedrock_elements = _identify_bedrock_by_variability(
-                model_data, config
-            )
+        # Separate soil and bedrock elements using bedrock mask from create_vs_realization
+        # Use bedrock mask if available (is_bedrock flags set), otherwise treat all as soil
+        # Note: bedrock_mask should be provided via build_model_data() for accurate identification
+        soil_elements, bedrock_elements = _identify_bedrock_from_mask(model_data)
 
         # Calculate harmonic mean Q from soil layer elements only
         if not soil_elements:
