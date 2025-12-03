@@ -134,6 +134,7 @@ def run_case(index: int = 0):
         )
 
     # Map index to parameter combination
+    # Index structure: index = Vs1_idx * (3*2*3*5) + thickness_idx * (2*3*5) + rH_idx * (3*5) + CV_idx * 5 + seed_idx
     Vs1_idx = index // (
         len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values)
     )
@@ -141,7 +142,9 @@ def run_case(index: int = 0):
         len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values)
     )
     thickness_idx = remainder // (len(rH_list) * len(CV_list) * len(seed_values))
+    remainder = remainder % (len(rH_list) * len(CV_list) * len(seed_values))
     rH_idx = remainder // (len(CV_list) * len(seed_values))
+    remainder = remainder % (len(CV_list) * len(seed_values))
     CV_idx = remainder // len(seed_values)
     seed_idx = remainder % len(seed_values)
 
