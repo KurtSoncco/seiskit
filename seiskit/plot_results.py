@@ -519,6 +519,7 @@ def plot_damping_realization(
     dz: float,
     save_path: PathType,
     title: str | None = None,
+    bedrock_mask: np.ndarray | None = None,
 ) -> None:
     """
     Plot damping zeta values for each element based on the damping method.
@@ -532,6 +533,8 @@ def plot_damping_realization(
         dz: Vertical grid spacing [m]
         save_path: Path to save the plot
         title: Optional title for the plot
+        bedrock_mask: Boolean mask of shape (nz, nx) where True indicates bedrock.
+                     Required for "global_avg" damping method to accurately identify bedrock vs soil.
     """
     try:
         import matplotlib.pyplot as plt
@@ -539,15 +542,26 @@ def plot_damping_realization(
         print("Matplotlib is not installed. Skipping plot generation.")
         return
 
-    SOIL_VS_THRESHOLD = 750.0
     nz, nx = Vs_extended.shape
 
     # Calculate zeta for each element based on damping method
     zeta_grid = np.zeros_like(Vs_extended)
 
     if damping_method == "global_avg":
-        # Calculate harmonic mean Q from soil layer only
-        soil_mask = Vs_extended < SOIL_VS_THRESHOLD
+        # Require bedrock_mask for accurate bedrock/soil identification
+        if bedrock_mask is None:
+            raise ValueError(
+                "bedrock_mask is required for 'global_avg' damping method. "
+                "Provide bedrock_mask from create_vs_realization() for accurate bedrock/soil identification."
+            )
+        
+        if bedrock_mask.shape != (nz, nx):
+            raise ValueError(
+                f"bedrock_mask shape {bedrock_mask.shape} != Vs_extended shape {(nz, nx)}"
+            )
+        
+        # Use bedrock mask to identify soil vs bedrock
+        soil_mask = ~bedrock_mask
         soil_Vs = Vs_extended[soil_mask]
 
         if len(soil_Vs) > 0:
@@ -557,7 +571,6 @@ def plot_damping_realization(
             zeta_grid[soil_mask] = avg_damping_soil
 
         # Bedrock elements get bedrock damping
-        bedrock_mask = Vs_extended >= SOIL_VS_THRESHOLD
         if np.any(bedrock_mask):
             bedrock_Vs = 1500.0
             Q_bedrock = compute_quality_factor(bedrock_Vs)
