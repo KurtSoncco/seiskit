@@ -100,7 +100,7 @@ def run_case(index: int = 0):
     element_type = "4node"
     dx, dz = 2.0, 2.0  # 2x2 discretization
     aHV = 10.0
-    interlayer_seed = 42
+    interlayer_seed = 14
     Vs2 = 1500.0  # Layer 2 (bedrock) velocity
     dz_1D = 2.0  # Vertical spacing for 1D profile
     motion_freq = 3.0  # Fixed at 3.0 Hz
@@ -110,6 +110,7 @@ def run_case(index: int = 0):
     Lx_variability = 500.0
     BC_width = 500.0
     Lx = Lx_variability + 2 * BC_width
+    interlayer_amplitude = 4.0 / 2
 
     # Parameter variations
     Vs1_list = [100, 350, 750]
@@ -211,7 +212,7 @@ def run_case(index: int = 0):
         seed=seed,
         dz_1D=dz_1D,
         interlayer_seed=interlayer_seed,
-        interlayer_amplitude=5.0 / 2,
+        interlayer_amplitude=interlayer_amplitude,
     )
     field_generation_time = time.time() - t_field_start
 
