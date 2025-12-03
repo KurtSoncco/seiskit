@@ -3,7 +3,7 @@ Sensitivity analysis for spatially variable soil properties.
 
 In this case, we will try:
 - 3 different values of Vs1: 100, 350, 750 m/s
-- 3 different values of thickness: 4, 76, 140 m
+- 3 different values of thickness: 6, 76, 140 m
 - 2 different values of rH: 10 and 50
 - 3 different values of CV: 0.1, 0.2, 0.3
 - 5 different seeds: 10, 20, 30, 40, 50
@@ -114,7 +114,7 @@ def run_case(index: int = 0):
 
     # Parameter variations
     Vs1_list = [100, 350, 750]
-    thickness_list = [4, 76, 140]  # Everything is a multiple of 2 meters
+    thickness_list = [6, 76, 140]  # Everything is a multiple of 2 meters
     rH_list = [10, 50]
     CV_list = [0.1, 0.2, 0.3]
     seed_values = [10, 20, 30, 40, 50]  # 5 different seeds
