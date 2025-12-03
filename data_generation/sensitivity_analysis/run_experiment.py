@@ -247,6 +247,7 @@ def run_case(index: int = 0):
         dz,
         save_path=f"{output_dir}/Vs_realization.png",
         title=f"Vs Realization (Vs1={Vs1:.0f} m/s, thickness={thickness:.0f} m, rH={rH:.0f}, CV={CV:.3f}, seed={seed}, realization={realization_str})",
+        bedrock_mask=bedrock_mask_extended,
     )
 
     # Save Damping realization plot
