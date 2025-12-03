@@ -37,9 +37,8 @@ from seiskit.config import AnalysisConfig
 from seiskit.gaussian_field import (
     _extend_profile,
     _generate_vs_variability_field,
-    plot_realization,
 )
-from seiskit.plot_results import plot_damping_realization
+from seiskit.plot_results import plot_damping_realization, plot_realization
 from seiskit.solver_utils import get_solver_info
 
 
