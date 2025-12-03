@@ -45,7 +45,7 @@ from .parallel import (
     run_parallel_analyses,
     run_parameter_study,
 )
-from .plot_results import plot_damping_realization
+from .plot_results import plot_damping_realization, plot_realization
 from .solver_utils import check_mumps_availability, get_solver_info, setup_solver
 from .utils import (
     build_mesh_and_materials,
@@ -66,6 +66,7 @@ __all__ = [
     "utils",
     # Plotting functions
     "plot_damping_realization",
+    "plot_realization",
     # Core classes and functions
     "AnalysisConfig",
     "ModelData",

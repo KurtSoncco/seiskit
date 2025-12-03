@@ -1,7 +1,8 @@
 from typing import Optional, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
+
+from seiskit.plot_results import plot_realization
 
 # A modern, high-performance random number generator is recommended.
 rng = np.random.default_rng(seed=42)
@@ -321,94 +322,6 @@ def create_vs_realization(
         bedrock_mask = mask_bottom_layer
 
     return final_Vs, x_total, z, h, bedrock_mask
-
-
-def plot_realization(
-    Vs_1D_profile: np.ndarray,
-    Vs_realization: np.ndarray,
-    Lx: float,
-    Lz: float,
-    dx: float,
-    dz: float,
-    save_path: Optional[str] = None,
-    title: Optional[str] = None,
-):
-    """
-    Plots the Vs realization with a color scale focused on the soil layer.
-    Bedrock values are colored distinctly to highlight the soil variability.
-    """
-    # Determine Vs1 and Vs2 from the realization
-    Vs_unique = np.unique(Vs_1D_profile)
-    _, Vs2 = Vs_unique[0], Vs_unique[1]
-
-    # Isolate the Vs values of the soil layer
-    soil_vs_values = Vs_realization[Vs_realization < Vs2]
-
-    # Determine the min and max for the color bar
-    vmin = soil_vs_values.min()
-    vmax = soil_vs_values.max()
-
-    # Get a colormap and set a specific color for values > vmax (the bedrock)
-    cmap = plt.colormaps.get_cmap("viridis_r").copy()
-    cmap.set_over("gray")  # Bedrock will be colored gray
-
-    # Plotting the result
-    plt.style.use("seaborn-v0_8-whitegrid")
-    fig, ax = plt.subplots(figsize=(12, 5))
-
-    # Compute physical extents from grid spacing to ensure dx/dz are honored
-    nz, nx = Vs_realization.shape
-    computed_Lx = nx * dx
-    computed_Lz = nz * dz
-    assert np.isclose(computed_Lx, Lx) and np.isclose(computed_Lz, Lz), (
-        f"Computed Lx/Lz do not match provided Lx/Lz: {computed_Lx} m != {Lx} m, {computed_Lz} m != {Lz} m"
-    )
-
-    # If provided Lx/Lz differ noticeably, prefer computed values for accurate scaling
-    extent = (0, computed_Lx, computed_Lz, 0)
-
-    im = ax.imshow(
-        Vs_realization,
-        extent=extent,
-        aspect="auto",
-        cmap=cmap,  # Use the modified colormap
-        interpolation="nearest",
-        vmin=vmin,  # Set the minimum for the color scale
-        vmax=vmax,  # Set the maximum for the color scale
-    )
-
-    # Add 'extend' to the colorbar to show there are values beyond its max
-    cbar = fig.colorbar(im, ax=ax, extend="max")
-    cbar.set_label("Soil $V_s$ (m/s)", fontsize=12)
-    # Add label for the extension showing Vs2 value
-    cbar.ax.text(
-        0.5,
-        1.15,
-        f"$V_{{s2}}$ = {Vs2:.0f} m/s",
-        transform=cbar.ax.transAxes,
-        ha="center",
-        va="bottom",
-        fontsize=10,
-    )
-
-    ax.set_xlabel("Distance (m)", fontsize=12)
-    ax.set_ylabel("Depth (m)", fontsize=12)
-    ax.set_title(
-        title
-        if title is not None
-        else "Optimized 2D $V_s$ Realization (Soil-Focused Color Scale)",
-        fontsize=14,
-    )
-    ax.grid(False)
-
-    plt.tight_layout()
-
-    if save_path:
-        plt.savefig(save_path, dpi=300)
-    else:
-        plt.show()
-
-    plt.close()
 
 
 if __name__ == "__main__":

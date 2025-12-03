@@ -10,7 +10,7 @@ import itertools
 import sys
 from os import PathLike
 from pathlib import Path
-from typing import Dict, Mapping, Tuple, Union
+from typing import Dict, Mapping, Optional, Tuple, Union
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -520,9 +520,15 @@ def plot_damping_realization(
     save_path: PathType,
     title: str | None = None,
     bedrock_mask: np.ndarray | None = None,
+    damping_zeta: float = 0.02,
+    damping_freqs: tuple[float, float] | None = None,
+    damping_f_target: float = 0.75,
 ) -> None:
     """
     Plot damping zeta values for each element based on the damping method.
+
+    This function matches the damping logic used in _apply_damping() to ensure
+    the plot accurately represents what damping is actually applied in the analysis.
 
     Args:
         Vs_extended: 2D array of Vs values (nz, nx)
@@ -535,6 +541,9 @@ def plot_damping_realization(
         title: Optional title for the plot
         bedrock_mask: Boolean mask of shape (nz, nx) where True indicates bedrock.
                      Required for "global_avg" damping method to accurately identify bedrock vs soil.
+        damping_zeta: Damping ratio for uniform damping method (default: 0.02, matches AnalysisConfig default)
+        damping_freqs: Tuple of (f1, f2) frequencies for Rayleigh damping (default: None, not used in plot)
+        damping_f_target: Target frequency for mass-only damping (default: 0.75, matches AnalysisConfig default)
     """
     try:
         import matplotlib.pyplot as plt
@@ -554,12 +563,12 @@ def plot_damping_realization(
                 "bedrock_mask is required for 'global_avg' damping method. "
                 "Provide bedrock_mask from create_vs_realization() for accurate bedrock/soil identification."
             )
-        
+
         if bedrock_mask.shape != (nz, nx):
             raise ValueError(
                 f"bedrock_mask shape {bedrock_mask.shape} != Vs_extended shape {(nz, nx)}"
             )
-        
+
         # Use bedrock mask to identify soil vs bedrock
         soil_mask = ~bedrock_mask
         soil_Vs = Vs_extended[soil_mask]
@@ -577,8 +586,18 @@ def plot_damping_realization(
             xi_bedrock = compute_damping_from_Q(Q_bedrock)
             zeta_grid[bedrock_mask] = xi_bedrock
 
-    elif damping_method in ["elemental_varying", "elemental_mass_only"]:
+    elif damping_method == "elemental_varying":
         # Each element gets damping based on its Vs
+        for i in range(nz):
+            for j in range(nx):
+                vs = Vs_extended[i, j]
+                Q = compute_quality_factor(vs)
+                xi = compute_damping_from_Q(Q)
+                zeta_grid[i, j] = xi
+    elif damping_method == "elemental_mass_only":
+        # Each element gets damping based on its Vs (same zeta calculation as elemental_varying)
+        # Note: The actual analysis uses compute_rayleigh_mass_only() which affects Rayleigh coefficients
+        # but the damping ratio (zeta) shown here is the same
         for i in range(nz):
             for j in range(nx):
                 vs = Vs_extended[i, j]
@@ -587,8 +606,8 @@ def plot_damping_realization(
                 zeta_grid[i, j] = xi
     elif damping_method == "uniform":
         # Uniform damping: same damping for all elements
-        uniform_zeta = 0.0075
-        zeta_grid.fill(uniform_zeta)
+        # Use provided damping_zeta (defaults to 0.02 to match AnalysisConfig)
+        zeta_grid.fill(damping_zeta)
     else:
         raise ValueError(f"Unknown damping method: {damping_method}")
 
@@ -637,6 +656,110 @@ def plot_damping_realization(
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=300)
+    plt.close()
+
+
+def plot_realization(
+    Vs_1D_profile: np.ndarray,
+    Vs_realization: np.ndarray,
+    Lx: float,
+    Lz: float,
+    dx: float,
+    dz: float,
+    save_path: Optional[PathType] = None,
+    title: Optional[str] = None,
+) -> None:
+    """
+    Plot the Vs realization with a color scale focused on the soil layer.
+    Bedrock values are colored distinctly to highlight the soil variability.
+
+    Args:
+        Vs_1D_profile: 1D array of shear wave velocities defining the initial layers.
+        Vs_realization: 2D array of Vs values (nz, nx) representing the realization.
+        Lx: Domain width [m]
+        Lz: Domain height [m]
+        dx: Horizontal grid spacing [m]
+        dz: Vertical grid spacing [m]
+        save_path: Optional path to save the plot. If None, displays the plot.
+        title: Optional title for the plot.
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("Matplotlib is not installed. Skipping plot generation.")
+        return
+
+    # Determine Vs1 and Vs2 from the realization
+    Vs_unique = np.unique(Vs_1D_profile)
+    _, Vs2 = Vs_unique[0], Vs_unique[1]
+
+    # Isolate the Vs values of the soil layer
+    soil_vs_values = Vs_realization[Vs_realization < Vs2]
+
+    # Determine the min and max for the color bar
+    vmin = soil_vs_values.min()
+    vmax = soil_vs_values.max()
+
+    # Get a colormap and set a specific color for values > vmax (the bedrock)
+    cmap = plt.colormaps.get_cmap("viridis_r").copy()
+    cmap.set_over("gray")  # Bedrock will be colored gray
+
+    # Plotting the result
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(12, 5))
+
+    # Compute physical extents from grid spacing to ensure dx/dz are honored
+    nz, nx = Vs_realization.shape
+    computed_Lx = nx * dx
+    computed_Lz = nz * dz
+    assert np.isclose(computed_Lx, Lx) and np.isclose(computed_Lz, Lz), (
+        f"Computed Lx/Lz do not match provided Lx/Lz: {computed_Lx} m != {Lx} m, {computed_Lz} m != {Lz} m"
+    )
+
+    # If provided Lx/Lz differ noticeably, prefer computed values for accurate scaling
+    extent = (0, computed_Lx, computed_Lz, 0)
+
+    im = ax.imshow(
+        Vs_realization,
+        extent=extent,
+        aspect="auto",
+        cmap=cmap,  # Use the modified colormap
+        interpolation="nearest",
+        vmin=vmin,  # Set the minimum for the color scale
+        vmax=vmax,  # Set the maximum for the color scale
+    )
+
+    # Add 'extend' to the colorbar to show there are values beyond its max
+    cbar = fig.colorbar(im, ax=ax, extend="max")
+    cbar.set_label("Soil $V_s$ (m/s)", fontsize=12)
+    # Add label for the extension showing Vs2 value
+    cbar.ax.text(
+        0.5,
+        1.15,
+        f"$V_{{s2}}$ = {Vs2:.0f} m/s",
+        transform=cbar.ax.transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=10,
+    )
+
+    ax.set_xlabel("Distance (m)", fontsize=12)
+    ax.set_ylabel("Depth (m)", fontsize=12)
+    ax.set_title(
+        title
+        if title is not None
+        else "Optimized 2D $V_s$ Realization (Soil-Focused Color Scale)",
+        fontsize=14,
+    )
+    ax.grid(False)
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300)
+    else:
+        plt.show()
+
     plt.close()
 
 

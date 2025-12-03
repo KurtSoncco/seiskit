@@ -1,7 +1,8 @@
 from typing import Optional, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
+
+from seiskit.plot_results import plot_realization
 
 
 def Base_case_extraction(
@@ -140,45 +141,14 @@ if __name__ == "__main__":
         Vs_profile_1D, Lx, Lz, dx, dz, rH, aHV, CV, seed_inter=42, seed_intra=42
     )
 
-    # --- NEW: Set color limits based on soil layer ONLY ---
-    Vs1, Vs2 = np.unique(Vs_profile_1D)[0], np.unique(Vs_profile_1D)[1]
-
-    # Isolate the Vs values of the soil layer
-    soil_vs_values = Vs_realization[Vs_realization < Vs2]
-
-    # Determine the min and max for the color bar
-    vmin = soil_vs_values.min()
-    vmax = soil_vs_values.max()
-
-    # Get a colormap and set a specific color for values > vmax (the bedrock)
-
-    cmap = plt.colormaps.get_cmap("viridis_r").copy()
-    cmap.set_over("gray")  # Bedrock will be colored gray
-
-    # --- UPDATED: Plotting the result ---
-    plt.style.use("seaborn-v0_8-whitegrid")
-    fig, ax = plt.subplots(figsize=(12, 5))
-
-    im = ax.imshow(
+    # Plot the realization using the centralized plotting function
+    plot_realization(
+        Vs_profile_1D,
         Vs_realization,
-        extent=(0, Lx, Lz, 0),
-        aspect="auto",
-        cmap=cmap,  # Use the modified colormap
-        interpolation="nearest",
-        vmin=vmin,  # Set the minimum for the color scale
-        vmax=vmax,  # Set the maximum for the color scale
+        Lx,
+        Lz,
+        dx,
+        dz,
+        save_path=None,  # Display interactively
+        title="Optimized 2D $V_s$ Realization (Soil-Focused Color Scale)",
     )
-
-    # Add 'extend' to the colorbar to show there are values beyond its max
-    cbar = fig.colorbar(im, ax=ax, extend="max")
-    cbar.set_label("Soil $V_s$ (m/s)", fontsize=12)
-
-    ax.set_xlabel("Distance (m)", fontsize=12)
-    ax.set_ylabel("Depth (m)", fontsize=12)
-    ax.set_title(
-        "Optimized 2D $V_s$ Realization (Soil-Focused Color Scale)", fontsize=14
-    )
-    ax.grid(False)
-
-    plt.tight_layout()
-    plt.show()
