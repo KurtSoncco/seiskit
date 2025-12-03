@@ -203,19 +203,21 @@ def run_case(index: int = 0):
     t_field_start = time.time()
     print(f"[{case_type}] Generating VS field with seed={seed}")
     np.random.seed(seed)
-    Vs_realization, x_coords, z_coords, h_mean = _generate_vs_variability_field(
-        Vs_profile_1D,
-        Lx_variability,
-        Lz,
-        dx,
-        dz,
-        rH,
-        aHV,
-        CV,
-        seed=seed,
-        dz_1D=dz_1D,
-        interlayer_seed=interlayer_seed,
-        interlayer_amplitude=interlayer_amplitude,
+    Vs_realization, x_coords, z_coords, h_mean, bedrock_mask_var = (
+        _generate_vs_variability_field(
+            Vs_profile_1D,
+            Lx_variability,
+            Lz,
+            dx,
+            dz,
+            rH,
+            aHV,
+            CV,
+            seed=seed,
+            dz_1D=dz_1D,
+            interlayer_seed=interlayer_seed,
+            interlayer_amplitude=interlayer_amplitude,
+        )
     )
     field_generation_time = time.time() - t_field_start
 
@@ -225,6 +227,16 @@ def run_case(index: int = 0):
         Lx=Lx,
         dx=dx,
     )
+
+    # Extend bedrock mask similarly
+    bedrock_mask_extended, _ = _extend_profile(
+        bedrock_mask_var.astype(float),  # Convert boolean to float for _extend_profile
+        Lx=Lx,
+        dx=dx,
+    )
+    bedrock_mask_extended = bedrock_mask_extended.astype(
+        bool
+    )  # Convert back to boolean
 
     # Save  Vs realization plot
     plot_realization(
@@ -248,6 +260,7 @@ def run_case(index: int = 0):
         dz,
         save_path=f"{output_dir}/Damping_realization.png",
         title=f"Damping Realization (damping_method={damping_method}, rH={rH:.0f}, CV={CV:.3f}, seed={seed}, realization={realization_str})",
+        bedrock_mask=bedrock_mask_extended,
     )
 
     # Build analysis config
