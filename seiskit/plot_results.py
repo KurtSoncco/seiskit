@@ -668,6 +668,7 @@ def plot_realization(
     dz: float,
     save_path: Optional[PathType] = None,
     title: Optional[str] = None,
+    bedrock_mask: Optional[np.ndarray] = None,
 ) -> None:
     """
     Plot the Vs realization with a color scale focused on the soil layer.
@@ -682,6 +683,9 @@ def plot_realization(
         dz: Vertical grid spacing [m]
         save_path: Optional path to save the plot. If None, displays the plot.
         title: Optional title for the plot.
+        bedrock_mask: Optional boolean mask of shape (nz, nx) where True indicates bedrock.
+                     If provided, uses this mask to accurately identify soil vs bedrock for
+                     color scale calculation. If None, uses Vs < Vs2 heuristic.
     """
     try:
         import matplotlib.pyplot as plt
@@ -689,12 +693,29 @@ def plot_realization(
         print("Matplotlib is not installed. Skipping plot generation.")
         return
 
-    # Determine Vs1 and Vs2 from the realization
+    nz, nx = Vs_realization.shape
+
+    # Validate bedrock_mask if provided
+    if bedrock_mask is not None:
+        if bedrock_mask.shape != (nz, nx):
+            raise ValueError(
+                f"bedrock_mask shape {bedrock_mask.shape} != Vs_realization shape {(nz, nx)}"
+            )
+        if bedrock_mask.dtype != bool:
+            bedrock_mask = bedrock_mask.astype(bool)
+
+    # Determine Vs1 and Vs2 from the profile
     Vs_unique = np.unique(Vs_1D_profile)
     _, Vs2 = Vs_unique[0], Vs_unique[1]
 
     # Isolate the Vs values of the soil layer
-    soil_vs_values = Vs_realization[Vs_realization < Vs2]
+    if bedrock_mask is not None:
+        # Use bedrock_mask for accurate soil identification
+        soil_mask = ~bedrock_mask
+        soil_vs_values = Vs_realization[soil_mask]
+    else:
+        # Fallback to Vs < Vs2 heuristic
+        soil_vs_values = Vs_realization[Vs_realization < Vs2]
 
     # Determine the min and max for the color bar
     vmin = soil_vs_values.min()
