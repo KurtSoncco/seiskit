@@ -110,7 +110,7 @@ def run_case(index: int = 0):
     Lx_variability = 500.0
     BC_width = 500.0
     Lx = Lx_variability + 2 * BC_width
-    interlayer_amplitude = 4.0 / 2
+    interlayer_amplitude = 2.0 / 2
 
     # Parameter variations
     Vs1_list = [100, 350, 750]
