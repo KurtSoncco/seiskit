@@ -7,8 +7,11 @@ that can be safely called in separate processes without global state conflicts.
 import contextlib
 import signal
 import timeit
+from collections import defaultdict
 from pathlib import Path
 from typing import Optional
+
+import numpy as np
 
 try:
     import openseespy.opensees as ops  # type: ignore
@@ -255,14 +258,66 @@ def _run_gravity_analysis_isolated(config: AnalysisConfig, run_id: str) -> None:
     ops.wipeAnalysis()
 
 
+def _get_element_depth(elem, model_data: ModelData, config: AnalysisConfig) -> float:
+    """Get the depth (y-coordinate) of an element.
+
+    Args:
+        elem: SoilElementData object
+        model_data: ModelData containing node information
+        config: AnalysisConfig with element size information
+
+    Returns:
+        Average y-coordinate of element nodes (depth)
+    """
+    # Create a lookup dictionary for nodes by tag
+    node_dict = {node.tag: node for node in model_data.nodes}
+
+    # Get y-coordinates of all element nodes
+    y_coords = [
+        node_dict[node_tag].y for node_tag in elem.nodes if node_tag in node_dict
+    ]
+
+    if not y_coords:
+        raise ValueError(f"Could not find nodes for element {elem.tag}")
+
+    # Return average depth (more negative = deeper)
+    return float(np.mean(y_coords))
+
+
+def _identify_bedrock_from_mask(
+    model_data: ModelData,
+) -> tuple[list, list]:
+    """Identify bedrock and soil elements using the is_bedrock flag from ModelData.
+
+    This is the preferred method when bedrock_mask is available from create_vs_realization.
+
+    Args:
+        model_data: ModelData containing soil elements with is_bedrock flags
+
+    Returns:
+        Tuple of (soil_elements, bedrock_elements) lists
+    """
+    if not model_data.soil_elements:
+        return [], []
+
+    soil_elements = []
+    bedrock_elements = []
+
+    for elem in model_data.soil_elements:
+        if elem.is_bedrock:
+            bedrock_elements.append(elem)
+        else:
+            soil_elements.append(elem)
+
+    return soil_elements, bedrock_elements
+
+
 def _apply_damping(
     config: AnalysisConfig,
     model_data: ModelData,
     interior_soil_element_tags: list[int],
 ) -> None:
     """Apply damping based on the configured damping method."""
-    # Threshold to distinguish soil from bedrock (Vs < 500 m/s = soil)
-    SOIL_VS_THRESHOLD = 500.0
 
     if config.damping_method == "none":
         # No damping: skip damping setup entirely
@@ -271,14 +326,16 @@ def _apply_damping(
     elif config.damping_method == "global_avg":
         # Model A: Global Average Damping
         # Separate soil and bedrock elements
-        soil_elements = []
-        bedrock_elements = []
-
-        for elem in model_data.soil_elements:
-            if elem.vs_value < SOIL_VS_THRESHOLD:
-                soil_elements.append(elem)
-            else:
-                bedrock_elements.append(elem)
+        # Prefer using is_bedrock flag if available (from create_vs_realization)
+        # Otherwise fall back to variability-based detection
+        if any(elem.is_bedrock for elem in model_data.soil_elements):
+            # Use bedrock mask from create_vs_realization
+            soil_elements, bedrock_elements = _identify_bedrock_from_mask(model_data)
+        else:
+            # Fall back to variability-based detection (for backward compatibility)
+            soil_elements, bedrock_elements = _identify_bedrock_by_variability(
+                model_data, config
+            )
 
         # Calculate harmonic mean Q from soil layer elements only
         if not soil_elements:

@@ -5,7 +5,7 @@ without making OpenSees calls, making the code testable and parallelization-safe
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -37,6 +37,7 @@ class SoilElementData:
         mat_tag: Material tag reference
         gravity_load: Gravity load value
         vs_value: Shear wave velocity for this element (m/s)
+        is_bedrock: Whether this element is bedrock (True) or soil (False)
     """
 
     tag: int
@@ -44,6 +45,7 @@ class SoilElementData:
     mat_tag: int
     gravity_load: float
     vs_value: float
+    is_bedrock: bool = False
 
 
 @dataclass
@@ -83,6 +85,7 @@ def build_model_data(
     vs_data: np.ndarray,
     rho_data: np.ndarray,
     nu_data: np.ndarray,
+    bedrock_mask: Optional[np.ndarray] = None,
 ) -> ModelData:
     """
     Builds a structured representation of the model without making OpenSees calls.
@@ -100,6 +103,13 @@ def build_model_data(
         raise ValueError(
             f"Shape of Vs file {vs_data.shape} != expected ({ndivy_soil}, {ndivx_soil})"
         )
+    
+    # Validate bedrock_mask if provided
+    if bedrock_mask is not None:
+        if bedrock_mask.shape != (ndivy_soil, ndivx_soil):
+            raise ValueError(
+                f"Shape of bedrock_mask {bedrock_mask.shape} != expected ({ndivy_soil}, {ndivx_soil})"
+            )
 
     # 1. Generate Node Data
     # For "8node" case, we use bbarQuad (B-bar formulation) which is higher-order
@@ -362,6 +372,11 @@ def build_model_data(
             mat_tag = int(mat_tags_all_soil[idx])
             gravity = -9.806 * float(rho_all[idx])
             vs_val = float(vs_all[idx])
+            
+            # Determine if this element is bedrock using the mask
+            is_bedrock = False
+            if bedrock_mask is not None:
+                is_bedrock = bool(bedrock_mask[row_idx[idx], col_idx[idx]])
 
             soil_elements_list.append(
                 SoilElementData(
@@ -370,6 +385,7 @@ def build_model_data(
                     mat_tag=mat_tag,
                     gravity_load=gravity,
                     vs_value=vs_val,
+                    is_bedrock=is_bedrock,
                 )
             )
 
