@@ -5,7 +5,7 @@
 #SBATCH --qos=savio_normal
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
-#SBATCH --time=03:00:00
+#SBATCH --time=05:00:00
 #SBATCH --array=0-269
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err

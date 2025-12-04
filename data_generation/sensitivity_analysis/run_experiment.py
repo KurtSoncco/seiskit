@@ -11,7 +11,7 @@ In this case, we will try:
 - 1 value of interlayer_seed = 42, with height of 5 meters
 - 1 value of Vs2 = 1500 m/s, only extend it 10 m from the Vs1 profile
 - 1 value of motion_freq = 3.0 Hz
-- 1 value of duration = 30.0 seconds
+- 1 value of duration = 60.0 seconds
 - Damping as global average of Q values from soil layer only, for frequencies 0.75 and 11.25 Hz
 - Boundary condition type = "2D"
 - Record center nodes at surface and base after 2 meters of the bottom (2 m from the bottom)
@@ -103,7 +103,7 @@ def run_case(index: int = 0):
     Vs2 = 1500.0  # Layer 2 (bedrock) velocity
     dz_1D = 2.0  # Vertical spacing for 1D profile
     motion_freq = 3.0  # Fixed at 3.0 Hz
-    duration = 30.0  # 30 seconds
+    duration = 60.0  # 60 seconds
     damp_freq = (0.75, 11.25)  # Damping frequencies
     damping_method = "global_avg"
     Lx_variability = 500.0
