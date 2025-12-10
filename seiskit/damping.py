@@ -178,8 +178,10 @@ def print_rayleigh_coefficients(
 
 # Example usage
 if __name__ == "__main__":
-    # Test Q factor calculations
-    Vs_test = 200.0
-    Q = compute_quality_factor(Vs_test)
-    xi = compute_damping_from_Q(Q)
-    print(f"\nFor Vs={Vs_test} m/s: Q={Q:.2f}, xi={xi:.6f}")
+    # Test Rayleigh damping coefficients
+    zeta = 0.0125
+    f1 = 0.75
+    f2 = 0.75 * 15
+    alphaM, betaK = compute_rayleigh_coefficients(zeta, f1, f2)
+    print(f"alphaM: {alphaM}")
+    print(f"betaK: {betaK}")

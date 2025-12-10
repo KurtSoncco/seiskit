@@ -422,10 +422,51 @@ def _apply_damping(
                 0.0,
             )
 
+    elif config.damping_method == "uniform_soil_only":
+        # Model E: Uniform Soil-Only Damping
+        # Specified damping for soil, fixed 0.75% for rock
+        soil_elements, bedrock_elements = _identify_bedrock_from_mask(model_data)
+
+        # Apply specified damping to soil elements
+        soil_zeta = config.damping_zeta  # Use config value (e.g., 0.025 for 2.5%)
+        alphaM_soil, betaK_soil = compute_rayleigh_coefficients(
+            soil_zeta, config.damping_freqs[0], config.damping_freqs[1]
+        )
+        soil_tags = [elem.tag for elem in soil_elements]
+        if soil_tags:
+            ops.region(
+                1,
+                "-ele",
+                *soil_tags,
+                "-rayleigh",
+                alphaM_soil,
+                betaK_soil,
+                0.0,
+                0.0,
+            )
+
+        # Apply fixed 0.75% damping to bedrock elements
+        if bedrock_elements:
+            bedrock_zeta = 0.0075  # Fixed 0.75% for rock
+            alphaM_bedrock, betaK_bedrock = compute_rayleigh_coefficients(
+                bedrock_zeta, config.damping_freqs[0], config.damping_freqs[1]
+            )
+            bedrock_tags = [elem.tag for elem in bedrock_elements]
+            ops.region(
+                2,
+                "-ele",
+                *bedrock_tags,
+                "-rayleigh",
+                alphaM_bedrock,
+                betaK_bedrock,
+                0.0,
+                0.0,
+            )
+
     else:
         raise ValueError(
             f"Unknown damping method: {config.damping_method}. "
-            f"Must be one of: 'none', 'global_avg', 'elemental_varying', 'elemental_mass_only', 'uniform'"
+            f"Must be one of: 'none', 'global_avg', 'elemental_varying', 'elemental_mass_only', 'uniform', 'uniform_soil_only'"
         )
 
 

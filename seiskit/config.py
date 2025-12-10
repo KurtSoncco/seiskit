@@ -48,9 +48,9 @@ class AnalysisConfig:
     motion_t_shift: float = 1.4
 
     # Damping Parameters
-    damping_zeta: float = 0.02
+    damping_zeta: float = 0.02  # Default value for uniform damping
     damping_freqs: tuple[float, float] = field(default_factory=lambda: (1.0, 5.0))
-    damping_method: str = "global_avg"  # "none", "global_avg", "elemental_varying", "elemental_mass_only", "uniform"
+    damping_method: str = "global_avg"  # "none", "global_avg", "elemental_varying", "elemental_mass_only", "uniform", "uniform_soil_only"
     damping_f_target: float = (
         0.75  # Target frequency for mass-only damping (default matches motion_freq)
     )

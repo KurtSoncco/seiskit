@@ -10,10 +10,13 @@ import itertools
 import sys
 from os import PathLike
 from pathlib import Path
-from typing import Dict, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Mapping, Optional, Tuple, Union
 
 import numpy as np
 from scipy.interpolate import interp1d
+
+if TYPE_CHECKING:
+    from seiskit.config import AnalysisConfig
 
 try:
     import seaborn as sns
@@ -520,9 +523,10 @@ def plot_damping_realization(
     save_path: PathType,
     title: str | None = None,
     bedrock_mask: np.ndarray | None = None,
-    damping_zeta: float = 0.02,
+    damping_zeta: float | None = None,
     damping_freqs: tuple[float, float] | None = None,
-    damping_f_target: float = 0.75,
+    damping_f_target: float | None = None,
+    config: "AnalysisConfig | None" = None,
 ) -> None:
     """
     Plot damping zeta values for each element based on the damping method.
@@ -532,7 +536,7 @@ def plot_damping_realization(
 
     Args:
         Vs_extended: 2D array of Vs values (nz, nx)
-        damping_method: Damping method ("global_avg", "elemental_varying", "elemental_mass_only", "uniform")
+        damping_method: Damping method ("global_avg", "elemental_varying", "elemental_mass_only", "uniform", "uniform_soil_only")
         Lx: Domain width [m]
         Lz: Domain height [m]
         dx: Horizontal grid spacing [m]
@@ -540,11 +544,26 @@ def plot_damping_realization(
         save_path: Path to save the plot
         title: Optional title for the plot
         bedrock_mask: Boolean mask of shape (nz, nx) where True indicates bedrock.
-                     Required for "global_avg" damping method to accurately identify bedrock vs soil.
-        damping_zeta: Damping ratio for uniform damping method (default: 0.02, matches AnalysisConfig default)
-        damping_freqs: Tuple of (f1, f2) frequencies for Rayleigh damping (default: None, not used in plot)
-        damping_f_target: Target frequency for mass-only damping (default: 0.75, matches AnalysisConfig default)
+                     Required for "global_avg" and "uniform_soil_only" damping methods to accurately identify bedrock vs soil.
+        damping_zeta: Damping ratio for uniform and uniform_soil_only damping methods.
+                     If None and config is provided, uses config.damping_zeta. Otherwise defaults to 0.02.
+        damping_freqs: Tuple of (f1, f2) frequencies for Rayleigh damping.
+                      If None and config is provided, uses config.damping_freqs.
+        damping_f_target: Target frequency for mass-only damping.
+                         If None and config is provided, uses config.damping_f_target. Otherwise defaults to 0.75.
+        config: Optional AnalysisConfig object. If provided, its damping parameters will be used
+                instead of individual damping_zeta, damping_freqs, and damping_f_target parameters.
     """
+    # Use config values if provided, otherwise use individual parameters or defaults
+    if config is not None:
+        damping_zeta = damping_zeta if damping_zeta is not None else config.damping_zeta
+        damping_freqs = damping_freqs if damping_freqs is not None else config.damping_freqs
+        damping_f_target = damping_f_target if damping_f_target is not None else config.damping_f_target
+    else:
+        # Set defaults if not provided
+        damping_zeta = damping_zeta if damping_zeta is not None else 0.02
+        damping_f_target = damping_f_target if damping_f_target is not None else 0.75
+
     try:
         import matplotlib.pyplot as plt
     except ImportError:
@@ -608,6 +627,28 @@ def plot_damping_realization(
         # Uniform damping: same damping for all elements
         # Use provided damping_zeta (defaults to 0.02 to match AnalysisConfig)
         zeta_grid.fill(damping_zeta)
+    elif damping_method == "uniform_soil_only":
+        # Uniform soil-only damping: specified damping for soil, fixed 0.75% for rock
+        # Require bedrock_mask for accurate bedrock/soil identification
+        if bedrock_mask is None:
+            raise ValueError(
+                "bedrock_mask is required for 'uniform_soil_only' damping method. "
+                "Provide bedrock_mask from create_vs_realization() for accurate bedrock/soil identification."
+            )
+
+        if bedrock_mask.shape != (nz, nx):
+            raise ValueError(
+                f"bedrock_mask shape {bedrock_mask.shape} != Vs_extended shape {(nz, nx)}"
+            )
+
+        # Use bedrock mask to identify soil vs bedrock
+        soil_mask = ~bedrock_mask
+        # Apply specified damping to soil elements
+        zeta_grid[soil_mask] = damping_zeta
+
+        # Apply fixed 0.75% damping to bedrock elements
+        if np.any(bedrock_mask):
+            zeta_grid[bedrock_mask] = 0.0075
     else:
         raise ValueError(f"Unknown damping method: {damping_method}")
 
