@@ -12,7 +12,7 @@
 ##SBATCH --exclude=n0029.savio3,n0053.savio3
 
 ## Command(s) to run:
-# Run complete sweep (180 tasks):
+# Run complete sweep (30 tasks: 3 motion_freq × 5 seeds × 2 damping_methods):
 # sbatch job_run.sh
 
 set -euo pipefail
