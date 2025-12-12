@@ -132,15 +132,13 @@ def run_case(index: int = 0):
         )
 
     # Map index to parameter combination
-    # Index structure: index = Vs1_idx * (5*3*2) + thickness_idx * (3*2) + CV_idx * (2) + seed_idx * (5) + damping_method_idx
-    motion_freq_idx = index // (
-        len(motion_freq_list) * len(seed_values) * len(damping_method_list)
-    )
-    remainder = index % (
-        len(motion_freq_list) * len(seed_values) * len(damping_method_list)
-    )
-    seed_idx = remainder // (len(seed_values) * len(damping_method_list))
-    remainder = remainder % (len(seed_values) * len(damping_method_list))
+    # Index structure: index = motion_freq_idx * (5*2) + seed_idx * (2) + damping_method_idx
+    # Outer loop: motion_freq (3 values)
+    # Middle loop: seed (5 values)
+    # Inner loop: damping_method (2 values)
+    motion_freq_idx = index // (len(seed_values) * len(damping_method_list))
+    remainder = index % (len(seed_values) * len(damping_method_list))
+    seed_idx = remainder // len(damping_method_list)
     damping_method_idx = remainder % len(damping_method_list)
 
     seed = seed_values[seed_idx]
