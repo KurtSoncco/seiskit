@@ -6,7 +6,6 @@
 #SBATCH --ntasks-per-node=32
 #SBATCH --time=05:00:00
 #SBATCH --qos=savio_normal
-#SBATCH --reservation=maint
 #SBATCH --output=logs/job_%j.out
 #SBATCH --error=logs/job_%j.err
 #SBATCH --mem=60G
