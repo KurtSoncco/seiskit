@@ -14,6 +14,7 @@
 # Submit: sbatch job_run.sh
 
 set -euo pipefail
+mkdir -p logs
 
 echo "$(date -Is) | START | Job=${SLURM_JOB_ID:-<local>} Host=$(hostname)" >&2
 
@@ -21,7 +22,7 @@ if [ -n "${SLURM_JOB_ID:-}" ]; then
     echo "$(date -Is) | MODULE | Purging modules..." >&2
     module purge
     echo "$(date -Is) | MODULE | Loading gnu-parallel, gcc, openblas..." >&2
-    module load gnu-parallel
+    module load parallel
     module load gcc/13.2.0 openblas/0.3.24
     echo "$(date -Is) | MODULE | Module load complete." >&2
 fi
@@ -34,7 +35,7 @@ if [ -n "${SLURM_JOB_ID:-}" ]; then
 fi
 
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
-mkdir -p logs
+
 
 PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
 RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
