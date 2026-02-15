@@ -14,7 +14,7 @@ Recordings: center node + lateral span at center depths (21 nodes at bedrock and
 
 Total: 3*3*3*3*100 = 8,100. Index 0--8099.
 Supports: --index N (single), or --index-start A --index-end B (range, clamp to 8100).
-Idempotent: skips if output already exists for that index.
+Idempotent: skips if output already exists for that index. Use --force to re-run anyway.
 """
 
 import argparse
@@ -313,6 +313,11 @@ def _parse_args():
         default=None,
         help="End of range (exclusive), clamped to 8100",
     )
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run even if output already exists (overrides idempotent skip).",
+    )
     return p.parse_args()
 
 
@@ -331,24 +336,26 @@ if __name__ == "__main__":
                 f"Error: --index must be 0..{TOTAL_COMBINATIONS - 1}", file=sys.stderr
             )
             sys.exit(1)
-        # Idempotent: skip if output dir exists and has OpenSees output (output_dir/task_id/center_node_*.txt)
-        out_dir = _output_dir_for_index(idx)
-        if out_dir.exists():
-            done_marker = list(out_dir.glob("**/center_node_*.txt"))
-            if done_marker:
-                print(f"[idempotent] Index {idx} already has output; skipping.")
-                sys.exit(0)
+        # Idempotent: skip if output exists unless --force
+        if not args.force:
+            out_dir = _output_dir_for_index(idx)
+            if out_dir.exists():
+                done_marker = list(out_dir.glob("**/center_node_*.txt"))
+                if done_marker:
+                    print(f"[idempotent] Index {idx} already has output; skipping.")
+                    sys.exit(0)
         run_case(idx)
     elif args.index_start is not None and args.index_end is not None:
         start = max(0, args.index_start)
         end = min(TOTAL_COMBINATIONS, args.index_end)
         for i in range(start, end):
-            out_dir = _output_dir_for_index(i)
-            if out_dir.exists():
-                existing = list(out_dir.glob("**/center_node_*.txt"))
-                if existing:
-                    print(f"[idempotent] Index {i} already has output; skipping.")
-                    continue
+            if not args.force:
+                out_dir = _output_dir_for_index(i)
+                if out_dir.exists():
+                    existing = list(out_dir.glob("**/center_node_*.txt"))
+                    if existing:
+                        print(f"[idempotent] Index {i} already has output; skipping.")
+                        continue
             run_case(i)
     else:
         # Fallback: from environment (SLURM_ARRAY_TASK_ID or PARALLEL_SEQ)
@@ -368,12 +375,13 @@ if __name__ == "__main__":
                 file=sys.stderr,
             )
             sys.exit(1)
-        out_dir = _output_dir_for_index(idx)
-        if out_dir.exists():
-            existing = list(out_dir.glob("**/center_node_*.txt"))
-            if existing:
-                print(f"[idempotent] Index {idx} already has output; skipping.")
-                sys.exit(0)
+        if not args.force:
+            out_dir = _output_dir_for_index(idx)
+            if out_dir.exists():
+                existing = list(out_dir.glob("**/center_node_*.txt"))
+                if existing:
+                    print(f"[idempotent] Index {idx} already has output; skipping.")
+                    sys.exit(0)
         run_case(idx)
 
     print(f"\n[program] Total wall time: {_fmt_hms(time.time() - program_start)}")

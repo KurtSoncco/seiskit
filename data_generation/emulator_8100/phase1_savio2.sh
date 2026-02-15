@@ -15,6 +15,9 @@
 # Phase 1: 8,088 sims (indices 0-8087). Savio2 is whole-node; use all 24 cores
 # by running 24 concurrent sims per array element via GNU Parallel.
 # 337 array elements × 24 sims = 8088. Submit: sbatch phase1_savio2.sh
+#
+# Set FORCE_RERUN=1 to re-run even when output exists (passes --force to run_experiment.py).
+FORCE_RERUN=${FORCE_RERUN:-0}
 mkdir -p logs
 set -euo pipefail
 
@@ -77,7 +80,9 @@ if [ "${END}" -gt "${TOTAL}" ]; then
   END=${TOTAL}
 fi
 COUNT=$((END - START))
-export PYTHON_BIN RUNNER_PY
+EXTRA_ARGS=""
+[ "${FORCE_RERUN}" = "1" ] && EXTRA_ARGS="--force"
+export PYTHON_BIN RUNNER_PY EXTRA_ARGS
 
 # Scratch-based paths: avoid $HOME for GNU Parallel and temp files (hardening).
 export PARALLEL_HOME=/global/scratch/users/$USER/.parallel
@@ -95,7 +100,7 @@ seq ${START} $((END - 1)) | parallel -j 24 \
   --joblog logs/joblog_task_${TASK_ID}.txt \
   --results "$RESULTS_DIR" \
   --tag \
-  'idx={}; idx_tmp="$TMPDIR/idx_$idx"; mkdir -p "$idx_tmp"; export TMPDIR="$idx_tmp"; trap "rm -rf \"$idx_tmp\"" EXIT; timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx"'
+  'idx={}; idx_tmp="$TMPDIR/idx_$idx"; mkdir -p "$idx_tmp"; export TMPDIR="$idx_tmp"; trap "rm -rf \"$idx_tmp\"" EXIT; timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS'
 
 PARALLEL_RC=$?
 echo "$(date -Is) | RUN | parallel finished. Exit code: ${PARALLEL_RC}" >&2

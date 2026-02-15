@@ -10,9 +10,11 @@
 #SBATCH --error=logs/array_job_%A_task_%a.err
 
 # Phase 2: 12 sims (remainder after Phase 1). Array 8089-8100 → 0-based indices 8088-8099.
-# One sim per array task. Submit after Phase 1 (or anytime; idempotent).
-# Submit: sbatch phase2_htc.sh
-
+# One sim per array task. Submit after Phase 1 (or anytime; idempotent unless FORCE_RERUN=1).
+#
+# Set FORCE_RERUN=1 to re-run even when output exists (passes --force to run_experiment.py).
+# Example: FORCE_RERUN=1 sbatch phase2_htc.sh
+FORCE_RERUN=${FORCE_RERUN:-0}
 mkdir -p logs
 set -euo pipefail
 
@@ -44,6 +46,8 @@ RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
 # Array 8089-8100 → 0-based index 8088-8099 (run_experiment.py uses 0-based)
 TASK_ID=${SLURM_ARRAY_TASK_ID:-8089}
 INDEX=$((TASK_ID - 1))
+EXTRA_ARGS=""
+[ "${FORCE_RERUN}" = "1" ] && EXTRA_ARGS="--force"
 
 # srun binds the single core on HTC
-srun -c 1 "${PYTHON_BIN}" -u "${RUNNER_PY}" --index "${INDEX}"
+srun -c 1 "${PYTHON_BIN}" -u "${RUNNER_PY}" --index "${INDEX}" ${EXTRA_ARGS}
