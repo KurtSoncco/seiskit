@@ -5,7 +5,7 @@ parameters for running seismic site response analyses.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Tuple
 
 
 @dataclass(slots=False)
@@ -71,6 +71,11 @@ class AnalysisConfig:
     center_node_y_positions: Optional[list[float]] = field(
         default_factory=lambda: None
     )  # List of Y positions (depths) to record center nodes at. If None, records only base (y=0) and surface (y=Ly). If specified, records at these Y positions instead of default base/surface.
+    record_lateral_span_at_center_depths: Optional[Tuple[int, float]] = (
+        None  # (nodes_each_side, nominal_spacing_m): at each Y in center_node_y_positions,
+        # record 2*nodes_each_side+1 nodes with nominal spacing nominal_spacing_m [m].
+        # Nodes are subsampled from the mesh; actual spacing ≈ max(nominal_spacing_m, hx).
+    )
     record_all_surface_nodes: bool = (
         False  # Enable/disable recording of all surface nodes
     )

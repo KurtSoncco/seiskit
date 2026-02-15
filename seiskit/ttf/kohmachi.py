@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def kohmachi(signal, freq_array, smooth_coeff=500):
+def kohmachi(signal, freq_array, smooth_coeff: float = 500):
     """
     Efficient way of smoothing low-frequency microtremor signals.
     Original paper:

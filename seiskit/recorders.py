@@ -38,6 +38,7 @@ def setup_recorders(
     recorder_info = {
         "center_nodes": [],
         "surface_nodes": [],
+        "row_nodes": [],  # (y_pos, node_count) for lateral span at center depths
         "files_created": [],
         "total_recorders": 0,
     }
@@ -113,6 +114,52 @@ def setup_recorders(
                 recorder_info["files_created"].append(str(filepath))
                 recorder_info["total_recorders"] += 1
 
+    # Lateral span at center depths: subset of domain (center ± N nodes at nominal_spacing_m)
+    # Records 2*nodes_each_side+1 nodes spaced at nominal_spacing_m [m] (subsampled from mesh).
+    if (
+        config.record_lateral_span_at_center_depths is not None
+        and config.center_node_y_positions is not None
+    ):
+        nodes_each_side, nominal_spacing_m = config.record_lateral_span_at_center_depths
+        step = max(1, round(nominal_spacing_m / config.hx))  # mesh columns per node
+        y_positions = config.center_node_y_positions
+        for y_pos in y_positions:
+            if y_pos < 0 or y_pos > config.Ly:
+                raise ValueError(
+                    f"Y position {y_pos} is outside valid range [0, {config.Ly}]"
+                )
+            j_row = int(y_pos / config.hy) + 1
+            if j_row < 1:
+                j_row = 1
+            elif j_row > ndivy:
+                j_row = ndivy
+            i_min = max(1, i_rec - nodes_each_side * step)
+            i_max = min(ndivx - 1, i_rec + nodes_each_side * step)
+            # Subsample by step to achieve nominal_spacing_m (avoids recording every mesh node)
+            row_node_ids = [
+                j_row * ndivx_plus_1 + i + 1
+                for i in range(i_min, i_max + 1, step)
+            ]
+            recorder_info["row_nodes"].append((y_pos, len(row_node_ids)))
+            for dof in config.recorder_dofs:
+                filename = (
+                    f"row_y{y_pos:.2f}_dof{dof}_{config.recorder_quantity}.txt"
+                )
+                filepath = output_path / filename
+                ops.recorder(
+                    "Node",
+                    "-file",
+                    str(filepath),
+                    "-time",
+                    "-node",
+                    *row_node_ids,
+                    "-dof",
+                    dof,
+                    config.recorder_quantity,
+                )
+                recorder_info["files_created"].append(str(filepath))
+                recorder_info["total_recorders"] += 1
+
     # Setup all surface node recorders
     if config.record_all_surface_nodes:
         recorder_info["surface_nodes"] = surface_nodes
@@ -159,6 +206,10 @@ def print_recorder_summary(recorder_info: Dict[str, Any]) -> None:
         print(
             f"    Node IDs: {recorder_info['surface_nodes'][:5]}{'...' if len(recorder_info['surface_nodes']) > 5 else ''}"
         )
+
+    if recorder_info["row_nodes"]:
+        for y_pos, count in recorder_info["row_nodes"]:
+            print(f"  Row at y={y_pos:.2f}: {count} nodes (lateral span at center depth)")
 
     print("  Output files:")
     for filepath in recorder_info["files_created"]:

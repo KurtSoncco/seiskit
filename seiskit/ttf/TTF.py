@@ -5,7 +5,15 @@ from .acc2FAS2 import acc2FAS2
 from .kohmachi import kohmachi
 
 
-def TTF(surface_acc, base_acc, dt=1e-4, n_points=1000, Vsmin=None, dz: float = 5):
+def TTF(
+    surface_acc,
+    base_acc,
+    dt=1e-4,
+    n_points=1000,
+    Vsmin=None,
+    dz: float = 5,
+    smooth_coeff: float = 500,
+):
     """
     Transfer function between surface and base acceleration
 
@@ -23,6 +31,9 @@ def TTF(surface_acc, base_acc, dt=1e-4, n_points=1000, Vsmin=None, dz: float = 5
         Minimum Vs value to calculate the maximum frequency, by default None
     dz : float, optional
         Depth increment used in the model, by default 5.0
+    smooth_coeff : float, optional
+        Smoothing coefficient for kohmachi smoothing, by default 500.
+        Lower values result in more smoothing.
 
     Returns
     -------
@@ -36,7 +47,7 @@ def TTF(surface_acc, base_acc, dt=1e-4, n_points=1000, Vsmin=None, dz: float = 5
     if Vsmin is not None:
         fmax = Vsmin / (10 * dz)
     else:
-        fmax = 2.5
+        fmax = 10.0  # Updating to 10 Hz
 
     # get FAS surface
     FAS_s, freq = acc2FAS2(surface_acc, dt, 10**6)
@@ -54,8 +65,9 @@ def TTF(surface_acc, base_acc, dt=1e-4, n_points=1000, Vsmin=None, dz: float = 5
     freq = np.logspace(np.log10(0.1), np.log10(fmax), n_points)
 
     # get TF
-    kohmachi_s = kohmachi(FAS_s, freq, 500)
-    kohmachi_b = kohmachi(FAS_b, freq, 500)
+    assert isinstance(smooth_coeff, int)
+    kohmachi_s = kohmachi(FAS_s, freq, smooth_coeff)
+    kohmachi_b = kohmachi(FAS_b, freq, smooth_coeff)
 
     # Handle division by zero by adding a small epsilon
     epsilon = 1e-12
