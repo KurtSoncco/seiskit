@@ -78,10 +78,24 @@ if [ "${END}" -gt "${TOTAL}" ]; then
 fi
 COUNT=$((END - START))
 export PYTHON_BIN RUNNER_PY
-echo "$(date -Is) | RUN | Task ${TASK_ID}: indices ${START}..$((END-1)) (${COUNT} sims) via parallel -j 24..." >&2
 
-seq ${START} $((END - 1)) | parallel -j 24 --joblog logs/joblog_task_${TASK_ID}.txt --tag \
-  'idx={}; export TMPDIR=/global/scratch/users/$USER/tmp/job_${SLURM_JOB_ID}_task_${TASK_ID}_idx_$idx; mkdir -p "$TMPDIR"; trap "rm -rf \"$TMPDIR\"" EXIT; "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx"'
+# Scratch-based paths: avoid $HOME for GNU Parallel and temp files (hardening).
+export PARALLEL_HOME=/global/scratch/users/$USER/.parallel
+export TMPDIR=/global/scratch/users/$USER/tmp/job_${SLURM_JOB_ID:-0}_task_${TASK_ID}_root
+RESULTS_DIR="logs/per_idx/${SLURM_JOB_ID:-0}/${TASK_ID}"
+mkdir -p "$PARALLEL_HOME" "$TMPDIR" "$RESULTS_DIR"
+
+# Per-sim timeout (4h) so one stuck run doesn't hang the slot; job time is 5h.
+SIM_TIMEOUT=14400
+export SIM_TIMEOUT
+
+echo "$(date -Is) | RUN | Task ${TASK_ID}: indices ${START}..$((END-1)) (${COUNT} sims) via parallel -j 24 (timeout ${SIM_TIMEOUT}s each)..." >&2
+
+seq ${START} $((END - 1)) | parallel -j 24 \
+  --joblog logs/joblog_task_${TASK_ID}.txt \
+  --results "$RESULTS_DIR" \
+  --tag \
+  'idx={}; idx_tmp="$TMPDIR/idx_$idx"; mkdir -p "$idx_tmp"; export TMPDIR="$idx_tmp"; trap "rm -rf \"$idx_tmp\"" EXIT; timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx"'
 
 PARALLEL_RC=$?
 echo "$(date -Is) | RUN | parallel finished. Exit code: ${PARALLEL_RC}" >&2
