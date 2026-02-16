@@ -397,15 +397,9 @@ def test_absorbing_boundary_elements_no_damping():
 
     # Add boundary elements (should NOT get damping)
     model_data.boundary_elements = [
-        BoundaryElementData(
-            tag=10, nodes=(1, 2, 3, 4), btype="L", G=1e6, poiss=0.3, rho=2000.0
-        ),
-        BoundaryElementData(
-            tag=11, nodes=(5, 6, 7, 8), btype="R", G=1e6, poiss=0.3, rho=2000.0
-        ),
-        BoundaryElementData(
-            tag=12, nodes=(9, 10, 11, 12), btype="B", G=1e6, poiss=0.3, rho=2000.0
-        ),
+        BoundaryElementData(tag=10, nodes=(1, 2, 3, 4), btype="L", G=1e6, poiss=0.3, rho=2000.0),
+        BoundaryElementData(tag=11, nodes=(5, 6, 7, 8), btype="R", G=1e6, poiss=0.3, rho=2000.0),
+        BoundaryElementData(tag=12, nodes=(9, 10, 11, 12), btype="B", G=1e6, poiss=0.3, rho=2000.0),
     ]
 
     # Extract interior soil element tags (as done in isolated_runner)

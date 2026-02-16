@@ -65,9 +65,7 @@ class AnalysisConfig:
     boundary_condition_type: str = "1D"  # "1D" for site response, "2D" for free field
 
     # Recorder Configuration
-    record_center_nodes: bool = (
-        True  # Enable/disable recording of center nodes (base and surface)
-    )
+    record_center_nodes: bool = True  # Enable/disable recording of center nodes (base and surface)
     center_node_y_positions: Optional[list[float]] = field(
         default_factory=lambda: None
     )  # List of Y positions (depths) to record center nodes at. If None, records only base (y=0) and surface (y=Ly). If specified, records at these Y positions instead of default base/surface.
@@ -76,9 +74,7 @@ class AnalysisConfig:
         # record 2*nodes_each_side+1 nodes with nominal spacing nominal_spacing_m [m].
         # Nodes are subsampled from the mesh; actual spacing ≈ max(nominal_spacing_m, hx).
     )
-    record_all_surface_nodes: bool = (
-        False  # Enable/disable recording of all surface nodes
-    )
+    record_all_surface_nodes: bool = False  # Enable/disable recording of all surface nodes
     recorder_dofs: list[int] = field(
         default_factory=lambda: [1]
     )  # List of DOFs to record (1=X, 2=Y)

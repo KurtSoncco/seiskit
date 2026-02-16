@@ -7,9 +7,7 @@ quality factors (Q), and other damping-related calculations.
 import numpy as np
 
 
-def compute_rayleigh_coefficients(
-    zeta: float, f1: float, f2: float
-) -> tuple[float, float]:
+def compute_rayleigh_coefficients(zeta: float, f1: float, f2: float) -> tuple[float, float]:
     """Calculate Rayleigh damping coefficients alphaM and betaK.
 
     Uses a matrix solve approach which is more general and handles edge cases

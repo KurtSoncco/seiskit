@@ -124,9 +124,9 @@ def _run_isolated_analysis(task: AnalysisTask) -> AnalysisResult:
     import timeit
     from pathlib import Path
 
-    # Import OpenSees locally in this process
+    # Import OpenSees locally in this process (required before run_opensees_analysis)
     try:
-        import openseespy.opensees as ops
+        import openseespy.opensees as ops  # noqa: F401
     except ImportError:
         return AnalysisResult(
             task_id=task.task_id, status="no-opensees", error="OpenSees not available"
@@ -192,9 +192,7 @@ def run_parallel_analyses(
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
-        future_to_task = {
-            executor.submit(_run_isolated_analysis, task): task for task in tasks
-        }
+        future_to_task = {executor.submit(_run_isolated_analysis, task): task for task in tasks}
 
         # Collect results as they complete
         for future in as_completed(future_to_task):
@@ -208,9 +206,7 @@ def run_parallel_analyses(
 
             except Exception as e:
                 # Handle unexpected errors in the executor
-                result = AnalysisResult(
-                    task_id=task.task_id, status="executor-error", error=str(e)
-                )
+                result = AnalysisResult(task_id=task.task_id, status="executor-error", error=str(e))
                 results[task_indices[task.task_id]] = result
 
                 if progress_callback:
@@ -260,9 +256,7 @@ def run_parameter_study(
         task_config = base_config.copy()
 
         # Create task ID from parameter values
-        param_str = "_".join(
-            f"{name}{val}" for name, val in zip(param_names, combination)
-        )
+        param_str = "_".join(f"{name}{val}" for name, val in zip(param_names, combination))
         task_config["task_id"] = f"param_study_{param_str}"
 
         # Add parameter values to config

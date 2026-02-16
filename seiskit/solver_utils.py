@@ -73,7 +73,7 @@ def setup_solver(config, analysis_type: str = "dynamic") -> None:
             f"Unknown solver_type: {config.solver_type}. "
             f"Must be one of: 'UmfPack', 'Mumps', 'MumpsParallel'"
         )
-    
+
     if ops is None:
         return
 

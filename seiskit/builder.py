@@ -103,7 +103,7 @@ def build_model_data(
         raise ValueError(
             f"Shape of Vs file {vs_data.shape} != expected ({ndivy_soil}, {ndivx_soil})"
         )
-    
+
     # Validate bedrock_mask if provided
     if bedrock_mask is not None:
         if bedrock_mask.shape != (ndivy_soil, ndivx_soil):
@@ -130,9 +130,7 @@ def build_model_data(
     x_coords = np.where(
         i_indices == 0,
         -abs_h,
-        np.where(
-            i_indices == ndivx_total, config.Lx + abs_h, (i_indices - 1) * config.hx
-        ),
+        np.where(i_indices == ndivx_total, config.Lx + abs_h, (i_indices - 1) * config.hx),
     )
 
     # Create meshgrid for all node positions using 'ij' indexing for consistency
@@ -162,11 +160,7 @@ def build_model_data(
                 x1 = (
                     -abs_h
                     if i == 0
-                    else (
-                        config.Lx + abs_h
-                        if i == ndivx_total - 1
-                        else (i - 1) * config.hx
-                    )
+                    else (config.Lx + abs_h if i == ndivx_total - 1 else (i - 1) * config.hx)
                 )
                 x2 = (
                     -abs_h
@@ -174,12 +168,8 @@ def build_model_data(
                     else (config.Lx + abs_h if i + 1 == ndivx_total else i * config.hx)
                 )
                 x_mid = (x1 + x2) / 2.0
-                node_tag = (
-                    (ndivy_total + 1) * (ndivx_total + 1) + j * ndivx_total + i + 1
-                )
-                model.nodes.append(
-                    NodeData(tag=node_tag, x=x_mid - config.Lx / 2.0, y=y)
-                )
+                node_tag = (ndivy_total + 1) * (ndivx_total + 1) + j * ndivx_total + i + 1
+                model.nodes.append(NodeData(tag=node_tag, x=x_mid - config.Lx / 2.0, y=y))
 
         # Vertical mid-nodes (between corners vertically)
         for j in range(ndivy_total):
@@ -187,9 +177,7 @@ def build_model_data(
                 x = (
                     -abs_h
                     if i == 0
-                    else (
-                        config.Lx + abs_h if i == ndivx_total else (i - 1) * config.hx
-                    )
+                    else (config.Lx + abs_h if i == ndivx_total else (i - 1) * config.hx)
                 )
                 y1 = -abs_h if j == 0 else (j - 1) * config.hy
                 y2 = -abs_h if j + 1 == 0 else j * config.hy
@@ -198,9 +186,7 @@ def build_model_data(
                     ndivy_total + 1
                 ) * ndivx_total
                 node_tag = base_offset + j * (ndivx_total + 1) + i + 1
-                model.nodes.append(
-                    NodeData(tag=node_tag, x=x - config.Lx / 2.0, y=y_mid)
-                )
+                model.nodes.append(NodeData(tag=node_tag, x=x - config.Lx / 2.0, y=y_mid))
 
     # 2. Generate Element and Material Data using vectorized operations
     # Create meshgrid for all element indices
@@ -226,9 +212,7 @@ def build_model_data(
     # Note: Top surface (y=Ly) is a FREE SURFACE - no absorbing boundary elements
     # Only bottom, left, and right boundaries use ASDAbsorbingBoundary2D elements
     is_bottom = j_flat == 0
-    is_top = (
-        j_flat == ndivy_total - 1
-    )  # Top surface (free surface - NO boundary elements)
+    is_top = j_flat == ndivy_total - 1  # Top surface (free surface - NO boundary elements)
     is_left = i_flat == 0
     is_right = i_flat == ndivx_total - 1
 
@@ -372,7 +356,7 @@ def build_model_data(
             mat_tag = int(mat_tags_all_soil[idx])
             gravity = -9.806 * float(rho_all[idx])
             vs_val = float(vs_all[idx])
-            
+
             # Determine if this element is bedrock using the mask
             is_bedrock = False
             if bedrock_mask is not None:

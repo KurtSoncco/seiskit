@@ -74,9 +74,7 @@ def run_isolated_analysis(
         )
 
         ts_tag = 1
-        ops.timeSeries(
-            "Path", ts_tag, "-dt", config.dt, "-values", *ts_vals, "-factor", 1
-        )
+        ops.timeSeries("Path", ts_tag, "-dt", config.dt, "-values", *ts_vals, "-factor", 1)
 
         # ---------------------------------------------------------
         # 3. MESH GENERATION
@@ -173,9 +171,7 @@ def run_isolated_analysis(
         # - For 1D: equalDOF constraints + ASDA elements in Stage 0 provide support
         # - For 2D: ASDA elements in Stage 0 provide rigid support (no equalDOF - allows 2D behavior)
         bc_type_str = "2D" if config.boundary_condition_type == "2D" else "1D"
-        print(
-            f"Gravity analysis ({bc_type_str}): ASDA elements in Stage 0 (rigid supports)"
-        )
+        print(f"Gravity analysis ({bc_type_str}): ASDA elements in Stage 0 (rigid supports)")
         _run_gravity_analysis_isolated(config, run_id)
 
         # ---------------------------------------------------------
@@ -188,9 +184,7 @@ def run_isolated_analysis(
         #   - Viscous dashpots activate to absorb reflected waves
         #   - Bottom boundary injects input motion via Force-Based Input method
         # Note: For 2D, nodes can move independently (no equalDOF); for 1D, equalDOF remains active
-        print(
-            "Switching ASDA elements to Stage 1 (absorbing boundaries) for dynamic analysis"
-        )
+        print("Switching ASDA elements to Stage 1 (absorbing boundaries) for dynamic analysis")
         ops.setParameter("-val", 1, "-ele", *model_data.abs_element_tags, "stage")
 
         # 8. Setup Recorders
@@ -198,15 +192,11 @@ def run_isolated_analysis(
         ndivy_total = int(config.Ly / config.hy) + 1
 
         # Setup recorders based on configuration
-        recorder_info = setup_recorders(
-            config, ndivx_total, ndivy_total, run_output_path
-        )
+        recorder_info = setup_recorders(config, ndivx_total, ndivy_total, run_output_path)
         print_recorder_summary(recorder_info)
 
         # 9. Run Dynamic Analysis
-        _run_dynamic_analysis_isolated(
-            config, model_data, interior_soil_element_tags, run_id
-        )
+        _run_dynamic_analysis_isolated(config, model_data, interior_soil_element_tags, run_id)
 
         # 10. Clean up completely
         ops.wipe()
@@ -218,7 +208,7 @@ def run_isolated_analysis(
         # Ensure cleanup even on error
         try:
             ops.wipe()
-        except:
+        except Exception:
             pass
         return f"Failed {run_id}: {str(e)}"
 
@@ -305,9 +295,7 @@ def _apply_damping(
         if not soil_elements:
             raise ValueError("No soil layer elements found for global average damping")
 
-        Q_values_soil = [
-            compute_quality_factor(elem.vs_value) for elem in soil_elements
-        ]
+        Q_values_soil = [compute_quality_factor(elem.vs_value) for elem in soil_elements]
         avg_damping_soil = compute_average_damping_harmonic(Q_values_soil)
 
         # Compute Rayleigh coefficients for soil layer
@@ -378,11 +366,7 @@ def _apply_damping(
     elif config.damping_method == "elemental_mass_only":
         # Model C: Elemental Mass-Only Damping
         # Each element gets mass-only damping based on its Vs
-        f_target = (
-            config.damping_f_target
-            if config.damping_f_target > 0
-            else config.motion_freq
-        )
+        f_target = config.damping_f_target if config.damping_f_target > 0 else config.motion_freq
         region_tag = 1
         for elem in model_data.soil_elements:
             Q = compute_quality_factor(elem.vs_value)
@@ -581,9 +565,7 @@ def _run_dynamic_analysis_isolated(
         progress = 100.0 * step / nsteps
         avg_step_time = elapsed / step if step > 0 else 0
         remaining_steps_count = nsteps - step
-        estimated_remaining = (
-            avg_step_time * remaining_steps_count if avg_step_time > 0 else 0
-        )
+        estimated_remaining = avg_step_time * remaining_steps_count if avg_step_time > 0 else 0
         print(
             f"[{run_id}] Progress: {step}/{nsteps} steps ({progress:.1f}%) | "
             f"Elapsed: {elapsed:.1f}s | Avg: {avg_step_time:.3f}s/step | "

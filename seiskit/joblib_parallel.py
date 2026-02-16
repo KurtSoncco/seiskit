@@ -73,9 +73,7 @@ def _run_single_joblib_analysis(task: JoblibAnalysisTask) -> JoblibAnalysisResul
 
     try:
         # Build model data (this is safe to do in parallel)
-        model_data = build_model_data(
-            task.config, task.vs_data, task.rho_data, task.nu_data
-        )
+        model_data = build_model_data(task.config, task.vs_data, task.rho_data, task.nu_data)
 
         # Run the analysis
         status = run_opensees_analysis(
@@ -138,12 +136,10 @@ def run_joblib_parallel_analyses(
         return result
 
     # Run analyses in parallel
-    results = Parallel(
-        n_jobs=n_jobs, backend=backend, verbose=verbose, return_as="list"
-    )(delayed(_run_with_callback)(task) for task in tasks)
-    assert isinstance(results, list) and all(
-        isinstance(r, JoblibAnalysisResult) for r in results
+    results = Parallel(n_jobs=n_jobs, backend=backend, verbose=verbose, return_as="list")(
+        delayed(_run_with_callback)(task) for task in tasks
     )
+    assert isinstance(results, list) and all(isinstance(r, JoblibAnalysisResult) for r in results)
 
     return cast(List[JoblibAnalysisResult], results)
 
@@ -242,9 +238,7 @@ def run_joblib_parameter_study(
         task_config = base_config.copy()
 
         # Create task ID from parameter values
-        param_str = "_".join(
-            f"{name}{val}" for name, val in zip(param_names, combination)
-        )
+        param_str = "_".join(f"{name}{val}" for name, val in zip(param_names, combination))
         task_config["task_id"] = f"param_study_{param_str}"
 
         # Add parameter values to config
@@ -255,9 +249,7 @@ def run_joblib_parameter_study(
 
     # Prepare and run tasks
     tasks = prepare_joblib_tasks(task_configs, material_data, output_dir)
-    return run_joblib_parallel_analyses(
-        tasks, n_jobs=n_jobs, backend=backend, verbose=verbose
-    )
+    return run_joblib_parallel_analyses(tasks, n_jobs=n_jobs, backend=backend, verbose=verbose)
 
 
 def collect_joblib_results(
@@ -327,6 +319,4 @@ def run_analyses_joblib_parallel(
         >>> results = run_analyses_joblib_parallel(configs, material_data)
     """
     tasks = prepare_joblib_tasks(configs, material_data, output_dir)
-    return run_joblib_parallel_analyses(
-        tasks, n_jobs=n_jobs, backend=backend, verbose=verbose
-    )
+    return run_joblib_parallel_analyses(tasks, n_jobs=n_jobs, backend=backend, verbose=verbose)

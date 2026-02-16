@@ -90,9 +90,7 @@ def build_mesh_and_materials(
     if vs_grid is not None:
         expect_shape = (int(Ly / hx), int(Lx / hx))
         if vs_grid.shape != expect_shape:
-            raise ValueError(
-                f"vs_grid shape {vs_grid.shape} != expected {expect_shape}"
-            )
+            raise ValueError(f"vs_grid shape {vs_grid.shape} != expected {expect_shape}")
 
     # Iterate and create element stubs (no OpenSees calls)
     for j in range(ndivy):
@@ -140,4 +138,6 @@ def fmt_hms(seconds: float) -> str:
         Formatted string as HH:MM:SS
     """
     total_seconds = int(seconds)
-    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    return (
+        f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    )

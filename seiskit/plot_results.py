@@ -51,15 +51,11 @@ except ImportError:
 # --- Data Structures ---
 # [IMPROVEMENT] Using more specific and cleaner type hints.
 TimeSeries = Tuple[np.ndarray, np.ndarray]  # (time, acceleration)
-TimeSeriesMulti = Tuple[
-    np.ndarray, np.ndarray
-]  # (time, acceleration_columns) for surface data
+TimeSeriesMulti = Tuple[np.ndarray, np.ndarray]  # (time, acceleration_columns) for surface data
 ModelResult = Dict[
     str, Union[TimeSeries, TimeSeriesMulti]
 ]  # e.g., {"base": TimeSeries, "top": TimeSeries, "surface": TimeSeriesMulti}
-DataSet = Dict[
-    str, ModelResult
-]  # e.g., {"SPECFEM": ModelResult, "PLAXIS": ModelResult}
+DataSet = Dict[str, ModelResult]  # e.g., {"SPECFEM": ModelResult, "PLAXIS": ModelResult}
 PathType = Union[str, Path, PathLike]
 
 # [IMPROVEMENT] Centralized styling for consistent plots using colorblind-friendly palette.
@@ -67,8 +63,7 @@ if SEABORN_AVAILABLE and sns is not None:
     # Use seaborn's colorblind-friendly palette
     COLORBLIND_PALETTE = sns.color_palette("colorblind", as_cmap=False)
     COLORBLIND_COLORS = [
-        f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
-        for r, g, b in COLORBLIND_PALETTE
+        f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}" for r, g, b in COLORBLIND_PALETTE
     ]
     MODEL_COLORS = {
         "My_New_Run": COLORBLIND_COLORS[0],
@@ -137,15 +132,12 @@ def load_datasets(config: Mapping[str, Mapping[str, PathType]]) -> DataSet:
                         datasets[model_name][location] = (data[:, 0], data[:, 1])
                 except ValueError as e:
                     raise ValueError(
-                        f"Error loading {file_path}: {e}. "
-                        f"File may be empty or malformed."
+                        f"Error loading {file_path}: {e}. File may be empty or malformed."
                     ) from e
     return datasets
 
 
-def _resample_and_calculate_difference(
-    reference: TimeSeries, comparison: TimeSeries
-) -> TimeSeries:
+def _resample_and_calculate_difference(reference: TimeSeries, comparison: TimeSeries) -> TimeSeries:
     """Resamples a comparison series and computes the difference with a reference.
 
     Uses linear interpolation to align the comparison time series with the
@@ -219,11 +211,7 @@ def plot_acceleration_comparison(
     model_styles = {}
     for i, model_name in enumerate(all_model_names):
         color = MODEL_COLORS.get(model_name, fallback_colors[i % len(fallback_colors)])
-        line_style = (
-            line_styles[i % len(line_styles)]
-            if model_name != reference_name
-            else "solid"
-        )
+        line_style = line_styles[i % len(line_styles)] if model_name != reference_name else "solid"
         model_styles[model_name] = {"color": color, "line_style": line_style}
 
     # Plot top (surface) at row 1, base at row 2
@@ -262,9 +250,7 @@ def plot_acceleration_comparison(
                     y=accel,
                     mode="lines",
                     name=f"{reference_name} ({location})",  # Include location for clarity
-                    line=dict(
-                        color=style["color"], width=2.5
-                    ),  # Thicker line for reference
+                    line=dict(color=style["color"], width=2.5),  # Thicker line for reference
                     showlegend=True,  # Show legend for all traces
                 ),
                 row=i,
@@ -272,9 +258,7 @@ def plot_acceleration_comparison(
             )
 
     # Move legend to bottom
-    fig.update_layout(
-        legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
-    )
+    fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5))
 
     fig.write_html(str(output_path))
     print(f"Comparison plot saved to {output_path}")
@@ -381,9 +365,7 @@ def plot_stacked_acceleration(
 
         surface_file_path = Path(data_config[model_name]["surface"])
         output_dir = surface_file_path.parent
-        output_file = (
-            output_dir / f"{model_name}_surface_nodes_acceleration_stacked.png"
-        )
+        output_file = output_dir / f"{model_name}_surface_nodes_acceleration_stacked.png"
 
         # Create the plot
         plt.figure(figsize=(12, 8))
@@ -481,9 +463,7 @@ def plot_transfer_functions(
         _, top_accel = model_data["top"]
 
         # Compute transfer function
-        freq_model, tf_model = TTF(
-            top_accel, base_accel, dt=base_time[1] - base_time[0], dz=dz
-        )
+        freq_model, tf_model = TTF(top_accel, base_accel, dt=base_time[1] - base_time[0], dz=dz)
 
         color = MODEL_COLORS.get(model_name, next(FALLBACK_COLORS))
         fig.add_trace(
@@ -558,7 +538,9 @@ def plot_damping_realization(
     if config is not None:
         damping_zeta = damping_zeta if damping_zeta is not None else config.damping_zeta
         damping_freqs = damping_freqs if damping_freqs is not None else config.damping_freqs
-        damping_f_target = damping_f_target if damping_f_target is not None else config.damping_f_target
+        damping_f_target = (
+            damping_f_target if damping_f_target is not None else config.damping_f_target
+        )
     else:
         # Set defaults if not provided
         damping_zeta = damping_zeta if damping_zeta is not None else 0.02
@@ -808,9 +790,7 @@ def plot_realization(
     ax.set_xlabel("Distance (m)", fontsize=12)
     ax.set_ylabel("Depth (m)", fontsize=12)
     ax.set_title(
-        title
-        if title is not None
-        else "Optimized 2D $V_s$ Realization (Soil-Focused Color Scale)",
+        title if title is not None else "Optimized 2D $V_s$ Realization (Soil-Focused Color Scale)",
         fontsize=14,
     )
     ax.grid(False)

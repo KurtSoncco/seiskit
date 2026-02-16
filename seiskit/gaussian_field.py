@@ -103,9 +103,7 @@ def _generate_vs_variability_field(
     rng = np.random.default_rng(seed)
 
     # Separate RNG for interlayer variability (wavy boundary)
-    interlayer_rng = np.random.default_rng(
-        interlayer_seed if interlayer_seed is not None else seed
-    )
+    interlayer_rng = np.random.default_rng(interlayer_seed if interlayer_seed is not None else seed)
 
     # 1. Profile and Grid Setup
     Vs_unique = np.unique(Vs_profile)
@@ -268,9 +266,7 @@ def create_vs_realization(
         - bedrock_mask (np.ndarray): Boolean mask of shape (nz, nx_total) where True indicates bedrock.
     """
     if Lx < Lx_variability:
-        raise ValueError(
-            "Total length Lx must be greater than or equal to Lx_variability."
-        )
+        raise ValueError("Total length Lx must be greater than or equal to Lx_variability.")
 
     # Use the internal function to generate the variability field and bedrock mask
     var_Vs_field, x_var, z, h, mask_bottom_layer = _generate_vs_variability_field(
@@ -312,9 +308,7 @@ def create_vs_realization(
         right_mask_col = mask_bottom_layer[:, -1:]
         left_mask_padding = np.tile(left_mask_col, (1, n_pad_left))
         right_mask_padding = np.tile(right_mask_col, (1, n_pad_right))
-        bedrock_mask = np.hstack(
-            [left_mask_padding, mask_bottom_layer, right_mask_padding]
-        )
+        bedrock_mask = np.hstack([left_mask_padding, mask_bottom_layer, right_mask_padding])
     else:
         # If Lx_variability is the same as Lx, no padding is needed
         final_Vs = var_Vs_field

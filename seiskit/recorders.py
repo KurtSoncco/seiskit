@@ -47,9 +47,9 @@ def setup_recorders(
     ndivx_plus_1 = ndivx + 1
     i_rec = int(ndivx / 2)  # Center node index
 
-    # Calculate node IDs for default base and top
-    soil_base = 1 * ndivx_plus_1 + i_rec + 1
-    soil_top = ndivy * ndivx_plus_1 + i_rec + 1
+    # Calculate node IDs for default base and top (used in center_node_ids below when using y_positions)
+    _soil_base = 1 * ndivx_plus_1 + i_rec + 1
+    _soil_top = ndivy * ndivx_plus_1 + i_rec + 1
 
     # Calculate all surface nodes (excluding absorbing boundaries)
     surface_nodes = [
@@ -75,9 +75,7 @@ def setup_recorders(
         center_node_ids = []
         for y_pos in y_positions:
             if y_pos < 0 or y_pos > config.Ly:
-                raise ValueError(
-                    f"Y position {y_pos} is outside valid range [0, {config.Ly}]"
-                )
+                raise ValueError(f"Y position {y_pos} is outside valid range [0, {config.Ly}]")
             # Calculate row index: j = int(Y / hy) + 1
             # Row 1 corresponds to y=0 (base), row ndivy corresponds to y=Ly (surface)
             j_row = int(y_pos / config.hy) + 1
@@ -96,9 +94,7 @@ def setup_recorders(
             for idx, node_id in enumerate(center_node_ids):
                 y_pos = y_positions[idx]
                 # Create filename based on Y position
-                filename = (
-                    f"center_node_y{y_pos:.2f}_dof{dof}_{config.recorder_quantity}.txt"
-                )
+                filename = f"center_node_y{y_pos:.2f}_dof{dof}_{config.recorder_quantity}.txt"
                 filepath = output_path / filename
                 ops.recorder(
                     "Node",
@@ -125,9 +121,7 @@ def setup_recorders(
         y_positions = config.center_node_y_positions
         for y_pos in y_positions:
             if y_pos < 0 or y_pos > config.Ly:
-                raise ValueError(
-                    f"Y position {y_pos} is outside valid range [0, {config.Ly}]"
-                )
+                raise ValueError(f"Y position {y_pos} is outside valid range [0, {config.Ly}]")
             j_row = int(y_pos / config.hy) + 1
             if j_row < 1:
                 j_row = 1
@@ -136,15 +130,10 @@ def setup_recorders(
             i_min = max(1, i_rec - nodes_each_side * step)
             i_max = min(ndivx - 1, i_rec + nodes_each_side * step)
             # Subsample by step to achieve nominal_spacing_m (avoids recording every mesh node)
-            row_node_ids = [
-                j_row * ndivx_plus_1 + i + 1
-                for i in range(i_min, i_max + 1, step)
-            ]
+            row_node_ids = [j_row * ndivx_plus_1 + i + 1 for i in range(i_min, i_max + 1, step)]
             recorder_info["row_nodes"].append((y_pos, len(row_node_ids)))
             for dof in config.recorder_dofs:
-                filename = (
-                    f"row_y{y_pos:.2f}_dof{dof}_{config.recorder_quantity}.txt"
-                )
+                filename = f"row_y{y_pos:.2f}_dof{dof}_{config.recorder_quantity}.txt"
                 filepath = output_path / filename
                 ops.recorder(
                     "Node",

@@ -1,6 +1,53 @@
 import numpy as np
 from scipy.fft import fft
 
+
+def acc2FAS_complex(acc, dt, nfreq=None):
+    """
+    Convert acceleration time history to Fourier Amplitude Spectrum (FAS) and phase.
+
+    Parameters
+    ----------
+    acc : array_like
+        Acceleration time history.
+    dt : float
+        Time step.
+    nfreq : int, optional
+        Number of frequency points (FFT length). Default is len(acc).
+
+    Returns
+    -------
+    FAS : np.ndarray
+        One-sided Fourier amplitude spectrum (magnitude).
+    phase : np.ndarray
+        Phase in radians for positive frequencies.
+    freq : np.ndarray
+        Frequency vector (Hz) corresponding to FAS and phase.
+    """
+    numpts = len(acc)
+    if nfreq is None:
+        n = numpts
+    else:
+        n = nfreq
+
+    fs = 1 / dt
+    fnyq = 0.5 * fs
+    df = 1 / (n * dt)
+    n_half = n // 2
+    freq = np.arange(0, fnyq, df)[:n_half]
+
+    Acc = fft(acc, n=n, axis=0)
+    # One-sided: positive frequencies only
+    Acc_one = Acc[:n_half]
+    FAS = (2 / numpts) * np.abs(Acc_one)
+    phase = np.angle(Acc_one)
+
+    FAS = np.asarray(FAS).reshape(-1)
+    phase = np.asarray(phase).reshape(-1)
+    freq = np.asarray(freq).reshape(-1)
+    return FAS, phase, freq
+
+
 def acc2FAS2(acc, dt, nfreq=None):
     """
     Convert acceleration time history to Fourier Amplitude Spectrum (FAS)
@@ -18,14 +65,14 @@ def acc2FAS2(acc, dt, nfreq=None):
 
     numpts = len(acc)
 
-    #if acc.ndim == 1:
+    # if acc.ndim == 1:
     #    acc = acc.reshape(-1, 1)
 
     if nfreq is None:
         n = numpts
     else:
         if numpts > nfreq:
-            print('Warning: numpts > nfreq')
+            print("Warning: numpts > nfreq")
         n = nfreq
 
     fs = 1 / dt
@@ -33,11 +80,14 @@ def acc2FAS2(acc, dt, nfreq=None):
     df = 1 / (n * dt)
     freq = np.arange(0, fnyq, df)
 
-
     Acc = fft(acc, n=n, axis=0)
-    FAS = (2 / numpts) * np.abs(Acc[:n // 2])
+    FAS = (2 / numpts) * np.abs(Acc[: n // 2])
 
-    FAS = FAS.reshape(-1,)
-    freq = freq.reshape(-1,)
-    
+    FAS = FAS.reshape(
+        -1,
+    )
+    freq = freq.reshape(
+        -1,
+    )
+
     return FAS, freq

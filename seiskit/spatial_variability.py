@@ -5,9 +5,7 @@ import numpy as np
 from seiskit.plot_results import plot_realization
 
 
-def Base_case_extraction(
-    Vs_array: np.ndarray, dz: int = 5
-) -> Tuple[float, float, float]:
+def Base_case_extraction(Vs_array: np.ndarray, dz: int = 5) -> Tuple[float, float, float]:
     """
     Extract Vs1, Vs2, and h from the given Vs array.
 

@@ -75,7 +75,7 @@ def run_case_basic(
         duration=duration,
         dt=dt,
     )
-    
+
     # Return consistent status format
     if res.startswith("Finished"):
         return {"status": res, "ts": str(ts_path)}
