@@ -34,9 +34,20 @@ if [ -n "${SLURM_JOB_ID:-}" ]; then
     export LD_LIBRARY_PATH=/global/home/users/kurtwal98/seiskit/.venv/lib/python3.11/site-packages/openseespylinux/lib:${LD_LIBRARY_PATH:-}
 fi
 
+# Pin threads/placement (1 CPU per task; OpenMP/libs may spawn threads otherwise).
 export OMP_NUM_THREADS=1
+export OMP_PLACES=cores
+export OMP_PROC_BIND=close
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
+
+# Diagnostic: CPU model, MHz, NUMA.
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+    echo "$(date -Is) | CPU/NUMA | lscpu (model, MHz):" >&2
+    lscpu 2>/dev/null | egrep 'Model name|MHz' || true
+    echo "$(date -Is) | CPU/NUMA | numactl --hardware:" >&2
+    numactl --hardware 2>/dev/null || true
+fi
 
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
 

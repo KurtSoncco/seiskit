@@ -11,6 +11,9 @@
 #SBATCH --array=0-10
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
+# To put Slurm stdout/err under per_idx too, use:
+#   --output=logs/per_idx/job_%A/task_%a/slurm.out --error=logs/per_idx/job_%A/task_%a/slurm.err
+# and precreate dirs before submit (Slurm does not create them): for a in $(seq 0 336); do mkdir -p logs/per_idx/job_<JOB_ID>/task_$a; done
 
 # Phase 1: 8,088 sims (indices 0-8087). Savio2 whole-node; GNU Parallel runs
 # N sims per array element. Array 0-10 = validation; for full run use: --array=0-336
@@ -20,17 +23,38 @@
 # writes, post-run failure summary. Rerun only failed indices via joblog.
 #
 # FORCE_RERUN=1 to re-run even when output exists.
-# CONCURRENCY=22 if MaxRSS is tight (default 24).
+# CONCURRENCY: on 24-core savio2, try 20 or 18 to reduce contention (same SU cost; often shorter wall time).
 FORCE_RERUN=${FORCE_RERUN:-0}
-CONCURRENCY=${CONCURRENCY:-24}
+CONCURRENCY=${CONCURRENCY:-20}
 mkdir -p logs
 set -euo pipefail
 
+# Create/write-check result dir and co-locate joblog (deterministic per-task logs).
+TASK_ID=${SLURM_ARRAY_TASK_ID:-0}
+RESULTS_BASE="logs/per_idx/job_${SLURM_JOB_ID:-0}/task_${SLURM_ARRAY_TASK_ID:-0}"
+mkdir -p "$RESULTS_BASE" || { echo "ERROR mkdir $RESULTS_BASE" >&2; exit 12; }
+touch "$RESULTS_BASE/.w" || { echo "ERROR write $RESULTS_BASE" >&2; exit 13; }
+rm -f "$RESULTS_BASE/.w"
+JOBLOG="$RESULTS_BASE/joblog.tsv"
+
+# Disable nested threading for each payload (before launching parallel).
 export OMP_NUM_THREADS=1
+export OMP_PLACES=cores
+export OMP_PROC_BIND=close
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+# If using BLIS or Accelerate, set BLIS_NUM_THREADS=1 / VECLIB_MAXIMUM_THREADS=1 as needed.
 
 echo "$(date -Is) | START | Job=${SLURM_JOB_ID:-<local>} Task=${SLURM_ARRAY_TASK_ID:-<local>} Host=$(hostname)" >&2
+
+# Diagnostic: CPU model, MHz, NUMA (consistent governor/affinity check).
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+    echo "$(date -Is) | CPU/NUMA | lscpu (model, MHz):" >&2
+    lscpu 2>/dev/null | egrep 'Model name|MHz' || true
+    echo "$(date -Is) | CPU/NUMA | numactl --hardware:" >&2
+    numactl --hardware 2>/dev/null || true
+fi
 
 if [ -n "${SLURM_JOB_ID:-}" ]; then
     echo "$(date -Is) | MODULE | Purging modules..." >&2
@@ -49,6 +73,14 @@ if [ -n "${SLURM_JOB_ID:-}" ]; then
 fi
 
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
+
+# Stage hot shared inputs once per array task to local scratch (reduces shared FS contention).
+if [ -n "${SLURM_TMPDIR:-}" ]; then
+  mkdir -p "$SLURM_TMPDIR/data"
+  # Optional: rsync or ln -s large static inputs here, then set EMULATOR_8100_DATADIR="$SLURM_TMPDIR/data" for payloads.
+  # Example: rsync -a "${SLURM_SUBMIT_DIR:-.}/static_inputs/" "$SLURM_TMPDIR/data/" 2>/dev/null || true
+  export EMULATOR_8100_DATADIR="${EMULATOR_8100_DATADIR:-$SLURM_TMPDIR/data}"
+fi
 
 PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
 RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
@@ -77,7 +109,6 @@ echo "$(date -Is) | PREFLIGHT | Preflight success." >&2
 # Chunking: N sims per array element (0-based indices). Last chunk clamped to TOTAL.
 CHUNK=24
 TOTAL=8088
-TASK_ID=${SLURM_ARRAY_TASK_ID:-0}
 START=$((TASK_ID * CHUNK))
 END=$((START + CHUNK))
 if [ "${END}" -gt "${TOTAL}" ]; then
@@ -89,18 +120,20 @@ EXTRA_ARGS=""
 export PYTHON_BIN RUNNER_PY EXTRA_ARGS
 
 # Scratch-based paths: avoid $HOME (common source of odd early terminations).
+# Optional: stage common inputs to local node scratch for faster reads:
+#   cp "$SLURM_SUBMIT_DIR"/run_experiment.py "$SLURM_TMPDIR"/; RUNNER_PY="$SLURM_TMPDIR/run_experiment.py"
+#   run from "$SLURM_TMPDIR", then at end: rsync -a "$SLURM_TMPDIR"/results/ "$SLURM_SUBMIT_DIR"/results/
 export PARALLEL_HOME=/global/scratch/users/$USER/.parallel
 export TMPDIR=/global/scratch/users/$USER/tmp/job_${SLURM_JOB_ID:-0}_task_${TASK_ID}_root
 # Per-task scratch for OpenSees output; then aggregate+compress to archives/ (run post-step in Python).
 export EMULATOR_8100_OUTDIR=/global/scratch/users/$USER/opensees_runs/${SLURM_JOB_ID:-0}_${TASK_ID}
-# Per-index logs: job_<JOB_ID>/task_<TASK_ID>/<INDEX>/ with stdout, stderr, seq (no extra SEQ level).
-RESULTS_BASE="logs/per_idx/job_${SLURM_JOB_ID:-0}/task_${TASK_ID}"
-mkdir -p "$PARALLEL_HOME" "$TMPDIR" "$RESULTS_BASE" "$EMULATOR_8100_OUTDIR/archives"
+# Parallel joblog and per-index results under RESULTS_BASE (joblog.tsv + <index>/{stdout,stderr,seq}).
+mkdir -p "$PARALLEL_HOME" "$TMPDIR" "$EMULATOR_8100_OUTDIR/archives"
 mkdir -p results/h5
 
-# Pre-flight writes: fail fast if we cannot write logs or parallel state.
-touch "logs/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" || { echo "ERROR: cannot write logs/" >&2; exit 10; }
-touch "$PARALLEL_HOME/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" || { echo "ERROR: cannot write PARALLEL_HOME ($PARALLEL_HOME)" >&2; exit 11; }
+# Pre-flight writes: fail fast if we cannot write logs or parallel state (permission/quota).
+touch "logs/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" || { echo "$(date -Is) | ERROR | cannot write logs/" >&2; exit 10; }
+touch "$PARALLEL_HOME/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" || { echo "$(date -Is) | ERROR | cannot write PARALLEL_HOME: $PARALLEL_HOME" >&2; exit 11; }
 rm -f "logs/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" "$PARALLEL_HOME/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}"
 
 # Per-sim timeout (4h) so one stuck run doesn't hang the slot; job time is 5h.
@@ -109,11 +142,13 @@ export SIM_TIMEOUT
 
 # Retries: transient glitches get one automatic retry.
 PARALLEL_RETRIES=1
-JOBLOG="logs/joblog_task_${TASK_ID}.txt"
 
 echo "$(date -Is) | RUN | Task ${TASK_ID}: indices ${START}..$((END-1)) (${COUNT} sims) -j ${CONCURRENCY} timeout=${SIM_TIMEOUT}s retries=${PARALLEL_RETRIES}..." >&2
 
-seq ${START} $((END - 1)) | parallel -j "${CONCURRENCY}" \
+set +e
+seq "${START}" $((END - 1)) | parallel -j "${CONCURRENCY}" \
+  --line-buffer \
+  --verbose \
   --retries "${PARALLEL_RETRIES}" \
   --joblog "${JOBLOG}" \
   --results "${RESULTS_BASE}/{}" \
@@ -124,9 +159,9 @@ seq ${START} $((END - 1)) | parallel -j "${CONCURRENCY}" \
    export TMPDIR="$idx_tmp";
    trap "rm -rf \"$idx_tmp\"" EXIT;
    timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS'
-
 PARALLEL_RC=$?
-echo "$(date -Is) | RUN | parallel finished. Exit code: ${PARALLEL_RC}" >&2
+set -e
+echo "$(date -Is) | SUMMARY | parallel rc=$PARALLEL_RC" >&2
 
 # Summaries: make failures actionable (counts + exact indices to requeue).
 if [ -r "${JOBLOG}" ]; then
