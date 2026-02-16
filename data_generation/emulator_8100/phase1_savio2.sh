@@ -93,8 +93,9 @@ export PARALLEL_HOME=/global/scratch/users/$USER/.parallel
 export TMPDIR=/global/scratch/users/$USER/tmp/job_${SLURM_JOB_ID:-0}_task_${TASK_ID}_root
 # Per-task scratch for OpenSees output; then aggregate+compress to archives/ (run post-step in Python).
 export EMULATOR_8100_OUTDIR=/global/scratch/users/$USER/opensees_runs/${SLURM_JOB_ID:-0}_${TASK_ID}
-RESULTS_DIR="logs/per_idx/${SLURM_JOB_ID:-0}/${TASK_ID}"
-mkdir -p "$PARALLEL_HOME" "$TMPDIR" "$RESULTS_DIR" "$EMULATOR_8100_OUTDIR/archives"
+# Per-index logs: job_<JOB_ID>/task_<TASK_ID>/<INDEX>/ with stdout, stderr, seq (no extra SEQ level).
+RESULTS_BASE="logs/per_idx/job_${SLURM_JOB_ID:-0}/task_${TASK_ID}"
+mkdir -p "$PARALLEL_HOME" "$TMPDIR" "$RESULTS_BASE" "$EMULATOR_8100_OUTDIR/archives"
 mkdir -p results/h5
 
 # Pre-flight writes: fail fast if we cannot write logs or parallel state.
@@ -115,7 +116,7 @@ echo "$(date -Is) | RUN | Task ${TASK_ID}: indices ${START}..$((END-1)) (${COUNT
 seq ${START} $((END - 1)) | parallel -j "${CONCURRENCY}" \
   --retries "${PARALLEL_RETRIES}" \
   --joblog "${JOBLOG}" \
-  --results "$RESULTS_DIR" \
+  --results "${RESULTS_BASE}/{}" \
   --tagstring "idx={}" \
   'idx={};
    idx_tmp="$TMPDIR/idx_$idx";
@@ -137,7 +138,7 @@ if [ -r "${JOBLOG}" ]; then
     echo "$(date -Is) | FAILED ROWS (joblog):" >&2
     echo "${FAILED_LINES}" >&2
     echo "$(date -Is) | INDICES TO RERUN (use for sbatch --array= or single-index resubmit):" >&2
-    awk 'NR>1 && $7!=0 {print $1}' "${JOBLOG}" | cut -d/ -f1 | sort -n | uniq | tr '\n' ' ' && echo "" >&2
+    awk -v start="${START}" 'NR>1 && $7!=0 {print start+$1-1}' "${JOBLOG}" | sort -n | uniq | tr '\n' ' ' && echo "" >&2
     echo "Example: sbatch --array=<task_id> phase1_savio2.sh   # or resubmit only failed indices in a new job" >&2
   fi
 fi

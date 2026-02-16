@@ -565,9 +565,7 @@ def get_damping_zeta_grid(
         zeta_grid.fill(damping_zeta)
     elif damping_method == "uniform_soil_only":
         if bedrock_mask is None:
-            raise ValueError(
-                "bedrock_mask is required for 'uniform_soil_only' damping method."
-            )
+            raise ValueError("bedrock_mask is required for 'uniform_soil_only' damping method.")
         if bedrock_mask.shape != (nz, nx):
             raise ValueError(
                 f"bedrock_mask shape {bedrock_mask.shape} != Vs_extended shape {(nz, nx)}"

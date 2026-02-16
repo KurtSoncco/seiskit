@@ -141,7 +141,10 @@ def TTF(
     # downsample (bounds_error=False to handle fmax at or just above freq[-1])
     # fill_value tuple (below, above) is supported at runtime; stubs often type it as float only
     f = interp1d(
-        freq, FAS_s, bounds_error=False, fill_value=(FAS_s[0], FAS_s[-1])  # type: ignore[arg-type]
+        freq,
+        FAS_s,
+        bounds_error=False,
+        fill_value=(FAS_s[0], FAS_s[-1]),  # type: ignore[arg-type]
     )
     FAS_s = f(np.logspace(np.log10(0.1), np.log10(fmax), n_points))
 
@@ -149,7 +152,10 @@ def TTF(
     FAS_b, freq = acc2FAS2(base_acc, dt, 10**6)
     # downsample
     f = interp1d(
-        freq, FAS_b, bounds_error=False, fill_value=(FAS_b[0], FAS_b[-1])  # type: ignore[arg-type]
+        freq,
+        FAS_b,
+        bounds_error=False,
+        fill_value=(FAS_b[0], FAS_b[-1]),  # type: ignore[arg-type]
     )
     FAS_b = f(np.logspace(np.log10(0.1), np.log10(fmax), n_points))
 

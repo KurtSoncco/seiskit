@@ -177,15 +177,13 @@ def _run_dir_for_index(index: int) -> Path | None:
 def _archive_run_dir(run_dir: Path, archives_dir: Path, index: int) -> bool:
     """Tar+compress run_dir to archives_dir/run_<index>.tar.zst (or .tgz), verify, then rm -rf run_dir. Returns True on success."""
     import shutil
+
     archives_dir.mkdir(parents=True, exist_ok=True)
     arc_zst = archives_dir / f"run_{index}.tar.zst"
     try:
         has_zstd = shutil.which("zstd") is not None
         if has_zstd:
-            cmd = (
-                f"tar -C '{run_dir.parent}' -cvf - '{run_dir.name}' | "
-                f"zstd -T0 -19 -o '{arc_zst}'"
-            )
+            cmd = f"tar -C '{run_dir.parent}' -cvf - '{run_dir.name}' | zstd -T0 -19 -o '{arc_zst}'"
             subprocess.run(cmd, shell=True, check=True)
             subprocess.run(["zstd", "-t", str(arc_zst)], check=True, capture_output=True)
         else:
@@ -209,7 +207,9 @@ def _archive_run_dir(run_dir: Path, archives_dir: Path, index: int) -> bool:
     return True
 
 
-def _load_recorder_txt(recorder_dir: Path, quantity: str = "accel") -> tuple[np.ndarray, np.ndarray]:
+def _load_recorder_txt(
+    recorder_dir: Path, quantity: str = "accel"
+) -> tuple[np.ndarray, np.ndarray]:
     """Load time and data from OpenSees recorder .txt files in recorder_dir. Returns (time_1d, data_2d) with data shape (n_time, n_channels)."""
     center_glob = list(recorder_dir.glob(f"center_node_y*_dof1_{quantity}.txt"))
     row_glob = list(recorder_dir.glob(f"row_y*_dof1_{quantity}.txt"))
@@ -559,7 +559,9 @@ if __name__ == "__main__":
                 run_dir = _run_dir_for_index(i)
                 if run_dir is not None:
                     outdir_base = Path(os.getenv("EMULATOR_8100_OUTDIR", ""))
-                    if (outdir_base / "archives" / f"run_{i}.tar.zst").exists() or (outdir_base / "archives" / f"run_{i}.tgz").exists():
+                    if (outdir_base / "archives" / f"run_{i}.tar.zst").exists() or (
+                        outdir_base / "archives" / f"run_{i}.tgz"
+                    ).exists():
                         print(f"[idempotent] Index {i} already has archive; skipping.")
                         continue
                 out_dir = _output_dir_for_index(i)
@@ -592,7 +594,9 @@ if __name__ == "__main__":
             run_dir = _run_dir_for_index(idx)
             if run_dir is not None:
                 outdir_base = Path(os.getenv("EMULATOR_8100_OUTDIR", ""))
-                if (outdir_base / "archives" / f"run_{idx}.tar.zst").exists() or (outdir_base / "archives" / f"run_{idx}.tgz").exists():
+                if (outdir_base / "archives" / f"run_{idx}.tar.zst").exists() or (
+                    outdir_base / "archives" / f"run_{idx}.tgz"
+                ).exists():
                     print(f"[idempotent] Index {idx} already has archive; skipping.")
                     sys.exit(0)
             out_dir = _output_dir_for_index(idx)
