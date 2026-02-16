@@ -27,10 +27,16 @@ jobs:
       run: |
         uv sync --dev
 
+    - name: Lint with ruff
+      run: |
+        uv run ruff check seiskit tests
+        uv run ruff format --check seiskit tests
+
     - name: Run tests with pytest
       run: |
         uv run pytest tests/ -v --cov=seiskit --cov-report=xml --cov-report=term-missing
 
+    # Coverage upload; fail_ci_if_error is intentionally false so CI does not fail on Codecov service issues
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
