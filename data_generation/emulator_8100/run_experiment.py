@@ -18,9 +18,9 @@ Idempotent: skips if output already exists for that index. Use --force to re-run
 """
 
 import argparse
-import csv
 import os
 import signal
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -452,45 +452,84 @@ def _run_case_impl(index: int, t0: float) -> str:
 
     total_time = time.time() - t0
 
-    timing_file = Path("results") / f"timing_data_task_{index}.csv"
-    timing_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(timing_file, "w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(
-            [
-                "index",
-                "Vs1",
-                "CoV",
-                "rH",
-                "aHV",
-                "seed",
-                "task_id",
-                "total_time_sec",
-                "field_sec",
-                "model_sec",
-                "analysis_sec",
-                "status",
-            ]
+    # Per-index timing: append to timing.db (same DB as phase1 array-task summary).
+    _write_timing_per_index(
+        index=index,
+        Vs1=Vs1,
+        CoV=CoV,
+        rh=rh,
+        aHV=aHV,
+        seed=seed,
+        task_id=task_id,
+        total_time_sec=total_time,
+        field_sec=field_generation_time,
+        model_sec=model_build_time,
+        analysis_sec=analysis_time,
+        status=result,
+    )
+
+    print(f"[{case_type}] Done: {result} | Wall time: {_fmt_hms(total_time)}")
+    return result
+
+
+def _write_timing_per_index(
+    *,
+    index: int,
+    Vs1: float,
+    CoV: float,
+    rh: float,
+    aHV: float,
+    seed: int,
+    task_id: str,
+    total_time_sec: float,
+    field_sec: float,
+    model_sec: float,
+    analysis_sec: float,
+    status: str,
+) -> None:
+    """Append one row to timing.db table timing_per_index. No-op on error (e.g. DB locked)."""
+    db_path = os.getenv("EMULATOR_8100_TIMING_DB") or str(Path("timing.db").resolve())
+    jobid = int(os.getenv("SLURM_JOB_ID", "0"))
+    taskid = int(os.getenv("SLURM_ARRAY_TASK_ID", "0"))
+    try:
+        conn = sqlite3.connect(db_path, timeout=10.0)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS timing_per_index (
+                ts TEXT, idx INT, jobid INT, taskid INT,
+                Vs1 REAL, CoV REAL, rH REAL, aHV REAL, seed INT, task_id TEXT,
+                total_time_sec REAL, field_sec REAL, model_sec REAL, analysis_sec REAL, status TEXT
+            )
+            """
         )
-        w.writerow(
-            [
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_timing_per_index_idx ON timing_per_index(idx)")
+        conn.execute(
+            """
+            INSERT INTO timing_per_index(ts, idx, jobid, taskid, Vs1, CoV, rH, aHV, seed, task_id,
+                total_time_sec, field_sec, model_sec, analysis_sec, status)
+            VALUES(datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
                 index,
+                jobid,
+                taskid,
                 Vs1,
                 CoV,
                 rh,
                 aHV,
                 seed,
                 task_id,
-                f"{total_time:.3f}",
-                f"{field_generation_time:.3f}",
-                f"{model_build_time:.3f}",
-                f"{analysis_time:.3f}",
-                result,
-            ]
+                total_time_sec,
+                field_sec,
+                model_sec,
+                analysis_sec,
+                status,
+            ),
         )
-
-    print(f"[{case_type}] Done: {result} | Wall time: {_fmt_hms(total_time)}")
-    return result
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 
 def _parse_args():
