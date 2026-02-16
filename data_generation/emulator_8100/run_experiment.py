@@ -21,7 +21,9 @@ import argparse
 import csv
 import os
 import signal
+import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -34,7 +36,7 @@ from seiskit.gaussian_field import (
     _extend_profile,
     _generate_vs_variability_field,
 )
-from seiskit.plot_results import plot_damping_realization, plot_realization
+from seiskit.plot_results import get_damping_zeta_grid
 from seiskit.solver_utils import get_solver_info
 
 TOTAL_COMBINATIONS = 8100  # 3*3*3*3*100
@@ -62,9 +64,7 @@ def _configure_slurm_environment() -> None:
     task_id = os.getenv("SLURM_ARRAY_TASK_ID", "-")
     parallel_seq = os.getenv("PARALLEL_SEQ", "-")  # gnu-parallel slot (1-based)
     node = os.getenv("SLURMD_NODENAME", os.uname().nodename)
-    print(
-        f"[slurm] job_id={job_id} task_id={task_id} parallel_seq={parallel_seq} node={node}"
-    )
+    print(f"[slurm] job_id={job_id} task_id={task_id} parallel_seq={parallel_seq} node={node}")
 
 
 def _install_sigterm_handler() -> None:
@@ -84,7 +84,43 @@ def _install_sigterm_handler() -> None:
 
 def _fmt_hms(seconds: float) -> str:
     total_seconds = int(seconds)
-    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    return (
+        f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    )
+
+
+def _heartbeat_interval_seconds() -> int:
+    """Heartbeat interval from HEARTBEAT_MINUTES (default 5). 0 disables heartbeat."""
+    try:
+        m = int(os.getenv("HEARTBEAT_MINUTES", "5"))
+        return max(0, m) * 60
+    except ValueError:
+        return 300
+
+
+def _start_heartbeat(index: int) -> threading.Event:
+    """Start a daemon thread that prints a heartbeat to stderr every N minutes. Returns stop event."""
+    stop = threading.Event()
+
+    def _run() -> None:
+        interval = _heartbeat_interval_seconds()
+        if interval <= 0:
+            return
+        t0 = time.time()
+        while not stop.wait(timeout=interval):
+            elapsed = time.time() - t0
+            try:
+                print(
+                    f"[heartbeat] index={index} elapsed_sec={elapsed:.0f}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            except Exception:
+                break
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return stop
 
 
 def _index_to_params(index: int) -> tuple[float, float, float, float, int]:
@@ -115,10 +151,141 @@ def _index_to_params(index: int) -> tuple[float, float, float, float, int]:
     )
 
 
-def _output_dir_for_index(index: int) -> Path:
-    """Unique output directory for this index (for idempotent skip check)."""
+def _param_dir_name(index: int) -> str:
+    """Directory name for this index's parameters (Vs1_CV_..._s seed)."""
     Vs1, CoV, rh, aHV, seed = _index_to_params(index)
-    return Path(f"results/Vs1_{Vs1:.0f}_CV_{CoV:.2f}_rH_{rh:.0f}_aHV_{aHV:.0f}_s{seed}")
+    return f"Vs1_{Vs1:.0f}_CV_{CoV:.2f}_rH_{rh:.0f}_aHV_{aHV:.0f}_s{seed}"
+
+
+def _output_dir_for_index(index: int) -> Path:
+    """Output directory for this index. If EMULATOR_8100_OUTDIR is set (scratch), use run_<index>/param_dir."""
+    base = os.getenv("EMULATOR_8100_OUTDIR")
+    param_dir = _param_dir_name(index)
+    if base:
+        return Path(base) / f"run_{index}" / param_dir
+    return Path("results") / param_dir
+
+
+def _run_dir_for_index(index: int) -> Path | None:
+    """Run directory to archive (parent of param dir when on scratch). None if not using scratch."""
+    base = os.getenv("EMULATOR_8100_OUTDIR")
+    if not base:
+        return None
+    return Path(base) / f"run_{index}"
+
+
+def _archive_run_dir(run_dir: Path, archives_dir: Path, index: int) -> bool:
+    """Tar+compress run_dir to archives_dir/run_<index>.tar.zst (or .tgz), verify, then rm -rf run_dir. Returns True on success."""
+    import shutil
+    archives_dir.mkdir(parents=True, exist_ok=True)
+    arc_zst = archives_dir / f"run_{index}.tar.zst"
+    try:
+        has_zstd = shutil.which("zstd") is not None
+        if has_zstd:
+            cmd = (
+                f"tar -C '{run_dir.parent}' -cvf - '{run_dir.name}' | "
+                f"zstd -T0 -19 -o '{arc_zst}'"
+            )
+            subprocess.run(cmd, shell=True, check=True)
+            subprocess.run(["zstd", "-t", str(arc_zst)], check=True, capture_output=True)
+        else:
+            arc_tgz = archives_dir / f"run_{index}.tgz"
+            subprocess.run(
+                ["tar", "-C", str(run_dir.parent), "-czvf", str(arc_tgz), run_dir.name],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["tar", "-tzf", str(arc_tgz)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+    except subprocess.CalledProcessError as e:
+        print(f"[archive] WARNING: compress failed for run_{index}: {e}", file=sys.stderr)
+        return False
+    if run_dir.exists():
+        shutil.rmtree(run_dir, ignore_errors=True)
+    return True
+
+
+def _load_recorder_txt(recorder_dir: Path, quantity: str = "accel") -> tuple[np.ndarray, np.ndarray]:
+    """Load time and data from OpenSees recorder .txt files in recorder_dir. Returns (time_1d, data_2d) with data shape (n_time, n_channels)."""
+    center_glob = list(recorder_dir.glob(f"center_node_y*_dof1_{quantity}.txt"))
+    row_glob = list(recorder_dir.glob(f"row_y*_dof1_{quantity}.txt"))
+    center_glob.sort(key=lambda p: p.name)
+    row_glob.sort(key=lambda p: p.name)
+    chunks = []
+    time_arr = None
+    for f in center_glob + row_glob:
+        arr = np.loadtxt(f)
+        if arr.ndim == 1:
+            arr = arr.reshape(-1, 1)
+        if time_arr is None:
+            time_arr = arr[:, 0]
+        # First column is time, rest are channel(s)
+        if arr.shape[1] > 1:
+            chunks.append(arr[:, 1:])
+    if not chunks:
+        return np.array([]), np.array([]).reshape(0, 0)
+    data = np.hstack(chunks)
+    assert time_arr is not None
+    return time_arr, data
+
+
+def _write_h5(
+    h5_path: Path,
+    index: int,
+    Vs1: float,
+    CoV: float,
+    rh: float,
+    aHV: float,
+    seed: int,
+    Vs_profile_1D: np.ndarray,
+    Vs_extended: np.ndarray,
+    zeta_grid: np.ndarray,
+    recorder_dir: Path,
+    Lx: float,
+    Lz: float,
+    dx: float,
+    dz: float,
+    dt: float,
+    task_id: str,
+) -> None:
+    """Write one HDF5 per index: params, grid, Vs, damping, recorders. Uses gzip compression."""
+    try:
+        import h5py  # type: ignore[import-untyped]
+    except ImportError as e:
+        raise ImportError("h5py is required for HDF5 output; install with pip install h5py") from e
+    h5_path.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(h5_path, "w") as f:
+        f.attrs["index"] = index
+        f.attrs["task_id"] = task_id
+        # params
+        grp = f.create_group("params")
+        grp.attrs["Vs1"] = Vs1
+        grp.attrs["CoV"] = CoV
+        grp.attrs["rH"] = rh
+        grp.attrs["aHV"] = aHV
+        grp.attrs["seed"] = seed
+        # grid / fields
+        f.create_dataset("Vs_profile_1D", data=Vs_profile_1D, compression="gzip")
+        f.create_dataset("Vs_realization_2D", data=Vs_extended, compression="gzip")
+        f.create_dataset("Damping_zeta", data=zeta_grid, compression="gzip")
+        # grid metadata
+        grp = f.create_group("grid")
+        grp.attrs["Lx"] = Lx
+        grp.attrs["Lz"] = Lz
+        grp.attrs["dx"] = dx
+        grp.attrs["dz"] = dz
+        grp.attrs["dt"] = dt
+        # recorders
+        time_arr, data = _load_recorder_txt(recorder_dir, quantity="accel")
+        if time_arr is not None and len(time_arr) > 0:
+            accel = f.create_group("recorders").create_group("accel")
+            accel.create_dataset("time", data=time_arr, compression="gzip")
+            accel.create_dataset("data", data=data, compression="gzip")
+            accel["data"].attrs["layout"] = "n_time x n_channels"
 
 
 def run_case(index: int = 0) -> str:
@@ -129,6 +296,15 @@ def run_case(index: int = 0) -> str:
         Result status string.
     """
     t0 = time.time()
+    heartbeat_stop = _start_heartbeat(index)
+    try:
+        return _run_case_impl(index, t0)
+    finally:
+        heartbeat_stop.set()
+
+
+def _run_case_impl(index: int, t0: float) -> str:
+    """Actual run_case logic (heartbeat already started by run_case)."""
     Vs1, CoV, rh, aHV, seed = _index_to_params(index)
 
     # Fixed per 8100 plan
@@ -187,22 +363,8 @@ def run_case(index: int = 0) -> str:
     field_generation_time = time.time() - t_field_start
 
     Vs_extended, _ = _extend_profile(Vs_realization, Lx=Lx, dx=dx)
-    bedrock_mask_extended, _ = _extend_profile(
-        bedrock_mask_var.astype(float), Lx=Lx, dx=dx
-    )
+    bedrock_mask_extended, _ = _extend_profile(bedrock_mask_var.astype(float), Lx=Lx, dx=dx)
     bedrock_mask_extended = bedrock_mask_extended.astype(bool)
-
-    plot_realization(
-        Vs_profile_1D,
-        Vs_extended,
-        Lx,
-        Lz,
-        dx,
-        dz,
-        save_path=f"{output_dir}/Vs_realization.png",
-        title=f"Vs Realization (Vs1={Vs1:.0f}, CV={CoV:.2f}, rH={rh:.0f}, aHV={aHV:.0f}, s{seed})",
-        bedrock_mask=bedrock_mask_extended,
-    )
 
     config = AnalysisConfig(
         Ly=Lz,
@@ -227,15 +389,13 @@ def run_case(index: int = 0) -> str:
         solver_type="Mumps",
     )
 
-    plot_damping_realization(
+    zeta_grid = get_damping_zeta_grid(
         Vs_extended,
         damping_method,
         Lx,
         Lz,
         dx,
         dz,
-        save_path=f"{output_dir}/Damping_realization.png",
-        title=f"Damping (Vs1={Vs1:.0f}, CV={CoV:.2f}, s{seed})",
         bedrock_mask=bedrock_mask_extended,
         config=config,
     )
@@ -256,6 +416,40 @@ def run_case(index: int = 0) -> str:
     print(f"[{case_type}] Running OpenSees for {task_id} -> {output_dir}")
     result = run_opensees_analysis(config, model_data, task_id, output_dir)
     analysis_time = time.time() - t_analysis_start
+
+    # HDF5 write (default): one file per index for fast reads and portability
+    h5_path = Path("results") / "h5" / f"run_{index}.h5"
+    recorder_dir = Path(output_dir) / task_id
+    if recorder_dir.exists():
+        _write_h5(
+            h5_path,
+            index=index,
+            Vs1=Vs1,
+            CoV=CoV,
+            rh=rh,
+            aHV=aHV,
+            seed=seed,
+            Vs_profile_1D=Vs_profile_1D,
+            Vs_extended=Vs_extended,
+            zeta_grid=zeta_grid,
+            recorder_dir=recorder_dir,
+            Lx=Lx,
+            Lz=Lz,
+            dx=dx,
+            dz=dz,
+            dt=config.dt,
+            task_id=task_id,
+        )
+        print(f"[{case_type}] Wrote {h5_path}")
+
+    # Scratch: aggregate+compress run dir, then remove raw files
+    run_dir = _run_dir_for_index(index)
+    if run_dir is not None and run_dir.exists():
+        outdir_base = Path(os.getenv("EMULATOR_8100_OUTDIR", ""))
+        archives_dir = outdir_base / "archives"
+        if _archive_run_dir(run_dir, archives_dir, index):
+            print(f"[{case_type}] Archived run_{index} to {archives_dir}")
+
     total_time = time.time() - t0
 
     timing_file = Path("results") / f"timing_data_task_{index}.csv"
@@ -304,9 +498,7 @@ def _parse_args():
         description="Run emulator_8100 (8,100 sims). Single --index or range --index-start/--index-end."
     )
     p.add_argument("--index", type=int, default=None, help="Single task index 0-8099")
-    p.add_argument(
-        "--index-start", type=int, default=None, help="Start of range (inclusive)"
-    )
+    p.add_argument("--index-start", type=int, default=None, help="Start of range (inclusive)")
     p.add_argument(
         "--index-end",
         type=int,
@@ -332,12 +524,23 @@ if __name__ == "__main__":
         # Single run
         idx = args.index
         if idx < 0 or idx >= TOTAL_COMBINATIONS:
-            print(
-                f"Error: --index must be 0..{TOTAL_COMBINATIONS - 1}", file=sys.stderr
-            )
+            print(f"Error: --index must be 0..{TOTAL_COMBINATIONS - 1}", file=sys.stderr)
             sys.exit(1)
-        # Idempotent: skip if output exists unless --force
+        # Idempotent: skip if H5 exists, or archive (scratch), or legacy center_node_*.txt
         if not args.force:
+            h5_path = Path("results") / "h5" / f"run_{idx}.h5"
+            if h5_path.exists():
+                print(f"[idempotent] Index {idx} already has H5; skipping.")
+                sys.exit(0)
+            run_dir = _run_dir_for_index(idx)
+            if run_dir is not None:
+                outdir_base = Path(os.getenv("EMULATOR_8100_OUTDIR", ""))
+                arc = outdir_base / "archives" / f"run_{idx}.tar.zst"
+                if not arc.exists():
+                    arc = outdir_base / "archives" / f"run_{idx}.tgz"
+                if arc.exists():
+                    print(f"[idempotent] Index {idx} already has archive; skipping.")
+                    sys.exit(0)
             out_dir = _output_dir_for_index(idx)
             if out_dir.exists():
                 done_marker = list(out_dir.glob("**/center_node_*.txt"))
@@ -350,12 +553,19 @@ if __name__ == "__main__":
         end = min(TOTAL_COMBINATIONS, args.index_end)
         for i in range(start, end):
             if not args.force:
-                out_dir = _output_dir_for_index(i)
-                if out_dir.exists():
-                    existing = list(out_dir.glob("**/center_node_*.txt"))
-                    if existing:
-                        print(f"[idempotent] Index {i} already has output; skipping.")
+                if (Path("results") / "h5" / f"run_{i}.h5").exists():
+                    print(f"[idempotent] Index {i} already has H5; skipping.")
+                    continue
+                run_dir = _run_dir_for_index(i)
+                if run_dir is not None:
+                    outdir_base = Path(os.getenv("EMULATOR_8100_OUTDIR", ""))
+                    if (outdir_base / "archives" / f"run_{i}.tar.zst").exists() or (outdir_base / "archives" / f"run_{i}.tgz").exists():
+                        print(f"[idempotent] Index {i} already has archive; skipping.")
                         continue
+                out_dir = _output_dir_for_index(i)
+                if out_dir.exists() and list(out_dir.glob("**/center_node_*.txt")):
+                    print(f"[idempotent] Index {i} already has output; skipping.")
+                    continue
             run_case(i)
     else:
         # Fallback: from environment (SLURM_ARRAY_TASK_ID or PARALLEL_SEQ)
@@ -376,12 +586,19 @@ if __name__ == "__main__":
             )
             sys.exit(1)
         if not args.force:
-            out_dir = _output_dir_for_index(idx)
-            if out_dir.exists():
-                existing = list(out_dir.glob("**/center_node_*.txt"))
-                if existing:
-                    print(f"[idempotent] Index {idx} already has output; skipping.")
+            if (Path("results") / "h5" / f"run_{idx}.h5").exists():
+                print(f"[idempotent] Index {idx} already has H5; skipping.")
+                sys.exit(0)
+            run_dir = _run_dir_for_index(idx)
+            if run_dir is not None:
+                outdir_base = Path(os.getenv("EMULATOR_8100_OUTDIR", ""))
+                if (outdir_base / "archives" / f"run_{idx}.tar.zst").exists() or (outdir_base / "archives" / f"run_{idx}.tgz").exists():
+                    print(f"[idempotent] Index {idx} already has archive; skipping.")
                     sys.exit(0)
+            out_dir = _output_dir_for_index(idx)
+            if out_dir.exists() and list(out_dir.glob("**/center_node_*.txt")):
+                print(f"[idempotent] Index {idx} already has output; skipping.")
+                sys.exit(0)
         run_case(idx)
 
     print(f"\n[program] Total wall time: {_fmt_hms(time.time() - program_start)}")
