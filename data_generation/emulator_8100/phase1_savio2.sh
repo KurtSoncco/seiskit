@@ -73,6 +73,7 @@ if [ -n "${SLURM_JOB_ID:-}" ]; then
 fi
 
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
+start_epoch=$(date +%s)
 
 # Stage hot shared inputs once per array task to local scratch (reduces shared FS contention).
 if [ -n "${SLURM_TMPDIR:-}" ]; then
@@ -164,6 +165,8 @@ set -e
 echo "$(date -Is) | SUMMARY | parallel rc=$PARALLEL_RC" >&2
 
 # Summaries: make failures actionable (counts + exact indices to requeue).
+OK_COUNT=0
+FAILED_COUNT=0
 if [ -r "${JOBLOG}" ]; then
   FAILED_LINES=$(awk 'NR>1 && $7!=0 {print}' "${JOBLOG}" 2>/dev/null || true)
   FAILED_COUNT=$(echo "${FAILED_LINES}" | grep -c . 2>/dev/null || echo 0)
@@ -179,8 +182,47 @@ if [ -r "${JOBLOG}" ]; then
 fi
 
 if [ -n "${SLURM_JOB_ID:-}" ]; then
-    echo "$(date -Is) | ACCOUNTING | Per-element MaxRSS/State:" >&2
-    sacct -j "${SLURM_JOB_ID}_${TASK_ID}" --format=JobID,MaxRSS,State,ExitCode 2>/dev/null || true
+  echo "$(date -Is) | ACCOUNTING | Per-element MaxRSS/State:" >&2
+  sacct -j "${SLURM_JOB_ID}_${TASK_ID}" --format=JobID,MaxRSS,State,ExitCode 2>/dev/null || true
 fi
+
+# Append one row per array task to shared SQLite timing DB (atomic, queryable). Uses venv Python + stdlib sqlite3 (uv sync).
+end_epoch=$(date +%s)
+wall_s=$((end_epoch - start_epoch))
+TIMING_DB="${SLURM_SUBMIT_DIR:-.}/timing.db"
+cpu_val=""
+max_rss_val=""
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+  sacct_line=$(sacct -j "${SLURM_JOB_ID}_${TASK_ID}" --format=AveCPU,MaxRSS -n -P --noheader 2>/dev/null | head -1)
+  if [ -n "${sacct_line}" ]; then
+    c=$(echo "$sacct_line" | cut -d'|' -f1)
+    m=$(echo "$sacct_line" | cut -d'|' -f2)
+    [ -n "$c" ] && cpu_val="$c"
+    if [ -n "$m" ]; then
+      max_rss_mb=$(echo "$m" | awk '/K$/{gsub(/K/,""); print $0/1024} /M$/{gsub(/M/,""); print $0+0} /G$/{gsub(/G/,""); print $0*1024}')
+      [ -n "$max_rss_mb" ] && max_rss_val="$max_rss_mb"
+    fi
+  fi
+fi
+"${PYTHON_BIN}" - "${TIMING_DB}" "${SLURM_JOB_ID:-0}" "${TASK_ID}" "${HOSTNAME:-unknown}" "${start_epoch}" "${end_epoch}" "${wall_s}" "${cpu_val}" "${max_rss_val}" "${PARALLEL_RC}" "${OK_COUNT}" "${FAILED_COUNT}" <<'PYTIMING' 2>/dev/null || true
+import sqlite3
+import sys
+import json
+_, db, jobid, taskid, host, start_s, end_s, wall_s, cpu_s, max_rss_mb, exitcode, ok, failed = sys.argv
+conn = sqlite3.connect(db)
+conn.execute("""
+CREATE TABLE IF NOT EXISTS timing(ts TEXT, jobid INT, taskid INT, host TEXT, start_s INT, end_s INT, wall_s INT, cpu_s REAL, max_rss_mb REAL, gpu_util REAL, exit INT, meta TEXT)
+""")
+conn.execute("CREATE INDEX IF NOT EXISTS idx_task ON timing(taskid)")
+meta = json.dumps({"ok": int(ok), "failed": int(failed)})
+conn.execute(
+    """INSERT INTO timing(ts, jobid, taskid, host, start_s, end_s, wall_s, cpu_s, max_rss_mb, gpu_util, exit, meta)
+       VALUES(datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)""",
+    (int(jobid), int(taskid), host, int(start_s), int(end_s), int(wall_s),
+     float(cpu_s) if cpu_s else None, float(max_rss_mb) if max_rss_mb else None, int(exitcode), meta)
+)
+conn.commit()
+conn.close()
+PYTIMING
 
 exit $PARALLEL_RC
