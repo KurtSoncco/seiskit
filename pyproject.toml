@@ -39,6 +39,15 @@ packages = ["seiskit"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = [".venv", "build", "dist", "*.egg-info"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]  # line length; can tighten later
+
 
 [tool.uv]
 package = true
