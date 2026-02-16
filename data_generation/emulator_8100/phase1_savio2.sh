@@ -23,9 +23,9 @@
 # writes, post-run failure summary. Rerun only failed indices via joblog.
 #
 # FORCE_RERUN=1 to re-run even when output exists.
-# CONCURRENCY: on 24-core savio2, try 20 or 18 to reduce contention (same SU cost; often shorter wall time).
+# CONCURRENCY: 24 runs per node (override with CONCURRENCY=N if needed).
 FORCE_RERUN=${FORCE_RERUN:-0}
-CONCURRENCY=${CONCURRENCY:-20}
+CONCURRENCY=${CONCURRENCY:-24}
 mkdir -p logs
 set -euo pipefail
 
@@ -47,6 +47,7 @@ export NUMEXPR_NUM_THREADS=1
 # If using BLIS or Accelerate, set BLIS_NUM_THREADS=1 / VECLIB_MAXIMUM_THREADS=1 as needed.
 
 echo "$(date -Is) | START | Job=${SLURM_JOB_ID:-<local>} Task=${SLURM_ARRAY_TASK_ID:-<local>} Host=$(hostname)" >&2
+echo "$(date -Is) | RESOURCES | NTASKS_PER_NODE=${SLURM_NTASKS_PER_NODE:-} CPUS_ON_NODE=${SLURM_CPUS_ON_NODE:-} CONCURRENCY=${CONCURRENCY}" >&2
 
 # Diagnostic: CPU model, MHz, NUMA (consistent governor/affinity check).
 if [ -n "${SLURM_JOB_ID:-}" ]; then
@@ -107,7 +108,7 @@ if [ ${PRE_RC} -ne 0 ]; then
 fi
 echo "$(date -Is) | PREFLIGHT | Preflight success." >&2
 
-# Chunking: N sims per array element (0-based indices). Last chunk clamped to TOTAL.
+# Chunking: 24 sims per array element (0-based indices). Last chunk clamped to TOTAL.
 CHUNK=24
 TOTAL=8088
 START=$((TASK_ID * CHUNK))
@@ -159,7 +160,7 @@ seq "${START}" $((END - 1)) | parallel -j "${CONCURRENCY}" \
    mkdir -p "$idx_tmp";
    export TMPDIR="$idx_tmp";
    trap "rm -rf \"$idx_tmp\"" EXIT;
-   timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS'
+   timeout "$SIM_TIMEOUT" srun -c 1 --exclusive "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS'
 PARALLEL_RC=$?
 set -e
 echo "$(date -Is) | SUMMARY | parallel rc=$PARALLEL_RC" >&2
