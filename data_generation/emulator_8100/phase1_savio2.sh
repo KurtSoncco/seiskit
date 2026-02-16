@@ -35,9 +35,11 @@ set -euo pipefail
 # Write to local scratch during execution to avoid shared FS contention; copy back at end.
 TASK_ID=${SLURM_ARRAY_TASK_ID:-0}
 RESULTS_BASE_FINAL="logs/per_idx/job_${SLURM_JOB_ID:-0}/task_${SLURM_ARRAY_TASK_ID:-0}"
-# Use SLURM_TMPDIR for execution (local scratch, fast I/O); fallback to final location if not available.
+# Use node-local storage during execution to avoid shared FS contention; copy back at end.
 if [ -n "${SLURM_TMPDIR:-}" ]; then
   RESULTS_BASE="${SLURM_TMPDIR}/parallel_results/job_${SLURM_JOB_ID:-0}/task_${SLURM_ARRAY_TASK_ID:-0}"
+elif [ -n "${SLURM_JOB_ID:-}" ]; then
+  RESULTS_BASE="/tmp/em8100_${USER}_job_${SLURM_JOB_ID}_task_${TASK_ID}"
 else
   RESULTS_BASE="$RESULTS_BASE_FINAL"
 fi
@@ -165,8 +167,12 @@ fi
 
 echo "$(date -Is) | RUN | Task ${TASK_ID}: indices ${START}..$((END-1)) (${COUNT} sims) -j ${CONCURRENCY} timeout=${SIM_TIMEOUT}s retries=${PARALLEL_RETRIES}..." >&2
 
-# Parallel tmpdir: use local scratch for parallel's internal state (semaphores, locks).
-PARALLEL_TMPDIR="${SLURM_TMPDIR:-/tmp}/parallel_tmp_${SLURM_JOB_ID:-0}_${TASK_ID}"
+# Parallel tmpdir: use same node-local base when we have one, else /tmp.
+if [ "$RESULTS_BASE" != "$RESULTS_BASE_FINAL" ]; then
+  PARALLEL_TMPDIR="${RESULTS_BASE}/parallel_tmp"
+else
+  PARALLEL_TMPDIR="${SLURM_TMPDIR:-/tmp}/parallel_tmp_${SLURM_JOB_ID:-0}_${TASK_ID}"
+fi
 mkdir -p "$PARALLEL_TMPDIR"
 
 set +e
@@ -178,18 +184,22 @@ seq "${START}" $((END - 1)) | parallel -j "${CONCURRENCY}" \
   --joblog "${JOBLOG}" \
   --results "${RESULTS_BASE}/{}" \
   --tagstring "idx={}" \
-  'idx={};
+  'slot={#}; idx={};
    idx_tmp="$TMPDIR/idx_$idx";
    mkdir -p "$idx_tmp";
    export TMPDIR="$idx_tmp";
    trap "rm -rf \"$idx_tmp\"" EXIT;
-   timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS'
+   if command -v taskset >/dev/null 2>&1; then
+     exec taskset -c $((slot-1)) timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS;
+   else
+     exec timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS;
+   fi'
 PARALLEL_RC=$?
 set -e
 echo "$(date -Is) | SUMMARY | parallel rc=$PARALLEL_RC" >&2
 
-# Copy results from local scratch back to final location (if we used scratch).
-if [ -n "${SLURM_TMPDIR:-}" ] && [ "$RESULTS_BASE" != "$RESULTS_BASE_FINAL" ] && [ -d "$RESULTS_BASE" ]; then
+# Copy results from node-local storage back to final location when we used scratch or /tmp.
+if [ "$RESULTS_BASE" != "$RESULTS_BASE_FINAL" ] && [ -d "$RESULTS_BASE" ]; then
   echo "$(date -Is) | COPY | Copying results from $RESULTS_BASE to $RESULTS_BASE_FINAL..." >&2
   mkdir -p "$RESULTS_BASE_FINAL"
   rsync -a "$RESULTS_BASE/" "$RESULTS_BASE_FINAL/" 2>/dev/null || {
