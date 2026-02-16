@@ -37,7 +37,7 @@ touch "$RESULTS_BASE/.w" || { echo "ERROR write $RESULTS_BASE" >&2; exit 13; }
 rm -f "$RESULTS_BASE/.w"
 JOBLOG="$RESULTS_BASE/joblog.tsv"
 
-# Disable nested threading for each payload (before launching parallel).
+# Disable nested threading for each payload (export before parallel so all jobs inherit).
 export OMP_NUM_THREADS=1
 export OMP_PLACES=cores
 export OMP_PROC_BIND=close
@@ -160,7 +160,7 @@ seq "${START}" $((END - 1)) | parallel -j "${CONCURRENCY}" \
    mkdir -p "$idx_tmp";
    export TMPDIR="$idx_tmp";
    trap "rm -rf \"$idx_tmp\"" EXIT;
-   timeout "$SIM_TIMEOUT" srun -c 1 --exclusive "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS'
+   timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS'
 PARALLEL_RC=$?
 set -e
 echo "$(date -Is) | SUMMARY | parallel rc=$PARALLEL_RC" >&2
