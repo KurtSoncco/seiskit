@@ -1,11 +1,13 @@
 #!/bin/bash
+# One task with 24 CPUs per array element so GNU Parallel can run 24 sims in parallel on the node.
 #SBATCH --job-name=em8100_phase1
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio2
 #SBATCH --qos=savio_normal
 #SBATCH --constraint=savio2_c24
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=24
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=24
 #SBATCH --mem=48G
 #SBATCH --time=05:00:00
 #SBATCH --array=0-10
