@@ -30,8 +30,15 @@ mkdir -p logs
 set -euo pipefail
 
 # Create/write-check result dir and co-locate joblog (deterministic per-task logs).
+# Write to local scratch during execution to avoid shared FS contention; copy back at end.
 TASK_ID=${SLURM_ARRAY_TASK_ID:-0}
-RESULTS_BASE="logs/per_idx/job_${SLURM_JOB_ID:-0}/task_${SLURM_ARRAY_TASK_ID:-0}"
+RESULTS_BASE_FINAL="logs/per_idx/job_${SLURM_JOB_ID:-0}/task_${SLURM_ARRAY_TASK_ID:-0}"
+# Use SLURM_TMPDIR for execution (local scratch, fast I/O); fallback to final location if not available.
+if [ -n "${SLURM_TMPDIR:-}" ]; then
+  RESULTS_BASE="${SLURM_TMPDIR}/parallel_results/job_${SLURM_JOB_ID:-0}/task_${SLURM_ARRAY_TASK_ID:-0}"
+else
+  RESULTS_BASE="$RESULTS_BASE_FINAL"
+fi
 mkdir -p "$RESULTS_BASE" || { echo "ERROR mkdir $RESULTS_BASE" >&2; exit 12; }
 touch "$RESULTS_BASE/.w" || { echo "ERROR write $RESULTS_BASE" >&2; exit 13; }
 rm -f "$RESULTS_BASE/.w"
@@ -145,10 +152,24 @@ export SIM_TIMEOUT
 # Retries: transient glitches get one automatic retry.
 PARALLEL_RETRIES=1
 
+# Diagnostics: verify parallel config and expected concurrency.
+echo "$(date -Is) | DIAG | Checking parallel version and config..." >&2
+parallel --version >&2 || true
+echo "$(date -Is) | DIAG | Will launch ${CONCURRENCY} concurrent jobs" >&2
+echo "$(date -Is) | DIAG | Results base: $RESULTS_BASE" >&2
+if [ -n "${SLURM_TMPDIR:-}" ]; then
+  echo "$(date -Is) | DIAG | Using local scratch: $SLURM_TMPDIR" >&2
+fi
+
 echo "$(date -Is) | RUN | Task ${TASK_ID}: indices ${START}..$((END-1)) (${COUNT} sims) -j ${CONCURRENCY} timeout=${SIM_TIMEOUT}s retries=${PARALLEL_RETRIES}..." >&2
+
+# Parallel tmpdir: use local scratch for parallel's internal state (semaphores, locks).
+PARALLEL_TMPDIR="${SLURM_TMPDIR:-/tmp}/parallel_tmp_${SLURM_JOB_ID:-0}_${TASK_ID}"
+mkdir -p "$PARALLEL_TMPDIR"
 
 set +e
 seq "${START}" $((END - 1)) | parallel -j "${CONCURRENCY}" \
+  --tmpdir "$PARALLEL_TMPDIR" \
   --line-buffer \
   --verbose \
   --retries "${PARALLEL_RETRIES}" \
@@ -164,6 +185,18 @@ seq "${START}" $((END - 1)) | parallel -j "${CONCURRENCY}" \
 PARALLEL_RC=$?
 set -e
 echo "$(date -Is) | SUMMARY | parallel rc=$PARALLEL_RC" >&2
+
+# Copy results from local scratch back to final location (if we used scratch).
+if [ -n "${SLURM_TMPDIR:-}" ] && [ "$RESULTS_BASE" != "$RESULTS_BASE_FINAL" ] && [ -d "$RESULTS_BASE" ]; then
+  echo "$(date -Is) | COPY | Copying results from $RESULTS_BASE to $RESULTS_BASE_FINAL..." >&2
+  mkdir -p "$RESULTS_BASE_FINAL"
+  rsync -a "$RESULTS_BASE/" "$RESULTS_BASE_FINAL/" 2>/dev/null || {
+    echo "$(date -Is) | WARNING | rsync failed, trying cp..." >&2
+    cp -r "$RESULTS_BASE"/* "$RESULTS_BASE_FINAL/" 2>/dev/null || true
+  }
+  # Update JOBLOG path for summary block (use final location).
+  JOBLOG="$RESULTS_BASE_FINAL/joblog.tsv"
+fi
 
 # Summaries: make failures actionable (counts + exact indices to requeue).
 OK_COUNT=0
@@ -185,6 +218,9 @@ fi
 if [ -n "${SLURM_JOB_ID:-}" ]; then
   echo "$(date -Is) | ACCOUNTING | Per-element MaxRSS/State:" >&2
   sacct -j "${SLURM_JOB_ID}_${TASK_ID}" --format=JobID,MaxRSS,State,ExitCode 2>/dev/null || true
+  # Diagnostic: check how many Python processes were running (should be ~CONCURRENCY during peak).
+  echo "$(date -Is) | DIAG | Checking for concurrent Python processes..." >&2
+  ps aux 2>/dev/null | grep -E "[p]ython.*run_experiment" | wc -l | xargs -I{} echo "$(date -Is) | DIAG | Found {} Python run_experiment processes" >&2 || true
 fi
 
 # Append one row per array task to shared SQLite timing DB (atomic, queryable). Uses venv Python + stdlib sqlite3 (uv sync).
