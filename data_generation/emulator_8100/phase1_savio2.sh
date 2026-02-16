@@ -13,6 +13,7 @@
 #SBATCH --array=0-10
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
+# Create logs/ before submitting (Slurm does not create it). From this dir: mkdir -p logs; sbatch phase1_savio2.sh  (or use ./submit_phase1.sh).
 # To put Slurm stdout/err under per_idx too, use:
 #   --output=logs/per_idx/job_%A/task_%a/slurm.out --error=logs/per_idx/job_%A/task_%a/slurm.err
 # and precreate dirs before submit (Slurm does not create them): for a in $(seq 0 336); do mkdir -p logs/per_idx/job_<JOB_ID>/task_$a; done
@@ -27,7 +28,7 @@
 # FORCE_RERUN=1 to re-run even when output exists.
 # CONCURRENCY: 24 runs per node (override with CONCURRENCY=N if needed).
 FORCE_RERUN=${FORCE_RERUN:-0}
-CONCURRENCY=${CONCURRENCY:-24}
+CONCURRENCY="${CONCURRENCY:-${SLURM_CPUS_PER_TASK:-24}}"
 mkdir -p logs
 set -euo pipefail
 
@@ -35,7 +36,7 @@ set -euo pipefail
 # Write to local scratch during execution to avoid shared FS contention; copy back at end.
 TASK_ID=${SLURM_ARRAY_TASK_ID:-0}
 RESULTS_BASE_FINAL="logs/per_idx/job_${SLURM_JOB_ID:-0}/task_${SLURM_ARRAY_TASK_ID:-0}"
-# Use node-local storage during execution to avoid shared FS contention; copy back at end.
+# Node-local RESULTS_BASE when SLURM_TMPDIR unset; copy back at end.
 if [ -n "${SLURM_TMPDIR:-}" ]; then
   RESULTS_BASE="${SLURM_TMPDIR}/parallel_results/job_${SLURM_JOB_ID:-0}/task_${SLURM_ARRAY_TASK_ID:-0}"
 elif [ -n "${SLURM_JOB_ID:-}" ]; then
@@ -156,14 +157,15 @@ export SIM_TIMEOUT
 # Retries: transient glitches get one automatic retry.
 PARALLEL_RETRIES=1
 
-# Diagnostics: verify parallel config and expected concurrency.
+# Diagnostics: verify parallel config and expected concurrency (timeout so a bad node does not hang).
 echo "$(date -Is) | DIAG | Checking parallel version and config..." >&2
-parallel --version >&2 || true
+timeout 10s parallel --version >&2 || true
 echo "$(date -Is) | DIAG | Will launch ${CONCURRENCY} concurrent jobs" >&2
 echo "$(date -Is) | DIAG | Results base: $RESULTS_BASE" >&2
 if [ -n "${SLURM_TMPDIR:-}" ]; then
   echo "$(date -Is) | DIAG | Using local scratch: $SLURM_TMPDIR" >&2
 fi
+echo "$(date -Is) | DIAG | START=${START} END=${END} COUNT=${COUNT} (indices ${START}..$((END-1)))" >&2
 
 echo "$(date -Is) | RUN | Task ${TASK_ID}: indices ${START}..$((END-1)) (${COUNT} sims) -j ${CONCURRENCY} timeout=${SIM_TIMEOUT}s retries=${PARALLEL_RETRIES}..." >&2
 
