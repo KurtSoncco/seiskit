@@ -245,7 +245,8 @@ def _get_compression_grid():
     """Compression for Vs/damping grids. Prefer Blosc2/zstd, fallback to gzip-9."""
     try:
         import hdf5plugin  # type: ignore[import-untyped]
-        return hdf5plugin.Blosc2(cname="zstd", clevel=5, filters=hdf5plugin.Blosc2.SHUFFLE)
+
+        return hdf5plugin.Blosc2(cname="zstd", clevel=5, filters=hdf5plugin.Blosc2.SHUFFLE)  # type: ignore[attr-defined]
     except ImportError:
         return {"compression": "gzip", "compression_opts": 9, "shuffle": True}
 
@@ -254,7 +255,8 @@ def _get_compression_recorder_lossless():
     """Compression for recorder time series. Prefer Blosc2/zstd+DELTA, fallback to gzip-9."""
     try:
         import hdf5plugin  # type: ignore[import-untyped]
-        return hdf5plugin.Blosc2(cname="zstd", clevel=5, filters=hdf5plugin.Blosc2.DELTA)
+
+        return hdf5plugin.Blosc2(cname="zstd", clevel=5, filters=hdf5plugin.Blosc2.DELTA)  # type: ignore[attr-defined]
     except ImportError:
         return {"compression": "gzip", "compression_opts": 9, "shuffle": True}
 
@@ -263,7 +265,8 @@ def _get_compression_recorder_lossy(tolerance: float = 1e-5):
     """Lossy compression for recorder data. Zfp accuracy mode. Fallback to lossless."""
     try:
         import hdf5plugin  # type: ignore[import-untyped]
-        return hdf5plugin.Zfp(accuracy=tolerance)
+
+        return hdf5plugin.Zfp(accuracy=tolerance)  # type: ignore[attr-defined]
     except ImportError:
         return _get_compression_recorder_lossless()
 
@@ -299,7 +302,11 @@ def _write_h5(
     lossy = os.getenv("EMULATOR_8100_H5_LOSSY", "0") == "1"
     lossy_tol = float(os.getenv("EMULATOR_8100_H5_LOSSY_TOLERANCE", "1e-5"))
     comp_grid = _get_compression_grid()
-    comp_ts = _get_compression_recorder_lossy(lossy_tol) if lossy else _get_compression_recorder_lossless()
+    comp_ts = (
+        _get_compression_recorder_lossy(lossy_tol)
+        if lossy
+        else _get_compression_recorder_lossless()
+    )
     _kw = lambda c: c if isinstance(c, dict) else {"compression": c}
     # Load recorders and apply time downsampling before writing
     time_arr, data = _load_recorder_txt(recorder_dir, quantity="accel")
