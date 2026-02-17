@@ -10,9 +10,10 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=48G
 #SBATCH --time=05:00:00
-#SBATCH --array=22-336%50
+#SBATCH --array=118-336%50
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
+#SBATCH --exclude=n0087.savio2
 # Create logs/ before submitting (Slurm does not create it). From this dir: mkdir -p logs; sbatch phase1_savio2.sh  (or use ./submit_phase1.sh).
 # To put Slurm stdout/err under per_idx too, use:
 #   --output=logs/per_idx/job_%A/task_%a/slurm.out --error=logs/per_idx/job_%A/task_%a/slurm.err
@@ -28,7 +29,7 @@
 # FORCE_RERUN=1 to re-run even when output exists.
 # CONCURRENCY: 24 runs per node (override with CONCURRENCY=N if needed).
 FORCE_RERUN=${FORCE_RERUN:-0}
-CONCURRENCY="${CONCURRENCY:-${SLURM_CPUS_PER_TASK:-24}}"
+CONCURRENCY="${CONCURRENCY:-${SLURM_CPUS_ON_NODE:-${SLURM_CPUS_PER_TASK:-24}}}"
 mkdir -p logs
 set -euo pipefail
 
@@ -47,7 +48,9 @@ fi
 mkdir -p "$RESULTS_BASE" || { echo "ERROR mkdir $RESULTS_BASE" >&2; exit 12; }
 touch "$RESULTS_BASE/.w" || { echo "ERROR write $RESULTS_BASE" >&2; exit 13; }
 rm -f "$RESULTS_BASE/.w"
-JOBLOG="$RESULTS_BASE/joblog.tsv"
+# Joblog at final location from start (tiny; no need to stage with node-local results).
+mkdir -p "$RESULTS_BASE_FINAL"
+JOBLOG="$RESULTS_BASE_FINAL/joblog.tsv"
 
 # Disable nested threading for each payload (export before parallel so all jobs inherit).
 export OMP_NUM_THREADS=1
@@ -169,6 +172,11 @@ echo "$(date -Is) | DIAG | START=${START} END=${END} COUNT=${COUNT} (indices ${S
 
 echo "$(date -Is) | RUN | Task ${TASK_ID}: indices ${START}..$((END-1)) (${COUNT} sims) -j ${CONCURRENCY} timeout=${SIM_TIMEOUT}s retries=${PARALLEL_RETRIES}..." >&2
 
+if [ "$START" -ge "$END" ]; then
+  echo "$(date -Is) | SUMMARY | Nothing to do (START=$START END=$END)" >&2
+  exit 0
+fi
+
 # Parallel tmpdir: use same node-local base when we have one, else /tmp.
 if [ "$RESULTS_BASE" != "$RESULTS_BASE_FINAL" ]; then
   PARALLEL_TMPDIR="${RESULTS_BASE}/parallel_tmp"
@@ -184,10 +192,11 @@ seq "${START}" $((END - 1)) | parallel -j "${CONCURRENCY}" \
   --verbose \
   --retries "${PARALLEL_RETRIES}" \
   --joblog "${JOBLOG}" \
-  --results "${RESULTS_BASE}/{}" \
-  --tagstring "idx={}" \
+  --results "${RESULTS_BASE}/shard_{= \$_ = int(\$_/1000) =}/{}" \
+  --tagstring "idx={} slot={#} host=$(hostname)" \
   'slot={#}; idx={};
-   idx_tmp="$TMPDIR/idx_$idx";
+   base_tmp="${TMPDIR:-${SLURM_TMPDIR:-/tmp}}";
+   idx_tmp="$base_tmp/idx_$idx";
    mkdir -p "$idx_tmp";
    export TMPDIR="$idx_tmp";
    trap "rm -rf \"$idx_tmp\"" EXIT;
@@ -204,12 +213,10 @@ echo "$(date -Is) | SUMMARY | parallel rc=$PARALLEL_RC" >&2
 if [ "$RESULTS_BASE" != "$RESULTS_BASE_FINAL" ] && [ -d "$RESULTS_BASE" ]; then
   echo "$(date -Is) | COPY | Copying results from $RESULTS_BASE to $RESULTS_BASE_FINAL..." >&2
   mkdir -p "$RESULTS_BASE_FINAL"
-  rsync -a "$RESULTS_BASE/" "$RESULTS_BASE_FINAL/" 2>/dev/null || {
+  rsync -aW --no-compress "$RESULTS_BASE/" "$RESULTS_BASE_FINAL/" 2>/dev/null || {
     echo "$(date -Is) | WARNING | rsync failed, trying cp..." >&2
     cp -r "$RESULTS_BASE"/* "$RESULTS_BASE_FINAL/" 2>/dev/null || true
   }
-  # Update JOBLOG path for summary block (use final location).
-  JOBLOG="$RESULTS_BASE_FINAL/joblog.tsv"
 fi
 
 # Summaries: make failures actionable (counts + exact indices to requeue).
@@ -224,14 +231,18 @@ if [ -r "${JOBLOG}" ]; then
     echo "$(date -Is) | FAILED ROWS (joblog):" >&2
     echo "${FAILED_LINES}" >&2
     echo "$(date -Is) | INDICES TO RERUN (use for sbatch --array= or single-index resubmit):" >&2
-    awk -v start="${START}" 'NR>1 && $7!=0 {print start+$1-1}' "${JOBLOG}" | sort -n | uniq | tr '\n' ' ' && echo "" >&2
-    echo "Example: sbatch --array=<task_id> phase1_savio2.sh   # or resubmit only failed indices in a new job" >&2
+    FAILED_IDX=$(awk -v start="${START}" 'NR>1 && $7!=0 {print start+$1-1}' "${JOBLOG}" | sort -n | uniq)
+    echo "${FAILED_IDX}" | tr '\n' ' ' && echo "" >&2
+    RERUN_ARRAY=$(echo "${FAILED_IDX}" | awk -v chunk="${CHUNK}" '{print int($0/chunk)}' | sort -n | uniq | paste -sd, -)
+    if [ -n "${RERUN_ARRAY}" ]; then
+      echo "Rerun failed indices: sbatch --array=${RERUN_ARRAY} phase1_savio2.sh" >&2
+    fi
   fi
 fi
 
 if [ -n "${SLURM_JOB_ID:-}" ]; then
   echo "$(date -Is) | ACCOUNTING | Per-element MaxRSS/State:" >&2
-  sacct -j "${SLURM_JOB_ID}_${TASK_ID}" --format=JobID,MaxRSS,State,ExitCode 2>/dev/null || true
+  sacct -X -j "${SLURM_JOB_ID}_${TASK_ID}" --format=JobID,MaxRSS,State,ExitCode -P 2>/dev/null || true
   # Diagnostic: check how many Python processes were running (should be ~CONCURRENCY during peak).
   echo "$(date -Is) | DIAG | Checking for concurrent Python processes..." >&2
   ps aux 2>/dev/null | grep -E "[p]ython.*run_experiment" | wc -l | xargs -I{} echo "$(date -Is) | DIAG | Found {} Python run_experiment processes" >&2 || true
@@ -244,7 +255,7 @@ TIMING_DB="${SLURM_SUBMIT_DIR:-.}/timing.db"
 cpu_val=""
 max_rss_val=""
 if [ -n "${SLURM_JOB_ID:-}" ]; then
-  sacct_line=$(sacct -j "${SLURM_JOB_ID}_${TASK_ID}" --format=AveCPU,MaxRSS -n -P --noheader 2>/dev/null | head -1)
+  sacct_line=$(sacct -X -j "${SLURM_JOB_ID}_${TASK_ID}" --format=AveCPU,MaxRSS -n -P --noheader 2>/dev/null | head -1)
   if [ -n "${sacct_line}" ]; then
     c=$(echo "$sacct_line" | cut -d'|' -f1)
     m=$(echo "$sacct_line" | cut -d'|' -f2)
