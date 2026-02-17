@@ -144,8 +144,12 @@ export PARALLEL_HOME=/global/scratch/users/$USER/.parallel
 export TMPDIR=/global/scratch/users/$USER/tmp/job_${SLURM_JOB_ID:-0}_task_${TASK_ID}_root
 # Per-task scratch for OpenSees output; then aggregate+compress to archives/ (run post-step in Python).
 export EMULATOR_8100_OUTDIR=/global/scratch/users/$USER/opensees_runs/${SLURM_JOB_ID:-0}_${TASK_ID}
+# H5 output to scratch (avoids 50 GB home quota; 8100 files need ~80-160 GB with lossy compression).
+export EMULATOR_8100_H5_DIR=/global/scratch/users/$USER/emulator8100_h5
+export EMULATOR_8100_H5_LOSSY=1
+export EMULATOR_8100_H5_DOWNSAMPLE=2
 # Parallel joblog and per-index results under RESULTS_BASE (joblog.tsv + <index>/{stdout,stderr,seq}).
-mkdir -p "$PARALLEL_HOME" "$TMPDIR" "$EMULATOR_8100_OUTDIR/archives"
+mkdir -p "$PARALLEL_HOME" "$TMPDIR" "$EMULATOR_8100_OUTDIR/archives" "$EMULATOR_8100_H5_DIR"
 mkdir -p results/h5
 
 # Pre-flight writes: fail fast if we cannot write logs or parallel state (permission/quota).

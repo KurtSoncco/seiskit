@@ -51,6 +51,11 @@ fi
 
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
 
+# H5 output to scratch (same as phase1; avoids 50 GB home quota).
+export EMULATOR_8100_H5_DIR=/global/scratch/users/$USER/emulator8100_h5
+export EMULATOR_8100_H5_LOSSY=1
+export EMULATOR_8100_H5_DOWNSAMPLE=2
+
 PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
 RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
 

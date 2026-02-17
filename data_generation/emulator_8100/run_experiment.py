@@ -10,7 +10,7 @@ Sweep:
 - Vs1 in {100, 230, 360}, CoV in {0.1, 0.2, 0.3}, rh in {10, 30, 50}, aHV in {1, 10, 50}.
 - Random seeds 1--100.
 
-Recordings: center node + lateral span at center depths (21 nodes at bedrock and surface, 10 m spacing).
+Recordings: center node + lateral span at center depths (101 nodes per row, 2 m spacing, center ±100 m).
 
 Total: 3*3*3*3*100 = 8,100. Index 0--8099.
 Supports: --index N (single), or --index-start A --index-end B (range, clamp to 8100).
@@ -174,6 +174,14 @@ def _run_dir_for_index(index: int) -> Path | None:
     return Path(base) / f"run_{index}"
 
 
+def _h5_path_for_index(index: int) -> Path:
+    """H5 file path for this index. Uses EMULATOR_8100_H5_DIR if set (e.g. scratch on Savio)."""
+    base = os.getenv("EMULATOR_8100_H5_DIR")
+    if base:
+        return Path(base) / f"run_{index}.h5"
+    return Path("results") / "h5" / f"run_{index}.h5"
+
+
 def _archive_run_dir(run_dir: Path, archives_dir: Path, index: int) -> bool:
     """Tar+compress run_dir to archives_dir/run_<index>.tar.zst (or .tgz), verify, then rm -rf run_dir. Returns True on success."""
     import shutil
@@ -233,6 +241,33 @@ def _load_recorder_txt(
     return time_arr, data
 
 
+def _get_compression_grid():
+    """Compression for Vs/damping grids. Prefer Blosc2/zstd, fallback to gzip-9."""
+    try:
+        import hdf5plugin  # type: ignore[import-untyped]
+        return hdf5plugin.Blosc2(cname="zstd", clevel=5, filters=hdf5plugin.Blosc2.SHUFFLE)
+    except ImportError:
+        return {"compression": "gzip", "compression_opts": 9, "shuffle": True}
+
+
+def _get_compression_recorder_lossless():
+    """Compression for recorder time series. Prefer Blosc2/zstd+DELTA, fallback to gzip-9."""
+    try:
+        import hdf5plugin  # type: ignore[import-untyped]
+        return hdf5plugin.Blosc2(cname="zstd", clevel=5, filters=hdf5plugin.Blosc2.DELTA)
+    except ImportError:
+        return {"compression": "gzip", "compression_opts": 9, "shuffle": True}
+
+
+def _get_compression_recorder_lossy(tolerance: float = 1e-5):
+    """Lossy compression for recorder data. Zfp accuracy mode. Fallback to lossless."""
+    try:
+        import hdf5plugin  # type: ignore[import-untyped]
+        return hdf5plugin.Zfp(accuracy=tolerance)
+    except ImportError:
+        return _get_compression_recorder_lossless()
+
+
 def _write_h5(
     h5_path: Path,
     index: int,
@@ -252,15 +287,34 @@ def _write_h5(
     dt: float,
     task_id: str,
 ) -> None:
-    """Write one HDF5 per index: params, grid, Vs, damping, recorders. Uses gzip compression."""
+    """Write one HDF5 per index: params, grid, Vs, damping, recorders.
+    Uses Blosc2/zstd (or gzip-9 fallback) and float32. Optional lossy Zfp on recorder data.
+    Env: EMULATOR_8100_H5_LOSSY=1, EMULATOR_8100_H5_LOSSY_TOLERANCE=1e-5.
+    """
     try:
         import h5py  # type: ignore[import-untyped]
     except ImportError as e:
         raise ImportError("h5py is required for HDF5 output; install with pip install h5py") from e
     h5_path.parent.mkdir(parents=True, exist_ok=True)
+    lossy = os.getenv("EMULATOR_8100_H5_LOSSY", "0") == "1"
+    lossy_tol = float(os.getenv("EMULATOR_8100_H5_LOSSY_TOLERANCE", "1e-5"))
+    comp_grid = _get_compression_grid()
+    comp_ts = _get_compression_recorder_lossy(lossy_tol) if lossy else _get_compression_recorder_lossless()
+    _kw = lambda c: c if isinstance(c, dict) else {"compression": c}
+    # Load recorders and apply time downsampling before writing
+    time_arr, data = _load_recorder_txt(recorder_dir, quantity="accel")
+    downsample = max(1, int(os.getenv("EMULATOR_8100_H5_DOWNSAMPLE", "1")))
+    dt_stored = dt
+    if time_arr is not None and len(time_arr) > 0 and downsample > 1:
+        time_arr = time_arr[::downsample].copy()
+        data = data[::downsample, :].copy()
+        dt_stored = dt * downsample
+
     with h5py.File(h5_path, "w") as f:
         f.attrs["index"] = index
         f.attrs["task_id"] = task_id
+        comp_name = "gzip" if isinstance(comp_grid, dict) else "blosc2_zstd"
+        f.attrs["h5_compression"] = f"{comp_name}_lossy_recorder" if lossy else comp_name
         # params
         grp = f.create_group("params")
         grp.attrs["Vs1"] = Vs1
@@ -268,24 +322,48 @@ def _write_h5(
         grp.attrs["rH"] = rh
         grp.attrs["aHV"] = aHV
         grp.attrs["seed"] = seed
-        # grid / fields
-        f.create_dataset("Vs_profile_1D", data=Vs_profile_1D, compression="gzip")
-        f.create_dataset("Vs_realization_2D", data=Vs_extended, compression="gzip")
-        f.create_dataset("Damping_zeta", data=zeta_grid, compression="gzip")
-        # grid metadata
+        # grid / fields (float32 halves size vs float64; ample precision for emulator)
+        f.create_dataset(
+            "Vs_profile_1D",
+            data=Vs_profile_1D.astype(np.float32),
+            **_kw(comp_grid),
+        )
+        f.create_dataset(
+            "Vs_realization_2D",
+            data=Vs_extended.astype(np.float32),
+            **_kw(comp_grid),
+        )
+        f.create_dataset(
+            "Damping_zeta",
+            data=zeta_grid.astype(np.float32),
+            **_kw(comp_grid),
+        )
+        # grid metadata (dt_stored = recorder timestep after downsampling)
         grp = f.create_group("grid")
         grp.attrs["Lx"] = Lx
         grp.attrs["Lz"] = Lz
         grp.attrs["dx"] = dx
         grp.attrs["dz"] = dz
-        grp.attrs["dt"] = dt
+        grp.attrs["dt"] = dt_stored
         # recorders
-        time_arr, data = _load_recorder_txt(recorder_dir, quantity="accel")
         if time_arr is not None and len(time_arr) > 0:
             accel = f.create_group("recorders").create_group("accel")
-            accel.create_dataset("time", data=time_arr, compression="gzip")
-            accel.create_dataset("data", data=data, compression="gzip")
-            accel["data"].attrs["layout"] = "n_time x n_channels"
+            n_time, n_ch = data.shape[0], max(1, data.shape[1])
+            chunks_ts = (min(1000, n_time), min(64, n_ch))
+            accel.create_dataset(
+                "time",
+                data=time_arr.astype(np.float32),
+                **_kw(comp_ts),
+            )
+            ds_data = accel.create_dataset(
+                "data",
+                data=data.astype(np.float32),
+                chunks=chunks_ts,
+                **_kw(comp_ts),
+            )
+            ds_data.attrs["layout"] = "n_time x n_channels"
+            if lossy:
+                ds_data.attrs["compression_tolerance"] = lossy_tol
 
 
 def run_case(index: int = 0) -> str:
@@ -378,12 +456,12 @@ def _run_case_impl(index: int, t0: float) -> str:
         damping_zeta=0.025,
         damping_method=damping_method,
         boundary_condition_type="2D",
-        record_center_nodes=True,
+        record_center_nodes=False,  # center already in lateral span
         center_node_y_positions=[2.0, Lz],
         record_lateral_span_at_center_depths=(
-            100,
-            1.0,
-        ),  # subset: 201 nodes (center ±100 at 1 m spacing)
+            50,
+            2.0,
+        ),  # 101 nodes per row (center ±100 m at 2 m spacing)
         record_all_surface_nodes=False,
         element_type=element_type,
         solver_type="Mumps",
@@ -418,7 +496,7 @@ def _run_case_impl(index: int, t0: float) -> str:
     analysis_time = time.time() - t_analysis_start
 
     # HDF5 write (default): one file per index for fast reads and portability
-    h5_path = Path("results") / "h5" / f"run_{index}.h5"
+    h5_path = _h5_path_for_index(index)
     recorder_dir = Path(output_dir) / task_id
     if recorder_dir.exists():
         _write_h5(
@@ -567,7 +645,7 @@ if __name__ == "__main__":
             sys.exit(1)
         # Idempotent: skip if H5 exists, or archive (scratch), or legacy center_node_*.txt
         if not args.force:
-            h5_path = Path("results") / "h5" / f"run_{idx}.h5"
+            h5_path = _h5_path_for_index(idx)
             if h5_path.exists():
                 print(f"[idempotent] Index {idx} already has H5; skipping.")
                 sys.exit(0)
@@ -592,7 +670,7 @@ if __name__ == "__main__":
         end = min(TOTAL_COMBINATIONS, args.index_end)
         for i in range(start, end):
             if not args.force:
-                if (Path("results") / "h5" / f"run_{i}.h5").exists():
+                if _h5_path_for_index(i).exists():
                     print(f"[idempotent] Index {i} already has H5; skipping.")
                     continue
                 run_dir = _run_dir_for_index(i)
@@ -627,7 +705,7 @@ if __name__ == "__main__":
             )
             sys.exit(1)
         if not args.force:
-            if (Path("results") / "h5" / f"run_{idx}.h5").exists():
+            if _h5_path_for_index(idx).exists():
                 print(f"[idempotent] Index {idx} already has H5; skipping.")
                 sys.exit(0)
             run_dir = _run_dir_for_index(idx)
