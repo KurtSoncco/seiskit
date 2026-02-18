@@ -5,11 +5,11 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=8G
 #SBATCH --time=02:00:00
-#SBATCH --array=8089-8100
+#SBATCH --array=0-11
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
 
-# Phase 2: 12 sims (remainder after Phase 1). Array 8089-8100 → 0-based indices 8088-8099.
+# Phase 2: 12 sims (remainder after Phase 1). Array 0-11 → 0-based indices 8088-8099.
 # One sim per array task. Submit after Phase 1 (or anytime; idempotent unless FORCE_RERUN=1).
 #
 # Set FORCE_RERUN=1 to re-run even when output exists (passes --force to run_experiment.py).
@@ -59,9 +59,9 @@ export EMULATOR_8100_H5_DOWNSAMPLE=2
 PYTHON_BIN="/global/home/users/kurtwal98/seiskit/.venv/bin/python"
 RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
 
-# Array 8089-8100 → 0-based index 8088-8099 (run_experiment.py uses 0-based)
-TASK_ID=${SLURM_ARRAY_TASK_ID:-8089}
-INDEX=$((TASK_ID - 1))
+# Array 0-11 → 0-based index 8088..8099 (run_experiment.py uses 0-based)
+TASK_ID=${SLURM_ARRAY_TASK_ID:-0}
+INDEX=$((8088 + TASK_ID))
 EXTRA_ARGS=""
 [ "${FORCE_RERUN}" = "1" ] && EXTRA_ARGS="--force"
 
