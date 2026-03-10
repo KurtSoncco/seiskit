@@ -10,7 +10,7 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=48G
 #SBATCH --time=05:00:00
-#SBATCH --array=0-8087%50
+#SBATCH --array=0-336%50
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
 #SBATCH --exclude=n0087.savio2
