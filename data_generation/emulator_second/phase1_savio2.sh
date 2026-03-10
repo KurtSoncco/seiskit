@@ -106,7 +106,7 @@ command -v "${PYTHON_BIN}" >/dev/null || { echo "ERROR: Python binary not found 
 test -r "${RUNNER_PY}" >/dev/null || { echo "ERROR: Runner script not readable at ${RUNNER_PY}" >&2; exit 2; }
 
 echo "$(date -Is) | PREFLIGHT | Verifying Python and OpenSees..." >&2
-timeout 120s ${PYTHON_BIN} - <<'PYEOF'
+timeout 30s ${PYTHON_BIN} - <<'PYEOF'
 import sys
 print('PYTHON_OK', sys.version.split()[0])
 try:
