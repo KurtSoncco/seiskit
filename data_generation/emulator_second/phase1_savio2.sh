@@ -150,6 +150,7 @@ export EMULATOR_8100_H5_LOSSY=1
 export EMULATOR_8100_H5_DOWNSAMPLE=2
 # Parallel joblog and per-index results under RESULTS_BASE (joblog.tsv + <index>/{stdout,stderr,seq}).
 mkdir -p "$PARALLEL_HOME" "$TMPDIR" "$EMULATOR_8100_OUTDIR/archives" "$EMULATOR_8100_H5_DIR"
+[ -f results/h5 ] && rm -f results/h5
 mkdir -p results/h5
 
 # Pre-flight writes: fail fast if we cannot write logs or parallel state (permission/quota).
