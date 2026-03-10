@@ -469,8 +469,8 @@ def _run_case_impl(index: int, t0: float) -> str:
         record_center_nodes=False,  # center already in lateral span
         center_node_y_positions=[2.0, Lz],
         record_lateral_span_at_center_depths=(
-            50,
-            2.0,
+            50,  # Number of nodes to record at the each side of the center node
+            2.0,  # Spacing between nodes
         ),  # 101 nodes per row (center ±100 m at 2 m spacing)
         record_all_surface_nodes=False,
         element_type=element_type,
