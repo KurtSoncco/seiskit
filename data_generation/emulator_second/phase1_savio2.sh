@@ -14,20 +14,6 @@
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
 #SBATCH --exclude=n0087.savio2
-# Create logs/ before submitting (Slurm does not create it). From this dir: mkdir -p logs; sbatch phase1_savio2.sh  (or use ./submit_phase1.sh).
-# To put Slurm stdout/err under per_idx too, use:
-#   --output=logs/per_idx/job_%A/task_%a/slurm.out --error=logs/per_idx/job_%A/task_%a/slurm.err
-# and precreate dirs before submit (Slurm does not create them): for a in $(seq 0 336); do mkdir -p logs/per_idx/job_<JOB_ID>/task_$a; done
-
-# Phase 1: 8,088 sims (indices 0-8087). Savio2 whole-node; GNU Parallel runs
-# N sims per array element. Array 0-10 = validation; for full run use: --array=0-336
-# 337 array elements × 24 sims = 8088. Submit: sbatch phase1_savio2.sh
-#
-# Hardening: per-index logs, joblog, retries, timeout, scratch TMPDIR, pre-flight
-# writes, post-run failure summary. Rerun only failed indices via joblog.
-#
-# FORCE_RERUN=1 to re-run even when output exists.
-# CONCURRENCY: 24 runs per node (override with CONCURRENCY=N if needed).
 FORCE_RERUN=${FORCE_RERUN:-0}
 CONCURRENCY="${CONCURRENCY:-${SLURM_CPUS_ON_NODE:-${SLURM_CPUS_PER_TASK:-24}}}"
 mkdir -p logs
@@ -105,16 +91,26 @@ RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
 command -v "${PYTHON_BIN}" >/dev/null || { echo "ERROR: Python binary not found at ${PYTHON_BIN}" >&2; exit 2; }
 test -r "${RUNNER_PY}" >/dev/null || { echo "ERROR: Runner script not readable at ${RUNNER_PY}" >&2; exit 2; }
 
-echo "$(date -Is) | PREFLIGHT | Verifying Python and OpenSees..." >&2
-timeout 180s ${PYTHON_BIN} - <<'PYEOF'
-import sys
-print('PYTHON_OK', sys.version.split()[0])
+# Warm the venv site-packages stat cache to reduce first-import latency
+python - <<'PYEOF' || true
+import pkgutil, sys
+for m in ('openseespy','numpy','scipy'):
+    try: pkgutil.find_loader(m)
+    except Exception: pass
+print('SITE_WARMED')
+PYEOF
+
+sleep $((RANDOM % 5))
+echo "$(date -Is) | PREFLIGHT | Verifying Python and OpenSees (timeout=180s)..." >&2
+timeout 180s "${PYTHON_BIN}" - <<'PYEOF'
+import sys, time
+print('PYTHON_OK', sys.version.split()[0], flush=True)
 try:
     import openseespy.opensees as ops  # noqa
-    print('OPENSEES_OK')
+    print('OPENSEES_OK', flush=True)
 except Exception as e:
-    print(f'OPENSEES_IMPORT_FAIL: {e}')
-    sys.exit(3)
+    print(f'OPENSEES_IMPORT_FAIL: {e}', flush=True)
+    raise
 PYEOF
 PRE_RC=$?
 if [ ${PRE_RC} -ne 0 ]; then
@@ -167,7 +163,7 @@ PARALLEL_RETRIES=1
 
 # Diagnostics: verify parallel config and expected concurrency (timeout so a bad node does not hang).
 echo "$(date -Is) | DIAG | Checking parallel version and config..." >&2
-timeout 10s parallel --version >&2 || true
+timeout 25s parallel --version >&2 || true
 echo "$(date -Is) | DIAG | Will launch ${CONCURRENCY} concurrent jobs" >&2
 echo "$(date -Is) | DIAG | Results base: $RESULTS_BASE" >&2
 if [ -n "${SLURM_TMPDIR:-}" ]; then
@@ -198,15 +194,16 @@ seq "${START}" $((END - 1)) | parallel -j "${CONCURRENCY}" \
   --retries "${PARALLEL_RETRIES}" \
   --joblog "${JOBLOG}" \
   --results "${RESULTS_BASE}/shard_{= \$_ = int(\$_/1000) =}/{}" \
+  --compress \
   --tagstring "idx={} slot={#} host=$(hostname)" \
-  'slot={#}; idx={};
+  'slot={#}; idx={}; export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1;
    base_tmp="${TMPDIR:-${SLURM_TMPDIR:-/tmp}}";
    idx_tmp="$base_tmp/idx_$idx";
    mkdir -p "$idx_tmp";
    export TMPDIR="$idx_tmp";
    trap "rm -rf \"$idx_tmp\"" EXIT;
-   if command -v taskset >/dev/null 2>&1; then
-     exec taskset -c $((slot-1)) timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS;
+   if command -v srun >/dev/null 2>&1; then
+     exec srun --exclusive -c 1 --cpu-bind=cores timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS;
    else
      exec timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS;
    fi'
