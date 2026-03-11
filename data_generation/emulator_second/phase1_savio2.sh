@@ -1,6 +1,6 @@
 #!/bin/bash
 # One task with 24 CPUs per array element so GNU Parallel can run 24 sims in parallel on the node.
-#SBATCH --job-name=em8100_phase1_second
+#SBATCH --job-name=em8100_phase1
 #SBATCH --account=fc_tfsurrogate
 #SBATCH --partition=savio2
 #SBATCH --qos=savio_normal
@@ -10,10 +10,24 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=48G
 #SBATCH --time=05:00:00
-#SBATCH --array=0-336%50
+#SBATCH --array=118-336%50
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
 #SBATCH --exclude=n0087.savio2
+# Create logs/ before submitting (Slurm does not create it). From this dir: mkdir -p logs; sbatch phase1_savio2.sh  (or use ./submit_phase1.sh).
+# To put Slurm stdout/err under per_idx too, use:
+#   --output=logs/per_idx/job_%A/task_%a/slurm.out --error=logs/per_idx/job_%A/task_%a/slurm.err
+# and precreate dirs before submit (Slurm does not create them): for a in $(seq 0 336); do mkdir -p logs/per_idx/job_<JOB_ID>/task_$a; done
+
+# Phase 1: 8,088 sims (indices 0-8087). Savio2 whole-node; GNU Parallel runs
+# N sims per array element. Array 0-10 = validation; for full run use: --array=0-336
+# 337 array elements × 24 sims = 8088. Submit: sbatch phase1_savio2.sh
+#
+# Hardening: per-index logs, joblog, retries, timeout, scratch TMPDIR, pre-flight
+# writes, post-run failure summary. Rerun only failed indices via joblog.
+#
+# FORCE_RERUN=1 to re-run even when output exists.
+# CONCURRENCY: 24 runs per node (override with CONCURRENCY=N if needed).
 FORCE_RERUN=${FORCE_RERUN:-0}
 CONCURRENCY="${CONCURRENCY:-${SLURM_CPUS_ON_NODE:-${SLURM_CPUS_PER_TASK:-24}}}"
 mkdir -p logs
@@ -91,26 +105,16 @@ RUNNER_PY="${SLURM_SUBMIT_DIR:-$PWD}/run_experiment.py"
 command -v "${PYTHON_BIN}" >/dev/null || { echo "ERROR: Python binary not found at ${PYTHON_BIN}" >&2; exit 2; }
 test -r "${RUNNER_PY}" >/dev/null || { echo "ERROR: Runner script not readable at ${RUNNER_PY}" >&2; exit 2; }
 
-# Warm the venv site-packages stat cache to reduce first-import latency
-python - <<'PYEOF' || true
-import pkgutil, sys
-for m in ('openseespy','numpy','scipy'):
-    try: pkgutil.find_loader(m)
-    except Exception: pass
-print('SITE_WARMED')
-PYEOF
-
-sleep $((RANDOM % 5))
-echo "$(date -Is) | PREFLIGHT | Verifying Python and OpenSees (timeout=180s)..." >&2
-timeout 180s "${PYTHON_BIN}" - <<'PYEOF'
-import sys, time
-print('PYTHON_OK', sys.version.split()[0], flush=True)
+echo "$(date -Is) | PREFLIGHT | Verifying Python and OpenSees..." >&2
+timeout 30s ${PYTHON_BIN} - <<'PYEOF'
+import sys
+print('PYTHON_OK', sys.version.split()[0])
 try:
     import openseespy.opensees as ops  # noqa
-    print('OPENSEES_OK', flush=True)
+    print('OPENSEES_OK')
 except Exception as e:
-    print(f'OPENSEES_IMPORT_FAIL: {e}', flush=True)
-    raise
+    print(f'OPENSEES_IMPORT_FAIL: {e}')
+    sys.exit(3)
 PYEOF
 PRE_RC=$?
 if [ ${PRE_RC} -ne 0 ]; then
@@ -141,12 +145,11 @@ export TMPDIR=/global/scratch/users/$USER/tmp/job_${SLURM_JOB_ID:-0}_task_${TASK
 # Per-task scratch for OpenSees output; then aggregate+compress to archives/ (run post-step in Python).
 export EMULATOR_8100_OUTDIR=/global/scratch/users/$USER/opensees_runs/${SLURM_JOB_ID:-0}_${TASK_ID}
 # H5 output to scratch (avoids 50 GB home quota; 8100 files need ~80-160 GB with lossy compression).
-export EMULATOR_8100_H5_DIR=/global/scratch/users/$USER/emulator8100_h5_second
+export EMULATOR_8100_H5_DIR=/global/scratch/users/$USER/emulator_second_h5
 export EMULATOR_8100_H5_LOSSY=1
 export EMULATOR_8100_H5_DOWNSAMPLE=2
 # Parallel joblog and per-index results under RESULTS_BASE (joblog.tsv + <index>/{stdout,stderr,seq}).
 mkdir -p "$PARALLEL_HOME" "$TMPDIR" "$EMULATOR_8100_OUTDIR/archives" "$EMULATOR_8100_H5_DIR"
-[ -f results/h5 ] && rm -f results/h5
 mkdir -p results/h5
 
 # Pre-flight writes: fail fast if we cannot write logs or parallel state (permission/quota).
@@ -163,7 +166,7 @@ PARALLEL_RETRIES=1
 
 # Diagnostics: verify parallel config and expected concurrency (timeout so a bad node does not hang).
 echo "$(date -Is) | DIAG | Checking parallel version and config..." >&2
-timeout 25s parallel --version >&2 || true
+timeout 10s parallel --version >&2 || true
 echo "$(date -Is) | DIAG | Will launch ${CONCURRENCY} concurrent jobs" >&2
 echo "$(date -Is) | DIAG | Results base: $RESULTS_BASE" >&2
 if [ -n "${SLURM_TMPDIR:-}" ]; then
@@ -194,16 +197,15 @@ seq "${START}" $((END - 1)) | parallel -j "${CONCURRENCY}" \
   --retries "${PARALLEL_RETRIES}" \
   --joblog "${JOBLOG}" \
   --results "${RESULTS_BASE}/shard_{= \$_ = int(\$_/1000) =}/{}" \
-  --compress \
   --tagstring "idx={} slot={#} host=$(hostname)" \
-  'slot={#}; idx={}; export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1;
+  'slot={#}; idx={};
    base_tmp="${TMPDIR:-${SLURM_TMPDIR:-/tmp}}";
    idx_tmp="$base_tmp/idx_$idx";
    mkdir -p "$idx_tmp";
    export TMPDIR="$idx_tmp";
    trap "rm -rf \"$idx_tmp\"" EXIT;
-   if command -v srun >/dev/null 2>&1; then
-     exec srun --exclusive -c 1 --cpu-bind=cores timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS;
+   if command -v taskset >/dev/null 2>&1; then
+     exec taskset -c $((slot-1)) timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS;
    else
      exec timeout "$SIM_TIMEOUT" "$PYTHON_BIN" -u "$RUNNER_PY" --index "$idx" $EXTRA_ARGS;
    fi'
