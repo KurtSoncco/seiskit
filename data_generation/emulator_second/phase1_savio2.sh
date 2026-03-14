@@ -9,7 +9,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=48G
-#SBATCH --time=05:00:00
+#SBATCH --time=06:00:00
 #SBATCH --array=118-336%50
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
@@ -24,7 +24,8 @@
 # 337 array elements × 24 sims = 8088. Submit: sbatch phase1_savio2.sh
 #
 # Hardening: per-index logs, joblog, retries, timeout, scratch TMPDIR, pre-flight
-# writes, post-run failure summary. Rerun only failed indices via joblog.
+# writes, post-run failure summary, consolidated summary log (logs/array_job_<JOB_ID>_summary.txt).
+# Rerun only failed indices via joblog.
 #
 # FORCE_RERUN=1 to re-run even when output exists.
 # CONCURRENCY: 24 runs per node (override with CONCURRENCY=N if needed).
@@ -51,6 +52,7 @@ rm -f "$RESULTS_BASE/.w"
 # Joblog at final location from start (tiny; no need to stage with node-local results).
 mkdir -p "$RESULTS_BASE_FINAL"
 JOBLOG="$RESULTS_BASE_FINAL/joblog.tsv"
+SUMMARY_LOG="logs/array_job_${SLURM_JOB_ID:-0}_summary.txt"
 
 # Disable nested threading for each payload (export before parallel so all jobs inherit).
 export OMP_NUM_THREADS=1
@@ -157,8 +159,8 @@ touch "logs/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" || { echo "$(date -Is) | E
 touch "$PARALLEL_HOME/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" || { echo "$(date -Is) | ERROR | cannot write PARALLEL_HOME: $PARALLEL_HOME" >&2; exit 11; }
 rm -f "logs/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" "$PARALLEL_HOME/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}"
 
-# Per-sim timeout (4h) so one stuck run doesn't hang the slot; job time is 5h.
-SIM_TIMEOUT=14400
+# Per-sim timeout (5h) so one stuck run doesn't hang the slot; job time is 5h.
+SIM_TIMEOUT=18000
 export SIM_TIMEOUT
 
 # Retries: transient glitches get one automatic retry.
@@ -226,8 +228,9 @@ fi
 # Summaries: make failures actionable (counts + exact indices to requeue).
 OK_COUNT=0
 FAILED_COUNT=0
+RERUN_ARRAY=""
 if [ -r "${JOBLOG}" ]; then
-  FAILED_LINES=$(awk 'NR>1 && $7!=0 {print}' "${JOBLOG}" 2>/dev/null || true)
+  FAILED_LINES=$(awk 'NR>1 && $7!=0 {print}' "${JOBLOG}" 2>/dev/null | tr -d '\0' || true)
   FAILED_COUNT=$(echo "${FAILED_LINES}" | grep -c . 2>/dev/null || echo 0)
   OK_COUNT=$(awk 'NR>1 && $7==0 {c++} END {print c+0}' "${JOBLOG}" 2>/dev/null || echo 0)
   echo "$(date -Is) | SUMMARY | OK=${OK_COUNT} failed=${FAILED_COUNT} parallel_rc=${PARALLEL_RC}" >&2
@@ -235,13 +238,43 @@ if [ -r "${JOBLOG}" ]; then
     echo "$(date -Is) | FAILED ROWS (joblog):" >&2
     echo "${FAILED_LINES}" >&2
     echo "$(date -Is) | INDICES TO RERUN (use for sbatch --array= or single-index resubmit):" >&2
-    FAILED_IDX=$(awk -v start="${START}" 'NR>1 && $7!=0 {print start+$1-1}' "${JOBLOG}" | sort -n | uniq)
+    FAILED_IDX=$(awk -v start="${START}" 'NR>1 && $7!=0 {print start+$1-1}' "${JOBLOG}" 2>/dev/null | tr -d '\0' | sort -n | uniq)
     echo "${FAILED_IDX}" | tr '\n' ' ' && echo "" >&2
     RERUN_ARRAY=$(echo "${FAILED_IDX}" | awk -v chunk="${CHUNK}" '{print int($0/chunk)}' | sort -n | uniq | paste -sd, -)
     if [ -n "${RERUN_ARRAY}" ]; then
       echo "Rerun failed indices: sbatch --array=${RERUN_ARRAY} phase1_savio2.sh" >&2
     fi
   fi
+fi
+
+# Append this task's summary to consolidated log (one file per array job, safe with flock).
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+  SUMMARY_BLOCK="=== Task ${TASK_ID} (indices ${START}..$((END-1))) ===
+$(date -Is) | SUMMARY | OK=${OK_COUNT} failed=${FAILED_COUNT} parallel_rc=${PARALLEL_RC}
+"
+  if [ "$RESULTS_BASE" != "$RESULTS_BASE_FINAL" ] && [ -d "$RESULTS_BASE" ]; then
+    SUMMARY_BLOCK="${SUMMARY_BLOCK}$(date -Is) | COPY | Copying results from $RESULTS_BASE to $RESULTS_BASE_FINAL...
+"
+  fi
+  if [ "${FAILED_COUNT}" -gt 0 ]; then
+    FAILED_IDX_LINE=$(echo "${FAILED_IDX}" | tr '\n' ' ')
+    SUMMARY_BLOCK="${SUMMARY_BLOCK}$(date -Is) | FAILED ROWS (joblog):
+${FAILED_LINES}
+
+$(date -Is) | INDICES TO RERUN: ${FAILED_IDX_LINE}
+
+"
+    if [ -n "${RERUN_ARRAY}" ]; then
+      SUMMARY_BLOCK="${SUMMARY_BLOCK}Rerun failed indices: sbatch --array=${RERUN_ARRAY} phase1_savio2.sh
+"
+    fi
+  fi
+  SUMMARY_BLOCK="${SUMMARY_BLOCK}
+"
+  {
+    flock -x 9
+    printf '%s' "$SUMMARY_BLOCK" >> "$SUMMARY_LOG"
+  } 9>>"$SUMMARY_LOG" 2>/dev/null || printf '%s' "$SUMMARY_BLOCK" >> "$SUMMARY_LOG" 2>/dev/null || true
 fi
 
 if [ -n "${SLURM_JOB_ID:-}" ]; then
