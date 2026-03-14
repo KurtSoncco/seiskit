@@ -5,4 +5,4 @@
 # 11-336: training
 cd "$(dirname "$0")"
 mkdir -p logs
-exec sbatch --array=3,10,11-336 phase1_savio2.sh "$@"
+exec sbatch --export="FORCE_RERUN=1" --array=3,10,11-336 phase1_savio2.sh "$@"
