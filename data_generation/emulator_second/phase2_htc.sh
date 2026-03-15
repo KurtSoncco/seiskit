@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=em8100_phase2
 #SBATCH --account=fc_tfsurrogate
-#SBATCH --partition=savio2_htc
+#SBATCH --partition=savio3_htc
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=8G
 #SBATCH --time=05:00:00
