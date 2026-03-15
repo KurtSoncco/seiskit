@@ -4,7 +4,7 @@
 #SBATCH --partition=savio2_htc
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=8G
-#SBATCH --time=02:00:00
+#SBATCH --time=05:00:00
 #SBATCH --array=0-11
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
