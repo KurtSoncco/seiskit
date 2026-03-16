@@ -13,7 +13,7 @@
 #SBATCH --array=0-336%50
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
-#SBATCH --exclude=n0087.savio2,n0141.savio2,n0149.savio2
+#SBATCH --exclude=n0087.savio2,n0141.savio2,n0149.savio2,n0029.savio2
 # Create logs/ before submitting (Slurm does not create it). From this dir: mkdir -p logs; sbatch phase1_savio2.sh  (or use ./submit_phase1.sh).
 # To put Slurm stdout/err under per_idx too, use:
 #   --output=logs/per_idx/job_%A/task_%a/slurm.out --error=logs/per_idx/job_%A/task_%a/slurm.err
