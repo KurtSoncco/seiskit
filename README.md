@@ -60,8 +60,17 @@
    # Install uv if not already installed
    curl -LsSf https://astral.sh/uv/install.sh | sh
    
-   # Install dependencies
+   # Minimal CPU runtime (recommended for HPC)
    uv sync
+
+   # Optional: add research/data analysis stack
+   # uv sync --extra analysis
+
+   # Optional: add ML/interpretability stack
+   # uv sync --extra ml
+
+   # Optional: add notebook/plot export tooling
+   # uv sync --extra notebook
    ```
 
 5. **Activate the virtual environment**:
@@ -82,7 +91,12 @@
    ```bash
    git clone https://github.com/KurtSoncco/seiskit.git
    cd seiskit
+
+   # Minimal CPU runtime
    uv sync
+
+   # Example: full local research environment
+   # uv sync --extra analysis --extra ml --extra notebook --extra dev
    ```
 
 3. **Activate the virtual environment**:
@@ -100,7 +114,14 @@
 
 2. **Install dependencies**:
    ```bash
+   # Minimal CPU runtime
    pip install -e .
+
+   # Optional extras
+   # pip install -e .[analysis]
+   # pip install -e .[ml]
+   # pip install -e .[notebook]
+   # pip install -e .[dev]
    ```
 
 ## Quick Start
@@ -290,11 +311,23 @@ Check the `examples/` directory for comprehensive examples:
 
 ## Dependencies
 
-- **Core**: numpy, pandas, matplotlib, seaborn
-- **Analysis**: openseespy, scikit-learn
-- **Visualization**: plotly, kaleido
-- **Parallel Processing**: joblib
-- **Development**: ruff, pytest
+- **Core (default, CPU-friendly)**: numpy, scipy, openseespy, joblib, numba, matplotlib, seaborn, plotly
+- **Analysis extra**: pandas, h5py, hdf5plugin, tqdm, statsmodels, kerchunk, zarr, xarray, fsspec, ujson
+- **ML extra**: scikit-learn, xgboost, shap, interpret, pygam, bambi, arviz
+- **Notebook extra**: ipykernel, kaleido
+- **Development extra**: ruff, pytest, pytest-cov
+
+### Install profiles
+
+- **Minimal HPC runtime (recommended for cluster jobs)**
+   - `uv sync`
+   - or `pip install -e .`
+- **Local research/data workflow**
+   - `uv sync --extra analysis --extra notebook`
+   - or `pip install -e .[analysis,notebook]`
+- **Full local workflow with ML tools**
+   - `uv sync --extra analysis --extra ml --extra notebook --extra dev`
+   - or `pip install -e .[analysis,ml,notebook,dev]`
 
 ## Contributing
 
