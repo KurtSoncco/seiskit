@@ -33,8 +33,8 @@ from .damping import (
     compute_rayleigh_coefficients,
     compute_rayleigh_mass_only,
 )
-from .isolated_runner import run_isolated_analysis
 from .gaussian_field import extend_profile, generate_vs_variability_field
+from .isolated_runner import run_isolated_analysis
 
 # Parallel execution functions
 from .parallel import (
