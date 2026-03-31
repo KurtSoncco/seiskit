@@ -2,7 +2,7 @@ import numpy as np
 
 from seiskit import optools
 from seiskit.ttf.acc2FAS2 import acc2FAS2, acc2FAS_complex
-from seiskit.ttf.TTF import TTF, TTF_full, TTF_batch
+from seiskit.ttf.TTF import TTF, TTF_batch, TTF_full
 
 
 def test_ttf_empty():

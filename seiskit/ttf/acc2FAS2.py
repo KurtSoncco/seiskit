@@ -4,7 +4,7 @@ from scipy.fft import fft, next_fast_len
 
 def _default_nfreq(numpts: int) -> int:
     """FFT length for FAS: fast length >= max(8192, numpts) to avoid wasteful zero-padding."""
-    return next_fast_len(max(numpts, 8192))
+    return next_fast_len(max(numpts, 8192))  # type: ignore
 
 
 def acc2FAS_complex(acc, dt, nfreq=None):
@@ -41,7 +41,7 @@ def acc2FAS_complex(acc, dt, nfreq=None):
     n_half = n // 2
     freq = np.arange(0, fnyq, df)[:n_half]
 
-    Acc = fft(acc, n=n, axis=0)
+    Acc = np.asarray(fft(acc, n=n, axis=0))
     # One-sided: positive frequencies only
     Acc_one = Acc[:n_half]
     FAS = (2 / numpts) * np.abs(Acc_one)
@@ -82,7 +82,7 @@ def acc2FAS2(acc, dt, nfreq=None):
     df = 1 / (n * dt)
     freq = np.arange(0, fnyq, df)
 
-    Acc = fft(acc, n=n, axis=0)
+    Acc = np.asarray(fft(acc, n=n, axis=0))
     n_half = n // 2
     FAS = (2 / numpts) * np.abs(Acc[:n_half])
 
@@ -132,7 +132,7 @@ def acc2FAS2_batch(acc, dt, nfreq=None):
     n_half = n // 2
     freq = np.arange(0, fnyq, df)[:n_half]
 
-    Acc = fft(acc, n=n, axis=1)
+    Acc = np.asarray(fft(acc, n=n, axis=1))
     Acc_one = Acc[:, :n_half]
     FAS = (2 / numpts) * np.abs(Acc_one)
 

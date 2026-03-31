@@ -1,6 +1,7 @@
+from functools import lru_cache
+
 import numpy as np
 from scipy.interpolate import interp1d
-from functools import lru_cache
 
 from .acc2FAS2 import acc2FAS2, acc2FAS2_batch, acc2FAS_complex
 from .kohmachi import kohmachi
@@ -244,13 +245,13 @@ def TTF_batch(
             freq_raw,
             FAS_base[i],
             bounds_error=False,
-            fill_value=(FAS_base[i, 0], FAS_base[i, -1]),
+            fill_value=(FAS_base[i, 0], FAS_base[i, -1]),  # type: ignore[arg-type]
         )
         f_s = interp1d(
             freq_raw,
             FAS_surf[i],
             bounds_error=False,
-            fill_value=(FAS_surf[i, 0], FAS_surf[i, -1]),
+            fill_value=(FAS_surf[i, 0], FAS_surf[i, -1]),  # type: ignore[arg-type]
         )
         fas_b_log = f_b(freq)
         fas_s_log = f_s(freq)
