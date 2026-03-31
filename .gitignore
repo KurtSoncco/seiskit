@@ -85,6 +85,19 @@ test_results/
 *.npy
 *.json
 *.pt
+*.png
+*.csv
+*.dat
+*.zip
+*.pkl
+*.pdf
+*.h5
+*.npz
+*.log
+*.db
+
+# Ignore any subfolder called code inside data_generation
+data_generation/**/code/
 
 # Ignore wandb folder
 wandb/

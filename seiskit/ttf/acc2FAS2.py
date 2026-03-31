@@ -1,5 +1,10 @@
 import numpy as np
-from scipy.fft import fft
+from scipy.fft import fft, next_fast_len
+
+
+def _default_nfreq(numpts: int) -> int:
+    """FFT length for FAS: fast length >= max(8192, numpts) to avoid wasteful zero-padding."""
+    return next_fast_len(max(numpts, 8192))
 
 
 def acc2FAS_complex(acc, dt, nfreq=None):
@@ -26,7 +31,7 @@ def acc2FAS_complex(acc, dt, nfreq=None):
     """
     numpts = len(acc)
     if nfreq is None:
-        n = numpts
+        n = _default_nfreq(numpts)
     else:
         n = nfreq
 
@@ -65,11 +70,8 @@ def acc2FAS2(acc, dt, nfreq=None):
 
     numpts = len(acc)
 
-    # if acc.ndim == 1:
-    #    acc = acc.reshape(-1, 1)
-
     if nfreq is None:
-        n = numpts
+        n = _default_nfreq(numpts)
     else:
         if numpts > nfreq:
             print("Warning: numpts > nfreq")
@@ -81,13 +83,60 @@ def acc2FAS2(acc, dt, nfreq=None):
     freq = np.arange(0, fnyq, df)
 
     Acc = fft(acc, n=n, axis=0)
-    FAS = (2 / numpts) * np.abs(Acc[: n // 2])
+    n_half = n // 2
+    FAS = (2 / numpts) * np.abs(Acc[:n_half])
 
-    FAS = FAS.reshape(
-        -1,
-    )
-    freq = freq.reshape(
-        -1,
-    )
+    FAS = np.asarray(FAS).reshape(-1)
+    freq = np.asarray(freq).reshape(-1)
+    # np.arange can overshoot by 1 due to floating point; ensure same length as FAS
+    if len(freq) != len(FAS):
+        freq = freq[: len(FAS)]
 
     return FAS, freq
+
+
+def acc2FAS2_batch(acc, dt, nfreq=None):
+    """
+    Batched conversion of acceleration time histories to Fourier Amplitude Spectrum (FAS).
+
+    Parameters
+    ----------
+    acc : array_like, shape (n_channels, n_time)
+        Acceleration time histories. Time is along the last axis.
+    dt : float
+        Time step.
+    nfreq : int, optional
+        FFT length. If None, uses next_fast_len(max(n_time, 8192)).
+
+    Returns
+    -------
+    FAS : np.ndarray, shape (n_channels, n_freq)
+        One-sided Fourier amplitude spectrum per channel.
+    freq : np.ndarray
+        Frequency vector (Hz) corresponding to FAS.
+    """
+    acc = np.asarray(acc)
+    if acc.ndim != 2:
+        raise ValueError("acc must be 2D (n_channels, n_time)")
+    numpts = acc.shape[1]
+    n_channels = acc.shape[0]
+
+    if nfreq is None:
+        n = _default_nfreq(numpts)
+    else:
+        n = nfreq
+
+    fs = 1 / dt
+    fnyq = 0.5 * fs
+    df = 1 / (n * dt)
+    n_half = n // 2
+    freq = np.arange(0, fnyq, df)[:n_half]
+
+    Acc = fft(acc, n=n, axis=1)
+    Acc_one = Acc[:, :n_half]
+    FAS = (2 / numpts) * np.abs(Acc_one)
+
+    freq = np.asarray(np.arange(0, fnyq, df)[:n_half], dtype=np.float64).ravel()
+    if len(freq) != FAS.shape[1]:
+        freq = freq[: FAS.shape[1]]
+    return FAS.astype(np.float64), freq

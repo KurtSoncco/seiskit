@@ -2,7 +2,7 @@ import numpy as np
 
 from seiskit import optools
 from seiskit.ttf.acc2FAS2 import acc2FAS2, acc2FAS_complex
-from seiskit.ttf.TTF import TTF, TTF_full
+from seiskit.ttf.TTF import TTF, TTF_full, TTF_batch
 
 
 def test_ttf_empty():
@@ -55,6 +55,54 @@ def test_ttf_full_returns_magnitude_and_phase():
     assert np.all(np.isfinite(phase))
     assert np.all(magnitude >= 0)
     assert np.all(np.abs(phase) <= np.pi)
+
+
+def test_ttf_vs_ttf_batch_single_pair():
+    """TTF and TTF_batch with a single channel should match."""
+    np.random.seed(42)
+    n_time = 500
+    dt = 0.02
+    base_acc = np.random.randn(n_time).astype(np.float64) * 0.1
+    surf_acc = base_acc * 2 + np.random.randn(n_time).astype(np.float64) * 0.05
+
+    freq_tf, mag_tf = TTF(surf_acc, base_acc, dt=dt)
+    base_2d = base_acc[np.newaxis, :]
+    surf_2d = surf_acc[np.newaxis, :]
+    freq_batch, mag_batch = TTF_batch(base_2d, surf_2d, dt=dt)
+
+    np.testing.assert_allclose(freq_tf, freq_batch)
+    np.testing.assert_allclose(mag_tf, mag_batch[0], rtol=1e-10, atol=1e-10)
+
+
+def test_ttf_nfreq_auto_vs_large_on_1500pts():
+    """TTF with nfreq=None (auto) vs nfreq=10**6 on 1500-pt signal: acceptable agreement in 0.1–10 Hz."""
+    np.random.seed(42)
+    n_time = 1500
+    dt = 0.02
+    base_acc = np.random.randn(n_time).astype(np.float64) * 0.1
+    surf_acc = base_acc * 1.5 + np.random.randn(n_time).astype(np.float64) * 0.05
+
+    freq_auto, mag_auto = TTF(surf_acc, base_acc, dt=dt, nfreq=None)
+    freq_lg, mag_lg = TTF(surf_acc, base_acc, dt=dt, nfreq=10**6)
+
+    np.testing.assert_allclose(freq_auto, freq_lg)
+    # In 0.1–10 Hz band, exclude near-zero magnitude (unstable rel err) and check median
+    mask = (freq_auto >= 0.1) & (freq_auto <= 10) & (np.abs(mag_lg) > 1e-4)
+    if mask.sum() > 0:
+        rel_err = np.abs(mag_auto[mask] - mag_lg[mask]) / (np.abs(mag_lg[mask]) + 1e-12)
+        assert np.median(rel_err) < 0.05, f"Median relative error {np.median(rel_err):.4f} exceeds 5%"
+
+
+def test_acc2fas2_batch_shape():
+    """acc2FAS2_batch returns correct shapes."""
+    from seiskit.ttf.acc2FAS2 import acc2FAS2_batch
+
+    n_ch, n_time = 5, 200
+    acc = np.random.randn(n_ch, n_time).astype(np.float64)
+    fas, freq = acc2FAS2_batch(acc, dt=0.02)
+    assert fas.shape[0] == n_ch
+    assert fas.shape[1] == len(freq)
+    assert np.all(np.isfinite(fas))
 
 
 def test_read_time_series(tmp_path):
