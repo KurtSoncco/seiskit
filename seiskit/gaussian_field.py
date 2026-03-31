@@ -217,6 +217,51 @@ def _extend_profile(
     return final_Vs, x_total
 
 
+def generate_vs_variability_field(
+    Vs_profile: np.ndarray,
+    Lx_variability: float,
+    Lz: float,
+    dx: float,
+    dz: float,
+    rH: float,
+    aHV: float,
+    CV: float,
+    seed: Optional[int] = 42,
+    dz_1D: float = 5.0,
+    interlayer_seed: Optional[int] = None,
+    interlayer_amplitude: float = 5.0 / 2,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    """Generate the spatially variable region only (no boundary padding).
+
+    This is a stable public wrapper for call sites that previously depended on
+    private helpers. It returns a 4-tuple for compatibility with legacy
+    comparison scripts.
+    """
+    vs_field, x_coords, z_coords, h_mean, _ = create_vs_realization(
+        Vs_profile=Vs_profile,
+        Lx=Lx_variability,
+        Lx_variability=Lx_variability,
+        Lz=Lz,
+        dx=dx,
+        dz=dz,
+        rH=rH,
+        aHV=aHV,
+        CV=CV,
+        seed=seed,
+        dz_1D=dz_1D,
+        interlayer_seed=interlayer_seed,
+        interlayer_amplitude=interlayer_amplitude,
+    )
+    return vs_field, x_coords, z_coords, h_mean
+
+
+def extend_profile(
+    Vs_variability: np.ndarray, Lx: float, dx: float
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Public wrapper to extend a variable-width profile to the full domain width."""
+    return _extend_profile(Vs_variability=Vs_variability, Lx=Lx, dx=dx)
+
+
 def create_vs_realization(
     Vs_profile: np.ndarray,
     Lx: float,

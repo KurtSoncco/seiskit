@@ -120,6 +120,7 @@ def acc2FAS2_batch(acc, dt, nfreq=None):
         raise ValueError("acc must be 2D (n_channels, n_time)")
     numpts = acc.shape[1]
     n_channels = acc.shape[0]
+    assert n_channels > 0, "acc must have at least one channel"
 
     if nfreq is None:
         n = _default_nfreq(numpts)

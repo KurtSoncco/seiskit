@@ -34,6 +34,7 @@ from .damping import (
     compute_rayleigh_mass_only,
 )
 from .isolated_runner import run_isolated_analysis
+from .gaussian_field import extend_profile, generate_vs_variability_field
 
 # Parallel execution functions
 from .parallel import (
@@ -92,6 +93,8 @@ __all__ = [
     "run_parallel_analyses",
     "run_parameter_study",
     "run_isolated_analysis",
+    "generate_vs_variability_field",
+    "extend_profile",
     # Solver utilities
     "check_mumps_availability",
     "get_solver_info",
