@@ -267,7 +267,9 @@ def TTF_batch(
 
 
 @lru_cache(maxsize=8)
-def _kohmachi_weight_norm(n_points: int, fmax: float, smooth_coeff_int: int) -> tuple[np.ndarray, np.ndarray]:
+def _kohmachi_weight_norm(
+    n_points: int, fmax: float, smooth_coeff_int: int
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Precompute Konno-Ohmachi normalized weight matrix for a fixed (freq grid, smooth_coeff).
 
@@ -337,7 +339,7 @@ def _interp_linear_batch(y_raw: np.ndarray, x_raw: np.ndarray, x_target: np.ndar
     y0 = y_raw[:, lo]  # (n_channels, n_target)
     y1 = y_raw[:, hi]  # (n_channels, n_target)
 
-    denom = (x1 - x0)
+    denom = x1 - x0
     denom_safe = np.where(denom == 0.0, 1.0, denom)
     t = (x_target - x0) / denom_safe  # (n_target,)
     y = y0 + (y1 - y0) * t[None, :]

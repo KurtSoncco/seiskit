@@ -2,6 +2,7 @@ import numpy as np
 
 try:
     import numba
+
     HAS_NUMBA = True
 except ImportError:
     HAS_NUMBA = False
@@ -44,7 +45,7 @@ if HAS_NUMBA:
                     w[j] = 0.0
                 else:
                     val = np.sin(smooth_coeff * logz) / (smooth_coeff * logz)
-                    w[j] = val ** 4
+                    w[j] = val**4
             sw = np.sum(w)
             if sw > 0:
                 y[i] = np.dot(w, x) / sw

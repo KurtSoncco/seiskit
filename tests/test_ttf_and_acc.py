@@ -90,7 +90,9 @@ def test_ttf_nfreq_auto_vs_large_on_1500pts():
     mask = (freq_auto >= 0.1) & (freq_auto <= 10) & (np.abs(mag_lg) > 1e-4)
     if mask.sum() > 0:
         rel_err = np.abs(mag_auto[mask] - mag_lg[mask]) / (np.abs(mag_lg[mask]) + 1e-12)
-        assert np.median(rel_err) < 0.05, f"Median relative error {np.median(rel_err):.4f} exceeds 5%"
+        assert np.median(rel_err) < 0.05, (
+            f"Median relative error {np.median(rel_err):.4f} exceeds 5%"
+        )
 
 
 def test_acc2fas2_batch_shape():
