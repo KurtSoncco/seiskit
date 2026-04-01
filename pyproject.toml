@@ -16,14 +16,14 @@ dependencies = [
     "matplotlib",
     "seaborn",
     "plotly",
-]
-
-[project.optional-dependencies]
-analysis = [
     "pandas",
     "h5py",
     "hdf5plugin",
     "tqdm",
+]
+
+[project.optional-dependencies]
+analysis = [
     "statsmodels",
     "kerchunk",
     "zarr",
