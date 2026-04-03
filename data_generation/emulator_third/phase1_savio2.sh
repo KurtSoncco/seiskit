@@ -159,8 +159,8 @@ touch "logs/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" || { echo "$(date -Is) | E
 touch "$PARALLEL_HOME/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" || { echo "$(date -Is) | ERROR | cannot write PARALLEL_HOME: $PARALLEL_HOME" >&2; exit 11; }
 rm -f "logs/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}" "$PARALLEL_HOME/write_test_${SLURM_JOB_ID:-0}_${TASK_ID}"
 
-# Per-sim timeout (5h) so one stuck run doesn't hang the slot; job time is 5h.
-SIM_TIMEOUT=18000
+# Per-sim timeout (10h) so one stuck run doesn't hang the slot; job time is 10h.
+SIM_TIMEOUT=36000
 export SIM_TIMEOUT
 
 # Retries: transient glitches get one automatic retry.

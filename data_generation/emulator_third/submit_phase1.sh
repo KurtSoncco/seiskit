@@ -5,4 +5,4 @@
 # 11-336: training
 cd "$(dirname "$0")"
 mkdir -p logs
-exec sbatch phase1_savio2.sh "$@"
+exec --array=0-10 sbatch phase1_savio2.sh "$@"
