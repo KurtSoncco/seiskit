@@ -19,6 +19,7 @@ Idempotent: skips if output already exists for that index. Use --force to re-run
 
 import argparse
 import os
+import re
 import signal
 import sqlite3
 import subprocess
@@ -215,14 +216,22 @@ def _archive_run_dir(run_dir: Path, archives_dir: Path, index: int) -> bool:
     return True
 
 
+def _recorder_y_sort_key(path: Path) -> float:
+    """Parse depth (m) from ``center_node_y{depth}_...`` or ``row_y{depth}_...`` for ordering."""
+    m = re.search(r"(?:center_node_|row_)y([\d.]+)_", path.name)
+    if not m:
+        return 0.0
+    return float(m.group(1))
+
+
 def _load_recorder_txt(
     recorder_dir: Path, quantity: str = "accel"
 ) -> tuple[np.ndarray, np.ndarray]:
     """Load time and data from OpenSees recorder .txt files in recorder_dir. Returns (time_1d, data_2d) with data shape (n_time, n_channels)."""
     center_glob = list(recorder_dir.glob(f"center_node_y*_dof1_{quantity}.txt"))
     row_glob = list(recorder_dir.glob(f"row_y*_dof1_{quantity}.txt"))
-    center_glob.sort(key=lambda p: p.name)
-    row_glob.sort(key=lambda p: p.name)
+    center_glob.sort(key=_recorder_y_sort_key)
+    row_glob.sort(key=_recorder_y_sort_key)
     chunks = []
     time_arr = None
     for f in center_glob + row_glob:
@@ -372,6 +381,10 @@ def _write_h5(
                 **_kw(comp_ts),
             )
             ds_data.attrs["layout"] = "n_time x n_channels"
+            row_paths = list(recorder_dir.glob("row_y*_dof1_accel.txt"))
+            if row_paths:
+                ys = sorted({_recorder_y_sort_key(p) for p in row_paths})
+                ds_data.attrs["row_y_m"] = np.asarray(ys, dtype=np.float64)
             if lossy:
                 ds_data.attrs["compression_tolerance"] = lossy_tol
 
