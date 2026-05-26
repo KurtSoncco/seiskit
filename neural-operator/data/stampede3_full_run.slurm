@@ -16,9 +16,8 @@
 #SBATCH -p skx
 #SBATCH -N 8
 #SBATCH -t 48:00:00
-#SBATCH -A YOUR_ALLOCATION
-##SBATCH --mail-user=you@example.edu
-##SBATCH --mail-type=all
+#SBATCH -A ECS24003
+
 
 set -euo pipefail
 
