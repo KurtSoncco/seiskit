@@ -26,7 +26,11 @@ echo "$(date -Is) | START | Job=${SLURM_JOB_ID:-<local>} Host=$(hostname)" >&2
 module reset
 module load pylauncher
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -n "${SLURM_SUBMIT_DIR:-}" ] && [ -r "${SLURM_SUBMIT_DIR}/run_experiment.py" ]; then
+  SCRIPT_DIR="${SLURM_SUBMIT_DIR}"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 RUNNER_PY="${RUNNER_PY:-${SCRIPT_DIR}/run_experiment.py}"
