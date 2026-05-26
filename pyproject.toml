@@ -10,6 +10,8 @@ requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "scipy",
+    "statsmodels",
+    "scikit-learn",
     "openseespy",
     "joblib",
     "numba",
@@ -17,6 +19,7 @@ dependencies = [
     "seaborn",
     "plotly",
     "pandas",
+    "pyarrow",
     "h5py",
     "hdf5plugin",
     "tqdm",
@@ -24,21 +27,23 @@ dependencies = [
 
 [project.optional-dependencies]
 analysis = [
-    "statsmodels",
     "kerchunk",
     "zarr",
     "xarray",
     "fsspec",
     "ujson",
+    "pyarrow",
+    "cmcrameri"
 ]
 ml = [
-    "scikit-learn",
     "xgboost",
     "shap",
     "interpret",
+    "ngboost",
     "pygam",
     "bambi",
     "arviz",
+    "pymc>=5.10",
 ]
 notebook = [
     "ipykernel",
