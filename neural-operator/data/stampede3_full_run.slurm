@@ -31,7 +31,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 RUNNER_PY="${RUNNER_PY:-${SCRIPT_DIR}/run_experiment.py}"
 MANIFEST_PATH="${MANIFEST_PATH:-${SCRIPT_DIR}/sobol_manifest.csv}"
-VENV_PATH="${VENV_PATH:-${REPO_ROOT}/.venv}"
+VENV_PATH="${VENV_PATH:-/work2/09739/kurtsoncco1406/stampede3/seiskit/.venv}"
 PYTHON_BIN="${PYTHON_BIN:-${VENV_PATH}/bin/python}"
 
 SOBOL_NUM_SAMPLES="${SOBOL_NUM_SAMPLES:-256}"
@@ -61,6 +61,14 @@ export PYTHONDONTWRITEBYTECODE=1
 export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
 
 mkdir -p "${RUN_BASE}" "${SOBOL_OUTDIR}" "${SOBOL_H5_DIR}" "${PER_TASK_LOG_DIR}" "${TMP_ROOT}"
+
+if [ ! -f "${VENV_PATH}/bin/activate" ]; then
+  echo "ERROR: venv activation script not found at ${VENV_PATH}/bin/activate" >&2
+  echo "Set VENV_PATH=/path/to/venv before sbatch if your Stampede3 path is different." >&2
+  exit 2
+fi
+# shellcheck disable=SC1090
+source "${VENV_PATH}/bin/activate"
 
 command -v "${PYTHON_BIN}" >/dev/null || {
   echo "ERROR: Python binary not found at ${PYTHON_BIN}" >&2
