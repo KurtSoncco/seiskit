@@ -26,12 +26,9 @@ echo "$(date -Is) | START | Job=${SLURM_JOB_ID:-<local>} Host=$(hostname)" >&2
 module reset
 module load pylauncher
 
-if [ -n "${SLURM_SUBMIT_DIR:-}" ] && [ -r "${SLURM_SUBMIT_DIR}/run_experiment.py" ]; then
-  SCRIPT_DIR="${SLURM_SUBMIT_DIR}"
-else
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-fi
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-/work2/09739/kurtsoncco1406/stampede3/seiskit}"
+SCRIPT_DIR="${SCRIPT_DIR:-${PROJECT_ROOT}/neural-operator/data}"
+REPO_ROOT="${PROJECT_ROOT}"
 
 RUNNER_PY="${RUNNER_PY:-${SCRIPT_DIR}/run_experiment.py}"
 MANIFEST_PATH="${MANIFEST_PATH:-${SCRIPT_DIR}/sobol_manifest.csv}"
@@ -66,6 +63,16 @@ export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
 
 mkdir -p "${RUN_BASE}" "${SOBOL_OUTDIR}" "${SOBOL_H5_DIR}" "${PER_TASK_LOG_DIR}" "${TMP_ROOT}"
 
+if [ ! -d "${SCRIPT_DIR}" ]; then
+  echo "ERROR: script directory not found at ${SCRIPT_DIR}" >&2
+  echo "Set SCRIPT_DIR=/path/to/neural-operator/data or PROJECT_ROOT=/path/to/repo before sbatch." >&2
+  exit 2
+fi
+if [ ! -d "${REPO_ROOT}" ]; then
+  echo "ERROR: repo root not found at ${REPO_ROOT}" >&2
+  echo "Set PROJECT_ROOT=/path/to/repo before sbatch." >&2
+  exit 2
+fi
 if [ ! -f "${VENV_PATH}/bin/activate" ]; then
   echo "ERROR: venv activation script not found at ${VENV_PATH}/bin/activate" >&2
   echo "Set VENV_PATH=/path/to/venv before sbatch if your Stampede3 path is different." >&2
@@ -110,6 +117,10 @@ if [ -n "${OPENSEES_LIB_DIR}" ]; then
 fi
 
 echo "$(date -Is) | PREFLIGHT | Verifying Python, pylauncher, and OpenSees..." >&2
+echo "$(date -Is) | PATHS | PROJECT_ROOT=${PROJECT_ROOT}" >&2
+echo "$(date -Is) | PATHS | SCRIPT_DIR=${SCRIPT_DIR}" >&2
+echo "$(date -Is) | PATHS | RUNNER_PY=${RUNNER_PY}" >&2
+echo "$(date -Is) | PATHS | PYTHON_BIN=${PYTHON_BIN}" >&2
 timeout 60s "${PYTHON_BIN}" - <<'PY'
 import pylauncher  # noqa: F401
 import sys
