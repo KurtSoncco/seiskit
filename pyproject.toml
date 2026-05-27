@@ -23,6 +23,7 @@ dependencies = [
     "h5py",
     "hdf5plugin",
     "tqdm",
+    "paramiko",
 ]
 
 [project.optional-dependencies]
