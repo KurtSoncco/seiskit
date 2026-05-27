@@ -1,5 +1,5 @@
 #!/bin/bash
-# Full Sobol run on TACC Stampede3 using TACC launcher for many independent serial tasks.
+# Full Sobol run on TACC Stampede3 using pylauncher for many independent serial tasks.
 #
 # Submit from anywhere with:
 #   sbatch neural-operator/data/stampede3_full_run.slurm
@@ -25,7 +25,7 @@ set -euo pipefail
 echo "$(date -Is) | START | Job=${SLURM_JOB_ID:-<local>} Host=$(hostname)" >&2
 
 module reset
-module load launcher
+module load pylauncher
 
 PROJECT_ROOT="${PROJECT_ROOT:-/work2/09739/kurtsoncco1406/stampede3/seiskit}"
 SCRIPT_DIR="${SCRIPT_DIR:-${PROJECT_ROOT}/neural-operator/data}"
@@ -117,20 +117,19 @@ if [ -n "${OPENSEES_LIB_DIR}" ]; then
   export LD_LIBRARY_PATH="${OPENSEES_LIB_DIR}:${LD_LIBRARY_PATH:-}"
 fi
 
-echo "$(date -Is) | PREFLIGHT | Verifying Python, launcher, and OpenSees..." >&2
+echo "$(date -Is) | PREFLIGHT | Verifying Python, pylauncher, paramiko, and OpenSees..." >&2
 echo "$(date -Is) | PATHS | PROJECT_ROOT=${PROJECT_ROOT}" >&2
 echo "$(date -Is) | PATHS | SCRIPT_DIR=${SCRIPT_DIR}" >&2
 echo "$(date -Is) | PATHS | RUNNER_PY=${RUNNER_PY}" >&2
 echo "$(date -Is) | PATHS | PYTHON_BIN=${PYTHON_BIN}" >&2
-echo "$(date -Is) | PATHS | LAUNCHER_DIR=${LAUNCHER_DIR:-<unset>}" >&2
-if [ -z "${LAUNCHER_DIR:-}" ] || [ ! -x "${LAUNCHER_DIR}/paramrun" ]; then
-  echo "ERROR: TACC launcher paramrun not found. module load launcher did not provide LAUNCHER_DIR/paramrun." >&2
-  exit 2
-fi
 timeout 60s "${PYTHON_BIN}" - <<'PY'
+import pylauncher  # noqa: F401
+import paramiko  # noqa: F401
 import sys
 
 print("PYTHON_OK", sys.version.split()[0])
+print("PYLAUNCHER_OK")
+print("PARAMIKO_OK")
 try:
     import openseespy.opensees as ops  # noqa: F401
     print("OPENSEES_OK")
@@ -213,15 +212,22 @@ with command_file.open("w", encoding="utf-8") as handle:
 PY
 
 echo "$(date -Is) | COMMANDS | Wrote ${COMMAND_FILE}" >&2
-echo "$(date -Is) | LAUNCH | Using ${SLURM_JOB_NUM_NODES:-${SLURM_NNODES:-1}} node(s) via launcher" >&2
+echo "$(date -Is) | LAUNCH | Using ${SLURM_JOB_NUM_NODES:-${SLURM_NNODES:-1}} node(s) via pylauncher" >&2
 
 rm -rf "${LAUNCHER_WORKDIR}"
 mkdir -p "${LAUNCHER_WORKDIR}"
 
-export LAUNCHER_WORKDIR="${LAUNCHER_WORKDIR}"
-export LAUNCHER_JOB_FILE="${COMMAND_FILE}"
-export LAUNCHER_BIND=1
+export TACC_PYLAUNCHER_WORKDIR="${LAUNCHER_WORKDIR}"
 
-"${LAUNCHER_DIR}/paramrun"
+"${PYTHON_BIN}" - <<'PY'
+import os
+import pylauncher
+
+pylauncher.ClassicLauncher(
+    os.environ["COMMAND_FILE"],
+    workdir=os.environ["LAUNCHER_WORKDIR"],
+    debug="host+job",
+)
+PY
 
 echo "$(date -Is) | DONE | Completed all launcher tasks" >&2
