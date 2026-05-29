@@ -8,6 +8,9 @@
 #   INDEX=0 sbatch stampede3_single_index.sh
 #   INDEX=17 FORCE_RERUN=1 sbatch stampede3_single_index.sh
 #   INDEX=0 RUN_BASE="$SCRATCH/opensees_sobol_full" sbatch stampede3_single_index.sh
+#   sbatch -t 12:00:00 stampede3_single_index.sh   # extra margin for H~100 m cases
+#
+# Uses skx (max 48 h). Default walltime 10 h covers ~7-8 h heavy-H OpenSees runs.
 #
 # This script is intentionally separate from the full launcher so you can:
 # 1. verify one index runs end-to-end,
@@ -16,10 +19,10 @@
 #SBATCH -J sobol_idx
 #SBATCH -o stampede3_sobol_idx.o%j
 #SBATCH -e stampede3_sobol_idx.e%j
-#SBATCH -p skx-dev
+#SBATCH -p skx
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -t 12:00:00
+#SBATCH -t 10:00:00
 #SBATCH -A ECS24003
 
 set -euo pipefail

@@ -4,8 +4,9 @@
 # Submit from anywhere with:
 #   sbatch neural-operator/data/stampede3_full_run.slurm
 #
-# Recommended first smoke test:
-#   sbatch -p skx-dev -N 1 -t 02:00:00 neural-operator/data/stampede3_full_run.slurm
+# Recommended first smoke test (30 tasks, low concurrency):
+#   SOBOL_NUM_SAMPLES=1 SOBOL_RF_SEEDS_PER_SAMPLE=30 FORCE_RERUN=1 \
+#   sbatch -N 2 --ntasks-per-node=16 -t 24:00:00 neural-operator/data/stampede3_full_run.slurm
 #
 # Defaults below target the full production run on SKX nodes.
 # 8 SKX nodes => up to 8 * 48 = 384 concurrent serial simulations.
