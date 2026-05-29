@@ -19,7 +19,7 @@
 #SBATCH -p skx-dev
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -t 02:00:00
+#SBATCH -t 12:00:00
 #SBATCH -A ECS24003
 
 set -euo pipefail
@@ -42,6 +42,8 @@ export SOBOL_H5_DIR="${SOBOL_H5_DIR:-${RUN_BASE}/h5}"
 export SOBOL_TIMING_DB="${SOBOL_TIMING_DB:-${RUN_BASE}/sobol_timing.db}"
 export SOBOL_H5_LOSSY="${SOBOL_H5_LOSSY:-1}"
 export SOBOL_H5_DOWNSAMPLE="${SOBOL_H5_DOWNSAMPLE:-2}"
+# Per dynamic batch (100 steps); 8 h avoids false timeouts on heavy H~100 m cases.
+export SOBOL_MAX_TIME_PER_BATCH="${SOBOL_MAX_TIME_PER_BATCH:-28800}"
 
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
@@ -104,6 +106,7 @@ echo "$(date -Is) | PATHS | MANIFEST_PATH=${MANIFEST_PATH}" >&2
 echo "$(date -Is) | PATHS | PYTHON_BIN=${PYTHON_BIN}" >&2
 echo "$(date -Is) | PATHS | RUN_BASE=${RUN_BASE}" >&2
 echo "$(date -Is) | RUN | INDEX=${INDEX} FORCE_RERUN=${FORCE_RERUN}" >&2
+echo "$(date -Is) | RUN | SOBOL_MAX_TIME_PER_BATCH=${SOBOL_MAX_TIME_PER_BATCH}s" >&2
 
 echo "$(date -Is) | PREFLIGHT | Verifying Python and OpenSees..." >&2
 timeout 60s "${PYTHON_BIN}" - <<'PY'

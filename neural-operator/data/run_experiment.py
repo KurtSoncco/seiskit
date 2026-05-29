@@ -60,6 +60,16 @@ INTERLAYER_SEED = 14
 MOTION_FREQ = DEFAULT_MOTION_FREQ
 DAMPING_FREQ_SECOND = 10.0
 DAMPING_METHOD = "global_avg"
+# Per-batch dynamic watchdog in seiskit/isolated_runner (SIGALRM uses this + 30 s).
+DEFAULT_SOBOL_MAX_TIME_PER_BATCH_SEC = 8 * 3600.0
+
+
+def _sobol_max_time_per_batch() -> float:
+    """Seconds allowed per dynamic batch (typically 100 steps). Override via SOBOL_MAX_TIME_PER_BATCH."""
+    raw = os.getenv("SOBOL_MAX_TIME_PER_BATCH", "").strip()
+    if raw:
+        return float(raw)
+    return DEFAULT_SOBOL_MAX_TIME_PER_BATCH_SEC
 
 
 def _configure_slurm_environment() -> None:
@@ -468,6 +478,7 @@ def _run_case_impl(
         record_all_surface_nodes=False,
         element_type=ELEMENT_TYPE,
         solver_type="Mumps",
+        max_time_per_batch=_sobol_max_time_per_batch(),
     )
 
     zeta_grid = get_damping_zeta_grid(
@@ -483,6 +494,10 @@ def _run_case_impl(
 
     solver_info = get_solver_info(config)
     print(f"  Solver: {solver_info['solver_type']}")
+    print(
+        f"  Dynamic batch timeout: {config.max_time_per_batch:.0f}s "
+        f"({config.max_time_per_batch / 3600.0:.1f} h per batch)"
+    )
     print(f"  Domain: {LX}m x {Lz}m")
     print(f"  Recording center + lateral span at Y={config.center_node_y_positions}")
 
