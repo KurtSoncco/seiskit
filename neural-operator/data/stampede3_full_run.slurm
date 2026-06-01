@@ -4,6 +4,10 @@
 # Submit from anywhere with:
 #   sbatch neural-operator/data/stampede3_full_run.slurm
 #
+# Full production (regenerate manifest + re-run all indices, 48 cores/node on SKX):
+#   SOBOL_OVERWRITE_MANIFEST=1 FORCE_RERUN=1 \
+#   sbatch -N 8 --ntasks-per-node=48 -t 48:00:00 neural-operator/data/stampede3_full_run.slurm
+#
 # Recommended first smoke test (30 tasks, low concurrency):
 #   SOBOL_NUM_SAMPLES=1 SOBOL_RF_SEEDS_PER_SAMPLE=30 FORCE_RERUN=1 \
 #   sbatch -N 2 --ntasks-per-node=16 -t 24:00:00 neural-operator/data/stampede3_full_run.slurm
@@ -42,6 +46,7 @@ SOBOL_RF_SEEDS_PER_SAMPLE="${SOBOL_RF_SEEDS_PER_SAMPLE:-30}"
 SOBOL_SAMPLER_METHOD="${SOBOL_SAMPLER_METHOD:-sobol}"
 SOBOL_SAMPLER_SEED="${SOBOL_SAMPLER_SEED:-42}"
 SOBOL_RF_SEED_SEED="${SOBOL_RF_SEED_SEED:-42}"
+SOBOL_OVERWRITE_MANIFEST="${SOBOL_OVERWRITE_MANIFEST:-0}"
 FORCE_RERUN="${FORCE_RERUN:-0}"
 
 RUN_BASE="${RUN_BASE:-${SCRATCH:-${REPO_ROOT}}/opensees_sobol_full}"
@@ -142,7 +147,7 @@ except Exception as exc:
 PY
 
 export SCRIPT_DIR MANIFEST_PATH SOBOL_NUM_SAMPLES SOBOL_RF_SEEDS_PER_SAMPLE
-export SOBOL_SAMPLER_METHOD SOBOL_SAMPLER_SEED SOBOL_RF_SEED_SEED
+export SOBOL_SAMPLER_METHOD SOBOL_SAMPLER_SEED SOBOL_RF_SEED_SEED SOBOL_OVERWRITE_MANIFEST
 
 TOTAL_TASKS="$("${PYTHON_BIN}" - <<'PY'
 import os
@@ -151,6 +156,7 @@ import sys
 sys.path.insert(0, os.environ["SCRIPT_DIR"])
 from sobol import ensure_manifest
 
+overwrite = os.environ.get("SOBOL_OVERWRITE_MANIFEST", "0") == "1"
 manifest = ensure_manifest(
     path=os.environ["MANIFEST_PATH"],
     sample_count=int(os.environ["SOBOL_NUM_SAMPLES"]),
@@ -158,7 +164,7 @@ manifest = ensure_manifest(
     method=os.environ["SOBOL_SAMPLER_METHOD"],
     sampler_seed=int(os.environ["SOBOL_SAMPLER_SEED"]),
     rf_seed_seed=int(os.environ["SOBOL_RF_SEED_SEED"]),
-    overwrite=False,
+    overwrite=overwrite,
 )
 print(len(manifest))
 PY
@@ -169,7 +175,7 @@ if [ "${TOTAL_TASKS}" -le 0 ]; then
   exit 3
 fi
 
-echo "$(date -Is) | MANIFEST | ${MANIFEST_PATH} -> ${TOTAL_TASKS} tasks" >&2
+echo "$(date -Is) | MANIFEST | ${MANIFEST_PATH} -> ${TOTAL_TASKS} tasks (overwrite=${SOBOL_OVERWRITE_MANIFEST})" >&2
 echo "$(date -Is) | OUTPUTS | RUN_BASE=${RUN_BASE}" >&2
 echo "$(date -Is) | OUTPUTS | H5=${SOBOL_H5_DIR}" >&2
 echo "$(date -Is) | OUTPUTS | RAW=${SOBOL_OUTDIR}" >&2
@@ -216,7 +222,9 @@ with command_file.open("w", encoding="utf-8") as handle:
 PY
 
 echo "$(date -Is) | COMMANDS | Wrote ${COMMAND_FILE}" >&2
-echo "$(date -Is) | LAUNCH | Using ${SLURM_JOB_NUM_NODES:-${SLURM_NNODES:-1}} node(s) via pylauncher" >&2
+NODES="${SLURM_JOB_NUM_NODES:-${SLURM_NNODES:-1}}"
+TASKS_PER_NODE="${SLURM_NTASKS_PER_NODE:-${SLURM_TASKS_PER_NODE:-48}}"
+echo "$(date -Is) | LAUNCH | ${NODES} node(s) x ${TASKS_PER_NODE} tasks/node = $((NODES * TASKS_PER_NODE)) slots via pylauncher" >&2
 
 rm -rf "${LAUNCHER_WORKDIR}"
 mkdir -p "${LAUNCHER_WORKDIR}"

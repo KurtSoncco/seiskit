@@ -152,7 +152,7 @@ scale_Vs2, sigma_Vs2 = lognormal_parameter(760.0, 1500.0)
 bounds_H = (15.0, 100.0)
 bounds_CoV = (0.1, 0.3)
 bounds_rH = (10.0, 100.0)
-bounds_aHV = (10.0, 50.0)
+scale_aHV, sigma_aHV = lognormal_parameter(10.0, 50.0)
 
 
 def unit_to_physical(unit_samples: np.ndarray) -> np.ndarray:
@@ -166,7 +166,7 @@ def unit_to_physical(unit_samples: np.ndarray) -> np.ndarray:
     phys[:, 1] = bounds_H[0] + raw[:, 1] * (bounds_H[1] - bounds_H[0])
     phys[:, 2] = bounds_CoV[0] + raw[:, 2] * (bounds_CoV[1] - bounds_CoV[0])
     phys[:, 3] = bounds_rH[0] + raw[:, 3] * (bounds_rH[1] - bounds_rH[0])
-    phys[:, 4] = bounds_aHV[0] + raw[:, 4] * (bounds_aHV[1] - bounds_aHV[0])
+    phys[:, 4] = lognorm.ppf(raw[:, 4], s=sigma_aHV, scale=scale_aHV)
     phys[:, 5] = lognorm.ppf(raw[:, 5], s=sigma_Vs2, scale=scale_Vs2)
     return phys
 
@@ -182,7 +182,7 @@ def physical_to_unit(physical_samples: np.ndarray) -> np.ndarray:
     unit[:, 1] = (physical[:, 1] - bounds_H[0]) / (bounds_H[1] - bounds_H[0])
     unit[:, 2] = (physical[:, 2] - bounds_CoV[0]) / (bounds_CoV[1] - bounds_CoV[0])
     unit[:, 3] = (physical[:, 3] - bounds_rH[0]) / (bounds_rH[1] - bounds_rH[0])
-    unit[:, 4] = (physical[:, 4] - bounds_aHV[0]) / (bounds_aHV[1] - bounds_aHV[0])
+    unit[:, 4] = lognorm.cdf(physical[:, 4], s=sigma_aHV, scale=scale_aHV)
     unit[:, 5] = lognorm.cdf(physical[:, 5], s=sigma_Vs2, scale=scale_Vs2)
     return unit
 
@@ -204,8 +204,8 @@ def _bounds_mask(physical_samples: np.ndarray) -> np.ndarray:
         & (physical[:, 2] <= bounds_CoV[1])
         & (physical[:, 3] >= bounds_rH[0])
         & (physical[:, 3] <= bounds_rH[1])
-        & (physical[:, 4] >= bounds_aHV[0])
-        & (physical[:, 4] <= bounds_aHV[1])
+        & (physical[:, 4] >= 10.0)
+        & (physical[:, 4] <= 50.0)
         & (physical[:, 5] >= 760.0)
         & (physical[:, 5] <= 1500.0)
     )
