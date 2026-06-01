@@ -152,7 +152,7 @@ scale_Vs2, sigma_Vs2 = lognormal_parameter(760.0, 1500.0)
 bounds_H = (15.0, 100.0)
 bounds_CoV = (0.1, 0.3)
 bounds_rH = (10.0, 100.0)
-bounds_aHV = (5.0, 50.0)
+bounds_aHV = (10.0, 50.0)
 
 
 def unit_to_physical(unit_samples: np.ndarray) -> np.ndarray:

@@ -474,7 +474,7 @@ def _run_case_impl(
         boundary_condition_type="2D",
         record_center_nodes=False,
         center_node_y_positions=[2.0, Lz],
-        record_lateral_span_at_center_depths=(50, 2.0),
+        record_lateral_span_at_center_depths=(10, 15.0), # Nodes each side of center node, spacing between nodes
         record_all_surface_nodes=False,
         element_type=ELEMENT_TYPE,
         solver_type="Mumps",
