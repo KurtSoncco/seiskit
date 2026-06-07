@@ -11,6 +11,10 @@
 #   sbatch -N 16 --ntasks-per-node=48 -t 48:00:00 neural-operator/data/stampede3_resume_run.slurm
 #
 # Do NOT set SOBOL_OVERWRITE_MANIFEST=1 or FORCE_RERUN=1 unless you intend to rebuild/rerun.
+#
+# If a prior job was SIGTERM'd at walltime, orphan archives may exist for indices
+# without run_{idx}.h5. Optional cleanup before resubmit:
+#   python neural-operator/data/cleanup_orphan_sobol_outputs.py --run-base "$RUN_BASE" --apply
 #SBATCH -J sobol_resume
 #SBATCH -o stampede3_sobol_resume.o%j
 #SBATCH -e stampede3_sobol_resume.e%j

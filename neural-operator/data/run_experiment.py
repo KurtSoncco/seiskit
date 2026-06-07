@@ -696,28 +696,15 @@ def _write_timing_per_index(
 
 
 def _output_already_exists(index: int, entry: ManifestEntry) -> bool:
-    """Return True when this index already has an H5, archive, or raw recorder outputs."""
+    """Return True when this index already has a completed HDF5 artifact.
+
+    Archives and raw recorder dirs alone do not count: a job killed at walltime can
+    leave those behind without ``run_{index}.h5``, and we must allow a clean rerun.
+    """
     h5_path = _h5_path_for_index(index)
     if h5_path.exists():
         print(f"[idempotent] Index {index} already has H5; skipping.")
         return True
-
-    run_dir = _run_dir_for_index(index)
-    if run_dir is not None:
-        outdir_base = Path(os.getenv("SOBOL_OUTDIR", ""))
-        arc = outdir_base / "archives" / f"run_{index}.tar.zst"
-        if not arc.exists():
-            arc = outdir_base / "archives" / f"run_{index}.tgz"
-        if arc.exists():
-            print(f"[idempotent] Index {index} already has archive; skipping.")
-            return True
-
-    out_dir = _output_dir_for_index(index, entry)
-    raw_markers = list(out_dir.glob("**/center_node_*.txt")) + list(out_dir.glob("**/row_y*_dof1_*.txt"))
-    if out_dir.exists() and raw_markers:
-        print(f"[idempotent] Index {index} already has output; skipping.")
-        return True
-
     return False
 
 
