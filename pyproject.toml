@@ -24,6 +24,7 @@ dependencies = [
     "hdf5plugin",
     "tqdm",
     "paramiko",
+    "cmcrameri",
 ]
 
 [project.optional-dependencies]
@@ -57,7 +58,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["seiskit"]
+packages = ["seiskit", "seiskit.plot_config"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

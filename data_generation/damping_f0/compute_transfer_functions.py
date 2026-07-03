@@ -23,10 +23,20 @@ import numpy as np
 import seaborn as sns
 from scipy.interpolate import interp1d
 
+from seiskit.plot_config import (
+    COLORBLIND_COLORS,
+    add_subfigure_label,
+    apply_style,
+    format_title,
+    get_crameri_cmap,
+    place_legend,
+    to_title_case,
+)
+from seiskit.plot_config.labels import format_label
 from seiskit.ttf.TTF import TTF
 
-# Set colorblind-friendly palette
-sns.set_palette("colorblind")
+# Apply centralized publication-quality style
+apply_style()
 
 
 def activate_venv():
@@ -499,7 +509,7 @@ def plot_grouped_by_rH_CV(
 
     # Get unique (Vs1, thickness) combinations for color coding
     Vs1_thickness_combos = sorted(set((k[2], k[3]) for k in tf_dict.keys()))
-    cmap = plt.get_cmap("tab10")
+    cmap = plt.colormaps["tab10"]
     colors = cmap(np.linspace(0, 1, len(Vs1_thickness_combos)))
     color_map = {combo: colors[i] for i, combo in enumerate(Vs1_thickness_combos)}
 
@@ -554,8 +564,8 @@ def plot_grouped_by_rH_CV(
                 label=f"{label_base} (geomean)" if show_individuals else label_base,
             )
 
-        ax.set_xlabel("Frequency (Hz)")
-        ax.set_ylabel("Transfer Function Magnitude")
+        ax.set_xlabel(to_title_case("Frequency (Hz)"))
+        ax.set_ylabel(to_title_case("Transfer Function Magnitude"))
         ax.set_title(f"rH={rH:.0f}, CV={CV:.3f}")
         ax.set_xlim(1e-1, 10)  # 0.1 to 10 Hz
         ax.set_ylim(1e-2, 1e2)  # 0.01 to 100
@@ -625,7 +635,7 @@ def plot_grouped_by_Vs1_thickness(
 
     # Get unique (rH, CV) combinations for color coding
     rH_CV_combos = sorted(set((k[0], k[1]) for k in tf_dict.keys()))
-    cmap = plt.get_cmap("tab10")
+    cmap = plt.colormaps["tab10"]
     colors = cmap(np.linspace(0, 1, len(rH_CV_combos)))
     color_map = {combo: colors[i] for i, combo in enumerate(rH_CV_combos)}
 
@@ -680,8 +690,8 @@ def plot_grouped_by_Vs1_thickness(
                 label=f"{label_base} (geomean)" if show_individuals else label_base,
             )
 
-        ax.set_xlabel("Frequency (Hz)")
-        ax.set_ylabel("Transfer Function Magnitude")
+        ax.set_xlabel(to_title_case("Frequency (Hz)"))
+        ax.set_ylabel(to_title_case("Transfer Function Magnitude"))
         ax.set_title(f"Vs1={Vs1:.0f} m/s, thickness={thickness:.0f} m")
         ax.set_xlim(1e-1, 10)  # 0.1 to 10 Hz
         ax.set_ylim(1e-2, 1e2)  # 0.01 to 100
@@ -743,7 +753,7 @@ def plot_grouped_by_Vs1_and_thickness(
 
     # Get unique (rH, CV) combinations for color coding
     rH_CV_combos = sorted(set((k[0], k[1]) for k in tf_dict.keys()))
-    cmap = plt.get_cmap("tab10")
+    cmap = plt.colormaps["tab10"]
     colors = cmap(np.linspace(0, 1, len(rH_CV_combos)))
     color_map = {combo: colors[i] for i, combo in enumerate(rH_CV_combos)}
 
@@ -814,8 +824,8 @@ def plot_grouped_by_Vs1_and_thickness(
                 label=f"{label_base} (geomean)" if show_individuals else label_base,
             )
 
-        ax.set_xlabel("Frequency (Hz)")
-        ax.set_ylabel("Transfer Function Magnitude")
+        ax.set_xlabel(to_title_case("Frequency (Hz)"))
+        ax.set_ylabel(to_title_case("Transfer Function Magnitude"))
         ax.set_title(f"h={thickness:.0f} m")
         ax.set_xlim(1e-1, 10)  # 0.1 to 10 Hz
         ax.set_ylim(1e-2, 1e2)  # 0.01 to 100
@@ -906,7 +916,7 @@ def plot_grouped_by_rH_CV_CV(
 
     # Get unique (Vs1, thickness) combinations for color coding
     Vs1_thickness_combos = sorted(set((k[2], k[3]) for k in tf_dict.keys()))
-    cmap = plt.get_cmap("tab10")
+    cmap = plt.colormaps["tab10"]
     colors = cmap(np.linspace(0, 1, len(Vs1_thickness_combos)))
     color_map = {combo: colors[i] for i, combo in enumerate(Vs1_thickness_combos)}
 
@@ -945,7 +955,7 @@ def plot_grouped_by_rH_CV_CV(
                 label=label_base,
             )
 
-        ax.set_xlabel("Frequency (Hz)")
+        ax.set_xlabel(to_title_case("Frequency (Hz)"))
         ax.set_ylabel("Coefficient of Variation")
         ax.set_title(f"rH={rH:.0f}, CV={CV:.3f}")
         ax.set_xlim(1e-1, 10)  # 0.1 to 10 Hz
@@ -998,7 +1008,7 @@ def plot_grouped_by_Vs1_thickness_CV(
 
     # Get unique (rH, CV) combinations for color coding
     rH_CV_combos = sorted(set((k[0], k[1]) for k in tf_dict.keys()))
-    cmap = plt.get_cmap("tab10")
+    cmap = plt.colormaps["tab10"]
     colors = cmap(np.linspace(0, 1, len(rH_CV_combos)))
     color_map = {combo: colors[i] for i, combo in enumerate(rH_CV_combos)}
 
@@ -1037,7 +1047,7 @@ def plot_grouped_by_Vs1_thickness_CV(
                 label=label_base,
             )
 
-        ax.set_xlabel("Frequency (Hz)")
+        ax.set_xlabel(to_title_case("Frequency (Hz)"))
         ax.set_ylabel("Coefficient of Variation")
         ax.set_title(f"Vs1={Vs1:.0f} m/s, thickness={thickness:.0f} m")
         ax.set_xlim(1e-1, 10)  # 0.1 to 10 Hz
@@ -1078,7 +1088,7 @@ def plot_grouped_by_Vs1_and_thickness_CV(
 
     # Get unique (rH, CV) combinations for color coding
     rH_CV_combos = sorted(set((k[0], k[1]) for k in tf_dict.keys()))
-    cmap = plt.get_cmap("tab10")
+    cmap = plt.colormaps["tab10"]
     colors = cmap(np.linspace(0, 1, len(rH_CV_combos)))
     color_map = {combo: colors[i] for i, combo in enumerate(rH_CV_combos)}
 
@@ -1132,7 +1142,7 @@ def plot_grouped_by_Vs1_and_thickness_CV(
                 label=label_base,
             )
 
-        ax.set_xlabel("Frequency (Hz)")
+        ax.set_xlabel(to_title_case("Frequency (Hz)"))
         ax.set_ylabel("Coefficient of Variation")
         ax.set_title(f"h={thickness:.0f} m")
         ax.set_xlim(1e-1, 10)  # 0.1 to 10 Hz
@@ -1263,8 +1273,8 @@ def plot_individual_cases(
                         )
 
                     # Set labels and title
-                    ax.set_xlabel("Frequency (Hz)", fontsize=12)
-                    ax.set_ylabel("Transfer Function Magnitude", fontsize=12)
+                    ax.set_xlabel(to_title_case("Frequency (Hz)"))
+                    ax.set_ylabel(to_title_case("Transfer Function Magnitude"))
                     ax.set_title(
                         f"thickness={thickness:.0f}m, rH={rH:.0f}, Vs1={Vs1:.0f}m/s, CV={CV:.3f}",
                         fontsize=11,
@@ -1474,8 +1484,8 @@ def plot_individual_seed_vs_uniform(
                         continue
 
                     # Set labels and title
-                    ax.set_xlabel("Frequency (Hz)", fontsize=12)
-                    ax.set_ylabel("Transfer Function Magnitude", fontsize=12)
+                    ax.set_xlabel(to_title_case("Frequency (Hz)"))
+                    ax.set_ylabel(to_title_case("Transfer Function Magnitude"))
                     ax.set_title(
                         f"Vs1={Vs1:.0f} m/s, h={thickness:.0f} m, rH={rH:.0f}, CV={CV:.3f}",
                         fontsize=11,
