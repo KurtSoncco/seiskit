@@ -17,40 +17,42 @@ _REPLACEMENTS: list[tuple[re.Pattern, str]] = [
     # Longest compound terms first to prevent partial matches
     (
         re.compile(r"\blog\s*\(\s*abs[_ ]?TF[_ ]?(?:ratio)?\s*\)", re.IGNORECASE),
-        r"${log\left|TF\right|}_0^N$",
+        r"$\log(|TF|_0^N)$",
     ),
     (
         re.compile(r"\blog[_ \s]+abs[_ \s]+TF(?:[_ \s]+ratio)?\b", re.IGNORECASE),
-        r"${log\left|TF\right|}_0^N$",
+        r"$\log(|TF|_0^N)$",
     ),
-    (re.compile(r"\blog[_ ]?abs\b", re.IGNORECASE), r"${log\left|TF\right|}_0^N$"),
-    (re.compile(r"\babs[_ \s]?TF[_ \s]?ratio\b", re.IGNORECASE), r"${\left|TF\right|}_0^N$"),
-    (re.compile(r"\babs[_ \s]?TF\b", re.IGNORECASE), r"${\left|TF\right|}_0^N$"),
+    (re.compile(r"\blog[_ ]?abs\b", re.IGNORECASE), r"$\log(|TF|_0^N)$"),
+    (re.compile(r"\babs[_ \s]?TF[_ \s]?ratio\b", re.IGNORECASE), r"$|TF|_0^N$"),
+    (re.compile(r"\babs[_ \s]?TF\b", re.IGNORECASE), r"$|TF|_0^N$"),
     # Handle variants where $f$ is already partially LaTeX-ified
     (re.compile(r"\$f\$\s*ratio", re.IGNORECASE), r"$f_0^N$"),
     (re.compile(r"\bf[_ ]?ratio\b", re.IGNORECASE), r"$f_0^N$"),
     (re.compile(r"\ba[_ ]?HV\b", re.IGNORECASE), r"$a_{hv}$"),
-    (re.compile(r"\bHeight\b"), r"$H$"),
-    (re.compile(r"\br[_ ]?H\b"), r"$r_{h}$"),
-    (re.compile(r"\bCoV\b", re.IGNORECASE), r"$\text{CoV}$"),
-    (re.compile(r"\bCV\b"), r"$\text{CoV}$"),
+    (re.compile(r"\bHeight\b"), r"$H$ (m)"),
+    (re.compile(r"\br[_ ]?H\b"), r"$r_{h}$ (m)"),
+    (re.compile(r"\bCoV\b", re.IGNORECASE), r"$\mathrm{CoV}$"),
+    (re.compile(r"\bCV\b"), r"$\mathrm{CoV}$"),
+    (re.compile(r"\bVs[_ ]?1\b"), r"$V_{s1}$ (m/s)"),
     (re.compile(r"\bChannel\b", re.IGNORECASE), "Recorder"),
 ]
 
 # Simple key map kept for direct lookups (e.g. df column names)
 LABEL_MAP: dict[str, str] = {
-    "log_abs": r"${log\left|TF\right|}_0^N$",
-    "log(abs_TF)": r"${log\left|TF\right|}_0^N$",
-    "abs_TF_ratio": r"${\left|TF\right|}_0^N$",
-    "abs_TF": r"${\left|TF\right|}_0^N$",
+    "log_abs": r"$\log(|TF|_0^N)$",
+    "log(abs_TF)": r"$\log(|TF|_0^N)$",
+    "abs_TF_ratio": r"$|TF|_0^N$",
+    "abs_TF": r"$|TF|_0^N$",
     "f_ratio": r"$f_0^N$",
     "a_HV": r"$a_{hv}$",
     "aHV": r"$a_{hv}$",
-    "Height": r"$H$",
-    "r_H": r"$r_{h}$",
-    "rH": r"$r_{h}$",
-    "CoV": r"$\text{CoV}$",
-    "CV": r"$\text{CoV}$",
+    "Vs1": r"$V_{s1}$ (m/s)",
+    "Height": r"$H$ (m)",
+    "r_H": r"$r_{h}$ (m)",
+    "rH": r"$r_{h}$ (m)",
+    "CoV": r"$\mathrm{CoV}$",
+    "CV": r"$\mathrm{CoV}$",
 }
 
 
@@ -97,8 +99,15 @@ def to_title_case(text: str) -> str:
         ):
             result.append(part)
         else:
-            titled = part.title()
-            words = titled.split(" ")
-            words = [w.upper() if w.upper() in _UPPERCASE_WORDS else w for w in words]
-            result.append(" ".join(words))
+            orig_words = part.split(" ")
+            titled_words = part.title().split(" ")
+            restored: list[str] = []
+            for orig, tw in zip(orig_words, titled_words):
+                if tw.upper() in _UPPERCASE_WORDS:
+                    restored.append(tw.upper())
+                elif "=" in orig:
+                    restored.append(orig)
+                else:
+                    restored.append(tw)
+            result.append(" ".join(restored))
     return "".join(result)

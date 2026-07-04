@@ -85,6 +85,11 @@ _ORIG_SET_XTICKLABELS = Axes.set_xticklabels
 _ORIG_SET_YTICKLABELS = Axes.set_yticklabels
 _ORIG_IMSHOW = Axes.imshow
 _ORIG_SUPTITLE = Figure.suptitle
+_ORIG_BAR = Axes.bar
+_ORIG_BARH = Axes.barh
+
+# Hatching patterns cycled per-axes for B&W readability
+HATCH_PATTERNS: list[str] = ["", "//", "\\\\", "xx", "..", "++", "oo", "**"]
 
 _ACTIVE_FONT_SIZE: int = FONT_SIZE
 
@@ -104,13 +109,8 @@ def _patched_set_title(self, label, *args, **kwargs):
     kwargs.setdefault("fontweight", "bold")
     if not isinstance(label, str):
         return _ORIG_SET_TITLE(self, label, *args, **kwargs)
-    # Strip subtitles: split on newline, em-dash, or colon and keep only the main part
-    main = label.split("\n")[0]
-    for sep in ("\u2014", " \u2014 ", " — "):
-        if sep in main:
-            main = main.split(sep)[0]
-            break
-    main = main.strip()
+    # Only strip newline-based subtitles; keep em-dash content (e.g. "f ratio — raw")
+    main = label.split("\n")[0].strip()
     formatted = to_title_case(format_label(main))
     return _ORIG_SET_TITLE(self, formatted, *args, **kwargs)
 
@@ -154,6 +154,29 @@ def _patched_suptitle(self, t, *args, **kwargs):
     return _ORIG_SUPTITLE(self, to_title_case(format_label(t)), *args, **kwargs)
 
 
+def _next_hatch(ax: Axes) -> str:
+    """Return the next hatch pattern for *ax*, tracking calls per-axes."""
+    idx = getattr(ax, "_seiskit_bar_count", 0)
+    ax._seiskit_bar_count = idx + 1  # type: ignore[attr-defined]
+    return HATCH_PATTERNS[idx % len(HATCH_PATTERNS)]
+
+
+def _patched_bar(self, *args, **kwargs):
+    if "hatch" not in kwargs:
+        kwargs["hatch"] = _next_hatch(self)
+    kwargs.setdefault("edgecolor", "black")
+    kwargs.setdefault("linewidth", 0.6)
+    return _ORIG_BAR(self, *args, **kwargs)
+
+
+def _patched_barh(self, *args, **kwargs):
+    if "hatch" not in kwargs:
+        kwargs["hatch"] = _next_hatch(self)
+    kwargs.setdefault("edgecolor", "black")
+    kwargs.setdefault("linewidth", 0.6)
+    return _ORIG_BARH(self, *args, **kwargs)
+
+
 def _install_monkeypatches() -> None:
     global _MONKEYPATCHED
     if _MONKEYPATCHED:
@@ -165,6 +188,8 @@ def _install_monkeypatches() -> None:
     Axes.set_xticklabels = _patched_set_xticklabels
     Axes.set_yticklabels = _patched_set_yticklabels
     Axes.imshow = _patched_imshow
+    Axes.bar = _patched_bar
+    Axes.barh = _patched_barh
     Figure.suptitle = _patched_suptitle
     _MONKEYPATCHED = True
 

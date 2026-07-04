@@ -233,6 +233,35 @@ def annotate_comment(
     )
 
 
+def hatch_bars(
+    ax_or_fig: Axes | Figure,
+    patterns: Sequence[str] | None = None,
+) -> None:
+    """Apply distinct hatch patterns to bar groups on *ax_or_fig*.
+
+    Each ``BarContainer`` on an axes receives a different pattern from
+    *patterns* (defaults to the module-level ``HATCH_PATTERNS``).
+    Useful for making bar charts distinguishable in B&W print.
+    """
+    from seiskit.plot_config.style import HATCH_PATTERNS
+
+    pats = list(patterns or HATCH_PATTERNS)
+
+    axes: list[Axes]
+    if isinstance(ax_or_fig, Figure):
+        axes = list(ax_or_fig.axes)
+    else:
+        axes = [ax_or_fig]
+
+    for ax in axes:
+        for i, container in enumerate(ax.containers):
+            h = pats[i % len(pats)]
+            for patch in container:
+                patch.set_hatch(h)
+                if h:
+                    patch.set_edgecolor("black")
+
+
 def enforce_clean_axis_limits(
     ax: Axes,
     *,

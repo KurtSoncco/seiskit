@@ -16,6 +16,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from numpy.linalg import lstsq
 
+import cmcrameri.cm as cmc
+
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -180,7 +182,7 @@ labs = [
     "design×chan",
     "3-way+resid",
 ]
-cols_ = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3", "#937860", "#CCCCCC"]
+cols_ = [cmc.lapaz(0.2), cmc.lapaz(0.8), cmc.lapaz(0.4), cmc.lapaz(0.6), cmc.lapaz(0.3), cmc.lapaz(0.7), cmc.lapaz(0.5)]
 bottom = np.zeros(2)
 x = [0, 1]
 for comp, lab, cc in zip(comps, labs, cols_):
@@ -196,11 +198,11 @@ a.legend(fontsize=7, ncol=1, loc="center left", bbox_to_anchor=(1.0, 0.5))
 # d) factor slope drift across channels (log_abs)
 a = ax[1, 0]
 slope_cols = {
-    "Vs1": "#4C72B0",
-    "Height": "#C44E52",
-    "CoV": "#55A868",
-    "rH": "#8172B3",
-    "aHV": "#DD8452",
+    "Vs1": cmc.nuuk(0.2),
+    "Height": cmc.nuuk(0.8),
+    "CoV": cmc.nuuk(0.4),
+    "rH": cmc.nuuk(0.6),
+    "aHV": cmc.nuuk(0.3),
 }
 for j, fn in enumerate(fac):
     a.plot(chs, coef_by_ch["log_abs"][:, j], color=slope_cols[fn], lw=1.5, label=fn)

@@ -16,13 +16,19 @@ from seiskit.plot_config import apply_style, panel_letter, result_path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import load_channel50, FACTORS
 
+import cmcrameri.cm as cmc
+
+# Load data
 d50 = load_channel50()
 
+# Apply style
 apply_style(auto_format=True, font_size=10, frame="open")
 
+# Create figure and gridspec
 fig = plt.figure(figsize=(13, 11))
-gs = fig.add_gridspec(3, 3, hspace=0.55, wspace=0.38)
+gs = fig.add_gridspec(3, 3, hspace=0.2, wspace=0.30)
 
+# Plot f_ratio
 ax = fig.add_subplot(gs[0, 0])
 ax.hist(d50["f_ratio"], bins=60, color="#4C72B0", edgecolor="none")
 ax.axvline(1.0, color="0.3", ls="--", lw=1)
@@ -66,7 +72,7 @@ for j, (tgt, col, ttl) in enumerate(
     ax.set_xticks(xticks)
     ax.set_xticklabels(xlabs, fontsize=6)
     ax.set_ylabel(f"mean {ttl}")
-    ax.set_title(f"{ttl}: marginal means (Vs1·H·CoV·rH·aHV)", loc="left")
+    ax.set_title(f"{ttl}: marginal means ($V_{s1}$·$H$·$CoV$·$r_h$·$a_hv$)", loc="left")
     panel_letter(ax, "de"[j])
 
 ax = fig.add_subplot(gs[1, 2])
@@ -85,7 +91,7 @@ for fc in FACTORS:
 ax.set_xticks(xticks)
 ax.set_xticklabels(xlabs, fontsize=6)
 ax.set_ylabel("std of $f$ ratio")
-ax.set_title("$f$ ratio: spread — CoV drives it", loc="left")
+ax.set_title("$f$ ratio: spread — $CoV$ drives it", loc="left")
 panel_letter(ax, "f")
 
 ax = fig.add_subplot(gs[2, 0])
@@ -130,13 +136,11 @@ for i in range(3):
             color="white" if v < 0.3 else "black",
             fontsize=7,
         )
-ax.set_title("mean abs TF: $V_{s1}$ × H", loc="left")
+ax.set_title("mean abs TF: $V_{s1}\times H$", loc="left")
 panel_letter(ax, "i")
 
 fig.suptitle(
-    "Channel 50 (center recorder): distributions, factor effects, seed structure  ·  n=24,300 (243 cells × 100 seeds)",
+    "Center Recorder: distributions, factor effects, seed structure  ·  n=24,300 (243 cells × 100 seeds)",
     fontsize=10,
-    y=0.985,
 )
 fig.savefig(result_path("plots", "eda_channel50.png"), dpi=150, bbox_inches="tight")
-print("re-saved eda_channel50.png; panel h fixed")

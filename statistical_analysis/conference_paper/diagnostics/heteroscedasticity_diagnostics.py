@@ -3,6 +3,8 @@
 
 Generates a 2x3 panel covering residual funnels, mean-variance coupling,
 eta-squared decompositions, and per-factor spread for channel 50.
+
+Focus on f_ratio and log_abs_TF_ratio.
 """
 
 import sys
@@ -15,14 +17,17 @@ from scipy.stats import levene, pearsonr
 from statsmodels.stats.diagnostic import het_breuschpagan
 import statsmodels.api as sm
 
+import cmcrameri.cm as cmc
+
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import load_channel50, FACTORS
 
+# Load data
 d50 = load_channel50()
 
-# Standardize factors
+# Standardize factors to have mean 0 and std 1
 Z = d50[FACTORS].copy()
 Zs = (Z - Z.mean()) / Z.std()
 Zs.columns = [c + "_z" for c in FACTORS]
@@ -38,6 +43,7 @@ def bp_test(target):
     return m, lm, lm_p
 
 
+# OLS models for f_ratio and log_abs
 ols_models = {}
 for tgt in ["f_ratio", "abs_TF_ratio", "log_abs"]:
     m, lm, lmp = bp_test(tgt)
@@ -45,7 +51,7 @@ for tgt in ["f_ratio", "abs_TF_ratio", "log_abs"]:
 
 # Levene tests
 lev_rows = []
-for tgt in ["f_ratio", "abs_TF_ratio"]:
+for tgt in ["f_ratio", "log_abs"]:
     for fc in FACTORS:
         gs = [d50.loc[d50[fc] == lv, tgt].values for lv in sorted(d50[fc].unique())]
         W, p = levene(*gs, center="median")
@@ -57,8 +63,8 @@ cell_stats = (
     .agg(
         f_mean=("f_ratio", "mean"),
         f_std=("f_ratio", "std"),
-        a_mean=("abs_TF_ratio", "mean"),
-        a_std=("abs_TF_ratio", "std"),
+        a_mean=("log_abs", "mean"),
+        a_std=("log_abs", "std"),
     )
     .reset_index()
 )
@@ -91,7 +97,7 @@ fig, axes = plt.subplots(2, 3, figsize=(14, 8.5))
 
 # a,b: residual funnel plots (residual vs fitted) for raw abs_TF and log_abs
 for ax, tgt, ttl, col in [
-    (axes[0, 0], "abs_TF_ratio", "abs TF ratio (raw)", "#C44E52"),
+    (axes[0, 0], "f_ratio", "$f_0^N$", "#4C72B0"),
     (axes[0, 1], "log_abs", "log(abs TF ratio)", "#C44E52"),
 ]:
     m = ols_models[tgt]
@@ -106,6 +112,14 @@ for ax, tgt, ttl, col in [
 panel_letter(axes[0, 0], "a")
 panel_letter(axes[0, 1], "b")
 
+# Y limits for residual funnel plots
+axes[0, 0].set_ylim(-0.4, 0.8)
+axes[0, 1].set_ylim(-2, 3)
+
+# X limits for residual funnel plots
+axes[0, 0].set_xlim(0.875, 1.05)
+axes[0, 1].set_xlim(-3.0, -1.0)
+
 # c: mean vs std scatter (design cells)
 ax = axes[0, 2]
 ax.plot(
@@ -115,7 +129,7 @@ ax.plot(
     ms=4,
     color="#C44E52",
     alpha=0.6,
-    label=f"abs TF (r={pearsonr(cell_stats.a_mean, cell_stats.a_std)[0]:.2f})",
+    label=rf"log_abs ($\rho$={pearsonr(cell_stats.a_mean, cell_stats.a_std)[0]:.2f})",
 )
 ax.plot(
     cell_stats.f_mean,
@@ -124,52 +138,69 @@ ax.plot(
     ms=4,
     color="#4C72B0",
     alpha=0.6,
-    label=f"$f$ ratio (r={pearsonr(cell_stats.f_mean, cell_stats.f_std)[0]:.2f})",
+    label=rf"$f$ ratio ($\rho$={pearsonr(cell_stats.f_mean, cell_stats.f_std)[0]:.2f})",
 )
 ax.set_xlabel("design-cell mean")
 ax.set_ylabel("design-cell std")
-ax.set_title("Mean–variance coupling (243 cells)", loc="left")
-ax.legend(fontsize=7, frameon=False, loc="upper left")
+ax.set_ylim(0, 1.4)
+ax.set_xlim(-4, 2)
+ax.set_title("Mean-variance coupling (243 cells)", loc="left")
+ax.legend(fontsize=10, frameon=False, loc="upper right")
 panel_letter(ax, "c")
 
 # d,e: eta^2 grouped bars — mean vs std driver decomposition
 for ax, (mcol, scol, ttl, pl) in zip(
     [axes[1, 0], axes[1, 1]],
     [
-        ("absTF_mean_eta2", "absTF_std_eta2", "abs TF ratio", "d"),
-        ("f_mean_eta2", "f_std_eta2", "$f$ ratio", "e"),
+        ("f_mean_eta2", "f_std_eta2", "$f$ ratio", "d"),
+        ("absTF_mean_eta2", "absTF_std_eta2", "log(abs TF ratio)", "e"),
     ],
 ):
     x = np.arange(5)
     w = 0.38
-    ax.bar(x - w / 2, eta_df[mcol], w, color="#555555", label="explains MEAN")
-    ax.bar(x + w / 2, eta_df[scol], w, color="#E1812C", label="explains STD")
+    ax.bar(x - w / 2, eta_df[mcol], w, color=cmc.lapaz(0.2), label="Explains Mean")
+    ax.bar(x + w / 2, eta_df[scol], w, color=cmc.lapaz(0.8), label="Explains Std")
     ax.set_xticks(x)
-    ax.set_xticklabels(FACTORS, fontsize=7, rotation=30)
+    factor_labels = ["Vs1 (m/s)", "Height (m)", "CoV", "rH (m)", "aHV"]
+    ax.set_xticklabels(factor_labels, fontsize=10)
     ax.set_ylabel("$\\eta^2$ (variance explained)")
     ax.set_title(f"{ttl}: mean vs variance drivers", loc="left")
-    ax.legend(fontsize=7, frameon=False)
+    ax.legend(fontsize=10, frameon=False)
     panel_letter(ax, pl)
+
+# Y limits for eta^2 grouped bars
+axes[1, 0].set_ylim(0, 0.40)
+axes[1, 1].set_ylim(0, 0.8)
 
 # f: per-factor spread bars — std of f_ratio by CoV level (the pure-variance driver)
 ax = axes[1, 2]
 xpos = 0
-colors = plt.cm.tab10(np.linspace(0, 1, 5))
+
+# Standarize colors of factors using cmc.nuuk 
+factor_colors = {
+    "Vs1": cmc.nuuk(0.2),
+    "Height": cmc.nuuk(0.8),
+    "CoV": cmc.nuuk(0.4),
+    "rH": cmc.nuuk(0.6),
+    "aHV": cmc.nuuk(0.3),
+}
+
 for i, fc in enumerate(["CoV", "aHV", "Height"]):
     g = d50.groupby(fc)["f_ratio"].std()
     xs = np.arange(len(g)) + xpos
-    ax.bar(xs, g.values, color=colors[i], label=fc, width=0.8)
+    ax.bar(xs, g.values, color=factor_colors[fc], label=fc, width=0.8)
     xpos += len(g) + 0.6
 ax.set_ylabel("std of $f$ ratio")
 ax.set_xticks([])
-ax.set_title("$f$ ratio spread by level (CoV, aHV, H)", loc="left")
-ax.legend(fontsize=7, frameon=False)
+ax.set_title("$f$ ratio spread by level (CoV, aHV, $H$)", loc="left")
+ax.set_ylim(0, 0.14)
+ax.legend(fontsize=10, frameon=False)
 panel_letter(ax, "f")
 
 fig.suptitle(
-    "Heteroscedasticity diagnosis (channel 50): variance is factor-dependent, and mean-drivers ≠ variance-drivers",
+    "Heteroscedasticity Diagnosis: Variance is Factor-Dependent, and Mean-Drivers ≠ Variance-Drivers",
+    fontweight="bold",
     fontsize=10,
-    y=0.99,
 )
 fig.tight_layout()
 fig.savefig(
