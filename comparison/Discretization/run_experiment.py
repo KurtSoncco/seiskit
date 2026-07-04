@@ -57,9 +57,7 @@ def _configure_slurm_environment() -> None:
     task_id = os.getenv("SLURM_ARRAY_TASK_ID", "-")
     node = os.getenv("SLURMD_NODENAME", os.uname().nodename)
     cpus = slurm_cpus or "-"
-    print(
-        f"[slurm] job_id={job_id} array_id={array_id} task_id={task_id} node={node} cpus={cpus}"
-    )
+    print(f"[slurm] job_id={job_id} array_id={array_id} task_id={task_id} node={node} cpus={cpus}")
 
 
 def _install_sigterm_handler():
@@ -82,7 +80,9 @@ def _install_sigterm_handler():
 def _fmt_hms(seconds: float) -> str:
     """Format seconds as HH:MM:SS."""
     total_seconds = int(seconds)
-    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    return (
+        f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    )
 
 
 def run_discretization_case(
@@ -175,9 +175,7 @@ def run_discretization_case(
     seed = seed_values[seed_idx]
 
     # Create Vs_profile_1D based on selected base case
-    Vs_profile_1D = np.array(
-        [Vs1] * base_case["layer1_count"] + [Vs2] * base_case["layer2_count"]
-    )
+    Vs_profile_1D = np.array([Vs1] * base_case["layer1_count"] + [Vs2] * base_case["layer2_count"])
 
     # Determine discretization based on case type
     if case_type == "2x2_4node":
@@ -192,9 +190,7 @@ def run_discretization_case(
         raise ValueError(f"Unknown case type: {case_type}")
 
     task_id = f"{case_name}_{base_case['name']}_rH{rH:.0f}_CV{CV}_s{seed}"
-    output_dir = (
-        f"results/{case_name}/{base_case['name']}/rH_{rH:.0f}/CV_{CV}/{task_id}"
-    )
+    output_dir = f"results/{case_name}/{base_case['name']}/rH_{rH:.0f}/CV_{CV}/{task_id}"
 
     # Create directories with retry logic
     max_retries = 5
@@ -209,15 +205,11 @@ def run_discretization_case(
 
     print(f"[{case_name}] Starting task {task_id} (index={index})")
     print(f"  Case: {case_name}, Element type: {element_type}")
-    print(
-        f"  Base case: {base_case['name']} (Layer 1 height: {base_case['layer1_height']:.0f} m)"
-    )
+    print(f"  Base case: {base_case['name']} (Layer 1 height: {base_case['layer1_height']:.0f} m)")
     print(f"  Vs1 = {Vs1} m/s, Vs2 = {Vs2} m/s, Total depth Lz = {Lz} m")
     print(f"  dx={dx} m, dz={dz} m")
     print(f"  rH = {rH} m, CV = {CV}, seed = {seed}")
-    print(
-        f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m"
-    )
+    print(f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m")
 
     # Generate VS field with base discretization (2x2)
     t_field_start = time.time()

@@ -77,9 +77,7 @@ def merge_timing_files(
 
     # Report found files
     indices_list = sorted(found_indices)
-    print(
-        f"\nFound {len(indices_list)} files (indices: {min(indices_list)}-{max(indices_list)})"
-    )
+    print(f"\nFound {len(indices_list)} files (indices: {min(indices_list)}-{max(indices_list)})")
 
     # Check for missing files
     expected_indices = set(range(expected_total))
@@ -244,4 +242,3 @@ Examples:
 
 if __name__ == "__main__":
     main()
-

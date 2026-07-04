@@ -36,8 +36,8 @@ if __name__ == "__main__":
         damping_freqs=(0.75, 2.25),  # Damping frequencies
         boundary_condition_type="1D",  # Use 1D BCs
         # Recorder Configuration
-        record_center_nodes = True,
-        record_all_surface_nodes = False,
+        record_center_nodes=True,
+        record_all_surface_nodes=False,
     )
     RUN_ID = "Case_1a"
     OUTPUT_DIR = "results"

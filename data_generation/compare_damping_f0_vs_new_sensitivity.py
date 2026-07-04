@@ -81,11 +81,7 @@ def filter_global_avg(tf_dict: Dict) -> Dict:
         )
         return tf_dict
     else:
-        filtered = {
-            key: value
-            for key, value in tf_dict.items()
-            if key[5] == "global_avg"
-        }
+        filtered = {key: value for key, value in tf_dict.items() if key[5] == "global_avg"}
         print(f"Filtered to {len(filtered)} entries with damping_method='global_avg'")
         return filtered
 
@@ -110,8 +106,11 @@ def match_cases(
 
     for key_damping_f0, value_damping_f0 in tf_dict_damping_f0.items():
         match_key = (
-            key_damping_f0[2], key_damping_f0[0], key_damping_f0[1],
-            key_damping_f0[3], key_damping_f0[4],
+            key_damping_f0[2],
+            key_damping_f0[0],
+            key_damping_f0[1],
+            key_damping_f0[3],
+            key_damping_f0[4],
         )
 
         if match_key in lookup_new_sensitivity and match_key in lookup_final_generation:
@@ -130,10 +129,15 @@ def match_cases(
 
 
 def interpolate_to_common_freq(
-    freq1: np.ndarray, tf1: np.ndarray,
-    freq2: np.ndarray, tf2: np.ndarray,
-    freq3: np.ndarray, tf3: np.ndarray,
-    freq_min: float = 0.1, freq_max: float = 10.0, n_points: int = 1000,
+    freq1: np.ndarray,
+    tf1: np.ndarray,
+    freq2: np.ndarray,
+    tf2: np.ndarray,
+    freq3: np.ndarray,
+    tf3: np.ndarray,
+    freq_min: float = 0.1,
+    freq_max: float = 10.0,
+    n_points: int = 1000,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Interpolate all three transfer functions to a common frequency grid."""
     common_freq = np.logspace(np.log10(freq_min), np.log10(freq_max), n_points)
@@ -144,7 +148,9 @@ def interpolate_to_common_freq(
 
     def _interp(freq_filt, tf_filt):
         if len(freq_filt) > 1:
-            return interp1d(freq_filt, tf_filt, kind="linear", bounds_error=False, fill_value=np.nan)(common_freq)
+            return interp1d(
+                freq_filt, tf_filt, kind="linear", bounds_error=False, fill_value=np.nan
+            )(common_freq)
         return np.full_like(common_freq, np.nan)
 
     tf1_interp = _interp(freq1[mask1], tf1[mask1])
@@ -189,9 +195,12 @@ def create_comparison_plot(
         tf_new_sensitivity_interp,
         tf_final_generation_interp,
     ) = interpolate_to_common_freq(
-        freq_damping_f0, tf_damping_f0,
-        freq_new_sensitivity, tf_new_sensitivity,
-        freq_final_generation, tf_final_generation,
+        freq_damping_f0,
+        tf_damping_f0,
+        freq_new_sensitivity,
+        tf_new_sensitivity,
+        freq_final_generation,
+        tf_final_generation,
     )
 
     valid_mask = ~(
@@ -216,18 +225,27 @@ def create_comparison_plot(
     # Subplot 1: Overlay comparison
     ax1 = axes[0]
     ax1.loglog(
-        common_freq_plot, tf_damping_f0_plot,
-        color=COLORBLIND_COLORS[0], linewidth=2.5, linestyle="-",
+        common_freq_plot,
+        tf_damping_f0_plot,
+        color=COLORBLIND_COLORS[0],
+        linewidth=2.5,
+        linestyle="-",
         label="damping\\_f0",
     )
     ax1.loglog(
-        common_freq_plot, tf_new_sensitivity_plot,
-        color=COLORBLIND_COLORS[1], linewidth=2.5, linestyle="--",
+        common_freq_plot,
+        tf_new_sensitivity_plot,
+        color=COLORBLIND_COLORS[1],
+        linewidth=2.5,
+        linestyle="--",
         label="new\\_sensitivity",
     )
     ax1.loglog(
-        common_freq_plot, tf_final_generation_plot,
-        color=COLORBLIND_COLORS[2], linewidth=2.5, linestyle="-.",
+        common_freq_plot,
+        tf_final_generation_plot,
+        color=COLORBLIND_COLORS[2],
+        linewidth=2.5,
+        linestyle="-.",
         label="final\\_generation",
     )
     ax1.set_xlabel(to_title_case("Frequency (Hz)"))
@@ -235,8 +253,11 @@ def create_comparison_plot(
     format_title(
         "Overlay Comparison",
         subtitle=(
-            f"Vs1={Vs1:.0f} m/s, " + format_label(f"rH={rH:.0f} m") + ", "
-            + format_label(f"CV={CV:.2f}") + f", $H$={thickness_damping_f0:.0f} m, seed={seed}"
+            f"Vs1={Vs1:.0f} m/s, "
+            + format_label(f"rH={rH:.0f} m")
+            + ", "
+            + format_label(f"CV={CV:.2f}")
+            + f", $H$={thickness_damping_f0:.0f} m, seed={seed}"
         ),
         ax=ax1,
     )
@@ -248,41 +269,62 @@ def create_comparison_plot(
     # Subplot 2: Differences
     ax2 = axes[1]
     diff_new = compute_difference(tf_damping_f0_plot, tf_new_sensitivity_plot, use_ratio=use_ratio)
-    diff_final = compute_difference(tf_damping_f0_plot, tf_final_generation_plot, use_ratio=use_ratio)
+    diff_final = compute_difference(
+        tf_damping_f0_plot, tf_final_generation_plot, use_ratio=use_ratio
+    )
 
     if use_ratio:
         ax2.semilogx(
-            common_freq_plot, diff_new,
-            color=COLORBLIND_COLORS[1], linewidth=2.0, linestyle="--",
+            common_freq_plot,
+            diff_new,
+            color=COLORBLIND_COLORS[1],
+            linewidth=2.0,
+            linestyle="--",
             label="new\\_sensitivity / damping\\_f0",
         )
         ax2.semilogx(
-            common_freq_plot, diff_final,
-            color=COLORBLIND_COLORS[2], linewidth=2.0, linestyle="-.",
+            common_freq_plot,
+            diff_final,
+            color=COLORBLIND_COLORS[2],
+            linewidth=2.0,
+            linestyle="-.",
             label="final\\_generation / damping\\_f0",
         )
-        ax2.axhline(1.0, color="black", linestyle=":", linewidth=1.5, alpha=0.7, label="Ratio = 1.0")
+        ax2.axhline(
+            1.0, color="black", linestyle=":", linewidth=1.5, alpha=0.7, label="Ratio = 1.0"
+        )
         ax2.set_ylabel(to_title_case("Ratio (Relative To Damping_F0)"))
     else:
         ax2.semilogx(
-            common_freq_plot, diff_new,
-            color=COLORBLIND_COLORS[1], linewidth=2.0, linestyle="--",
+            common_freq_plot,
+            diff_new,
+            color=COLORBLIND_COLORS[1],
+            linewidth=2.0,
+            linestyle="--",
             label="new\\_sensitivity $-$ damping\\_f0",
         )
         ax2.semilogx(
-            common_freq_plot, diff_final,
-            color=COLORBLIND_COLORS[2], linewidth=2.0, linestyle="-.",
+            common_freq_plot,
+            diff_final,
+            color=COLORBLIND_COLORS[2],
+            linewidth=2.0,
+            linestyle="-.",
             label="final\\_generation $-$ damping\\_f0",
         )
-        ax2.axhline(0.0, color="black", linestyle=":", linewidth=1.5, alpha=0.7, label="Zero Difference")
+        ax2.axhline(
+            0.0, color="black", linestyle=":", linewidth=1.5, alpha=0.7, label="Zero Difference"
+        )
         ax2.set_ylabel(to_title_case("Difference (Relative To Damping_F0)"))
 
     ax2.set_xlabel(to_title_case("Frequency (Hz)"))
     format_title(
         "Differences",
         subtitle=(
-            f"Vs1={Vs1:.0f} m/s, " + format_label(f"rH={rH:.0f} m") + ", "
-            + format_label(f"CV={CV:.2f}") + f", $H$={thickness_damping_f0:.0f} m, seed={seed}"
+            f"Vs1={Vs1:.0f} m/s, "
+            + format_label(f"rH={rH:.0f} m")
+            + ", "
+            + format_label(f"CV={CV:.2f}")
+            + f", $H$={thickness_damping_f0:.0f} m, seed={seed}"
         ),
         ax=ax2,
     )

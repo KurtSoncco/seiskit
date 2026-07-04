@@ -73,9 +73,7 @@ def compute_tf_statistics(datasets, dz=2.5, Vs_min=None):
                     continue
 
                 if len(base_time) < 2:
-                    skipped_realizations.append(
-                        (model_name, "insufficient base time steps")
-                    )
+                    skipped_realizations.append((model_name, "insufficient base time steps"))
                     continue
 
                 grouped_data[key].append((model_data, seed))
@@ -112,9 +110,7 @@ def compute_tf_statistics(datasets, dz=2.5, Vs_min=None):
         use_direct_stack = True
         ref_freq = freq_arrays[0]
         for f in freq_arrays[1:]:
-            if f.shape != ref_freq.shape or not np.allclose(
-                f, ref_freq, rtol=1e-9, atol=1e-12
-            ):
+            if f.shape != ref_freq.shape or not np.allclose(f, ref_freq, rtol=1e-9, atol=1e-12):
                 use_direct_stack = False
                 break
 
@@ -272,9 +268,7 @@ def compute_time_history_statistics(datasets):
                     continue
 
                 if len(surface_time) < 2:
-                    skipped_realizations.append(
-                        (model_name, "insufficient surface time steps")
-                    )
+                    skipped_realizations.append((model_name, "insufficient surface time steps"))
                     continue
 
                 grouped_data[key].append((model_data, seed))
@@ -327,9 +321,7 @@ def compute_time_history_statistics(datasets):
             common_timestep = np.median(dts) if dts else 0.01
 
             min_time = min(t.min() for t in surface_time_arrays)
-            max_time = min(
-                t.max() for t in surface_time_arrays
-            )  # min to handle lengths
+            max_time = min(t.max() for t in surface_time_arrays)  # min to handle lengths
             common_time = np.arange(min_time, max_time, common_timestep)
 
             # Interpolate all accelerations to common time grid
@@ -380,9 +372,7 @@ def compute_time_history_statistics(datasets):
             stats[(rH, CV)]["base_std"] = base_std
 
     if skipped_realizations:
-        print(
-            "Warning: skipped some realizations in time-history stats due to data issues:"
-        )
+        print("Warning: skipped some realizations in time-history stats due to data issues:")
         for name, reason in skipped_realizations:
             print(f"  - {name}: {reason}")
 
@@ -438,9 +428,7 @@ def plot_tf_statistics(stats, output_path: Path, show_fig: bool = False):
         fig.add_trace(
             go.Scatter(
                 x=np.concatenate([data["freq"], data["freq"][::-1]]),
-                y=np.concatenate(
-                    [data["mean"] + data["std"], (data["mean"] - data["std"])[::-1]]
-                ),
+                y=np.concatenate([data["mean"] + data["std"], (data["mean"] - data["std"])[::-1]]),
                 fill="toself",
                 fillcolor=color,
                 opacity=0.1,
@@ -1033,9 +1021,7 @@ def plot_time_history_statistics(stats, output_path: Path, show_fig: bool = Fals
 def main():
     """Main function to compute and plot statistics."""
     # CLI arguments
-    parser = argparse.ArgumentParser(
-        description="Compute and plot parametric study statistics"
-    )
+    parser = argparse.ArgumentParser(description="Compute and plot parametric study statistics")
     parser.add_argument(
         "--plots",
         nargs="+",
@@ -1139,9 +1125,7 @@ def main():
 
         if do_tflogstd:
             print("Plotting transfer function logarithmic standard deviation...")
-            plot_tf_logstd(
-                stats, Path("transfer_functions_logstd.html"), show_fig=args.show
-            )
+            plot_tf_logstd(stats, Path("transfer_functions_logstd.html"), show_fig=args.show)
 
         # Plot matplotlib subplots for mean, geomean, and median
         print("Plotting transfer function mean subplots...")
@@ -1177,9 +1161,7 @@ def main():
         print("\nComputing time history statistics...")
         time_stats = compute_time_history_statistics(data)
 
-        print(
-            f"Computed time history statistics for {len(time_stats)} rH-CV combinations:"
-        )
+        print(f"Computed time history statistics for {len(time_stats)} rH-CV combinations:")
         for (rH, CV), entry in time_stats.items():
             print(f"  rH={rH:.0f}, CV={CV}: {entry['n_realizations']} realizations")
 
@@ -1194,13 +1176,9 @@ def main():
             from seiskit.plot_results import plot_stacked_acceleration
 
             print("Plotting stacked surface accelerations...")
-            plot_stacked_acceleration(
-                datasets=data, data_config=DATA_CONFIG, vertical_spacing=2.5
-            )
+            plot_stacked_acceleration(datasets=data, data_config=DATA_CONFIG, vertical_spacing=2.5)
         except Exception as e:
-            print(
-                f"Warning: Could not generate stacked surface acceleration plots: {e}"
-            )
+            print(f"Warning: Could not generate stacked surface acceleration plots: {e}")
 
     print("\nAnalysis complete!")
 

@@ -38,6 +38,7 @@ analysis = [
     "cmcrameri"
 ]
 ml = [
+    "lightgbm",
     "xgboost",
     "shap",
     "interpret",

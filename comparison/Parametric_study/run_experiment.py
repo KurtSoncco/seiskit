@@ -51,9 +51,7 @@ def _configure_slurm_environment() -> None:
     task_id = os.getenv("SLURM_ARRAY_TASK_ID", "-")
     node = os.getenv("SLURMD_NODENAME", os.uname().nodename)
     cpus = slurm_cpus or "-"
-    print(
-        f"[slurm] job_id={job_id} array_id={array_id} task_id={task_id} node={node} cpus={cpus}"
-    )
+    print(f"[slurm] job_id={job_id} array_id={array_id} task_id={task_id} node={node} cpus={cpus}")
 
 
 def _install_sigterm_handler():
@@ -78,7 +76,9 @@ def _install_sigterm_handler():
 def _fmt_hms(seconds: float) -> str:
     """Format seconds as HH:MM:SS."""
     total_seconds = int(seconds)
-    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    return (
+        f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    )
 
 
 def run_array_index(index: int):
@@ -170,9 +170,7 @@ def run_array_index(index: int):
                     flush=True,
                 )
                 raise
-            wait_time = retry_delay * (
-                2**attempt
-            )  # Exponential backoff: 0.5s, 1s, 2s, 4s, ...
+            wait_time = retry_delay * (2**attempt)  # Exponential backoff: 0.5s, 1s, 2s, 4s, ...
             print(
                 f"[run_array_index] [{_fmt_hms(time.time() - t0)}] Directory creation failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time:.1f}s...",
                 flush=True,
@@ -501,9 +499,7 @@ def _parse_args():
         description="Run Parametric Study. Use --index or SLURM_ARRAY_TASK_ID for array mode."
     )
     p.add_argument("--index", type=int, help="Array index (0-44)")
-    p.add_argument(
-        "--full", action="store_true", help="Run the full parallel experiment"
-    )
+    p.add_argument("--full", action="store_true", help="Run the full parallel experiment")
     p.add_argument("--plot", action="store_true", help="Generate plots from results")
     return p.parse_args()
 
@@ -538,9 +534,7 @@ if __name__ == "__main__":
     # Non-array modes
     if args.full:
         print("[program] Running full experiment (array mode recommended)...")
-        print(
-            "For full experiment with 45 tasks, use SLURM array job or run each index manually."
-        )
+        print("For full experiment with 45 tasks, use SLURM array job or run each index manually.")
         sys.exit(1)
 
     elif args.plot:

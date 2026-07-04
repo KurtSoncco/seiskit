@@ -5,7 +5,7 @@ and clean axis limits.
 from __future__ import annotations
 
 import string
-from typing import Sequence
+from typing import Iterable, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,6 +16,33 @@ from seiskit.plot_config.style import FONT_SIZE, TITLE_SIZE
 
 # Subfigure label sequence: a, b, c, ...
 _SUBFIG_LABELS = list(string.ascii_lowercase)
+
+
+def panel_letter(
+    ax: Axes,
+    letter: str,
+    *,
+    fontsize: int | None = None,
+    x: float = 0.02,
+    y: float = 0.98,
+) -> None:
+    """Place a bare lowercase panel letter (a, b, c, ...) in the axes.
+
+    Lighter-weight alternative to :func:`add_subfigure_label` — no
+    parentheses, positioned flush with the top-left corner.
+    """
+    ax.text(
+        x,
+        y,
+        letter.lower(),
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontweight="bold",
+        fontsize=fontsize or FONT_SIZE,
+        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.7, "pad": 1.5},
+        zorder=10,
+    )
 
 
 def add_subfigure_label(
@@ -171,3 +198,65 @@ def set_clean_axis_limits(
         ax.set_xlim(lo, hi)
     if axis in ("y", "both") and lo is not None:
         ax.set_ylim(lo, hi)
+
+
+def annotate_comment(
+    ax: Axes,
+    text: str,
+    *,
+    x: float = 0.98,
+    y: float = 0.95,
+    fontsize: int | None = None,
+    alpha: float = 0.6,
+) -> None:
+    """Place a text annotation in the upper-right corner of *ax*.
+
+    Uses a white background box with the given *alpha* transparency,
+    suitable for brief notes or context strings that would otherwise
+    crowd a title.
+    """
+    ax.text(
+        x,
+        y,
+        text,
+        transform=ax.transAxes,
+        va="top",
+        ha="right",
+        fontsize=fontsize or (FONT_SIZE - 2),
+        bbox={
+            "facecolor": "white",
+            "edgecolor": "none",
+            "alpha": alpha,
+            "boxstyle": "round,pad=0.3",
+        },
+        zorder=10,
+    )
+
+
+def enforce_clean_axis_limits(
+    ax: Axes,
+    *,
+    x_values: Sequence[float] | None = None,
+    y_values: Sequence[float] | None = None,
+    x_bounds: Sequence[float] | None = None,
+    y_bounds: Sequence[float] | None = None,
+    x_ticks: Iterable[float] | None = None,
+    y_ticks: Iterable[float] | None = None,
+) -> None:
+    """Set axis limits and ticks with explicit bounds or data-driven ranges."""
+    if x_bounds is not None:
+        ax.set_xlim(float(x_bounds[0]), float(x_bounds[1]))
+    elif x_values is not None and len(x_values) > 0:
+        xv = np.asarray(x_values, dtype=float)
+        ax.set_xlim(float(np.nanmin(xv)), float(np.nanmax(xv)))
+
+    if y_bounds is not None:
+        ax.set_ylim(float(y_bounds[0]), float(y_bounds[1]))
+    elif y_values is not None and len(y_values) > 0:
+        yv = np.asarray(y_values, dtype=float)
+        ax.set_ylim(float(np.nanmin(yv)), float(np.nanmax(yv)))
+
+    if x_ticks is not None:
+        ax.set_xticks(list(x_ticks))
+    if y_ticks is not None:
+        ax.set_yticks(list(y_ticks))

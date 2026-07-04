@@ -87,7 +87,9 @@ def _install_sigterm_handler():
 def _fmt_hms(seconds: float) -> str:
     """Format seconds as HH:MM:SS."""
     total_seconds = int(seconds)
-    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    return (
+        f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    )
 
 
 def create_1D_profile(
@@ -176,7 +178,9 @@ def run_case(index: int = 0):
     damping_freqs = (damping_freq_first, 10.0)
 
     # Create output directory with retry logic
-    output_dir = f"1D_results/Vs1_{Vs1:.0f}_thickness_{thickness:.0f}_damping_method_{damping_method_idx}"
+    output_dir = (
+        f"1D_results/Vs1_{Vs1:.0f}_thickness_{thickness:.0f}_damping_method_{damping_method_idx}"
+    )
     max_retries = 5
     for attempt in range(max_retries):
         try:
@@ -206,9 +210,7 @@ def run_case(index: int = 0):
 
     # Generate VS field
     t_field_start = time.time()
-    Vs_realization, bedrock_mask = create_1D_profile(
-        Vs1, Vs2, thickness, dz_1D, bedrock_depth
-    )
+    Vs_realization, bedrock_mask = create_1D_profile(Vs1, Vs2, thickness, dz_1D, bedrock_depth)
     field_generation_time = time.time() - t_field_start
 
     # Save  Vs realization plot
@@ -367,9 +369,7 @@ def run_case(index: int = 0):
 
 def _parse_args():
     """Parse command line arguments."""
-    p = argparse.ArgumentParser(
-        description="Run Sensitivity Analysis Experiment (Local version)."
-    )
+    p = argparse.ArgumentParser(description="Run Sensitivity Analysis Experiment (Local version).")
     p.add_argument(
         "--index",
         type=int,

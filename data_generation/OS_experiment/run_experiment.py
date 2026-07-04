@@ -77,7 +77,9 @@ def _install_sigterm_handler():
 def _fmt_hms(seconds: float) -> str:
     """Format seconds as HH:MM:SS."""
     total_seconds = int(seconds)
-    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    return (
+        f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    )
 
 
 def _index_to_thickness_seed(index: int) -> tuple[int, int]:
@@ -157,9 +159,7 @@ def run_case(index: int = 0):
     np.savetxt(f"{output_dir}/Vs_profile_1D.txt", Vs_profile_1D)
 
     realization_str = f"s{seed:02d}"
-    task_id = (
-        f"{case_type}_Vs1{Vs1:.0f}_th{thickness:.0f}_rH{rH:.0f}_CV{CV:.3f}_s{seed}"
-    )
+    task_id = f"{case_type}_Vs1{Vs1:.0f}_th{thickness:.0f}_rH{rH:.0f}_CV{CV:.3f}_s{seed}"
 
     print(f"[{case_type}] Starting task {task_id} (index={index})")
     print(f"  Case: {case_type}, Element type: {element_type}")
@@ -172,9 +172,7 @@ def run_case(index: int = 0):
     print(f"  f0 = {f0:.4f} Hz")
     print(f"  Duration = {duration:.1f} seconds")
     print(f"  Damping frequencies = {damping_freqs} Hz")
-    print(
-        f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m"
-    )
+    print(f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m")
 
     t_field_start = time.time()
     print(f"[{case_type}] Generating VS field with seed={seed}")
@@ -198,9 +196,7 @@ def run_case(index: int = 0):
     rediscretization_time = 0.0
 
     Vs_extended, _ = _extend_profile(Vs_realization, Lx=Lx, dx=dx)
-    bedrock_mask_extended, _ = _extend_profile(
-        bedrock_mask_var.astype(float), Lx=Lx, dx=dx
-    )
+    bedrock_mask_extended, _ = _extend_profile(bedrock_mask_var.astype(float), Lx=Lx, dx=dx)
     bedrock_mask_extended = bedrock_mask_extended.astype(bool)
 
     np.savetxt(f"{output_dir}/Vs_array_2D.txt", Vs_extended)
@@ -354,7 +350,9 @@ def run_case(index: int = 0):
 
 def _parse_args():
     """Parse command line arguments."""
-    p = argparse.ArgumentParser(description="Run OS_experiment (32 tasks: H15×10, H100×10, H57×12).")
+    p = argparse.ArgumentParser(
+        description="Run OS_experiment (32 tasks: H15×10, H100×10, H57×12)."
+    )
     p.add_argument(
         "--index",
         type=int,

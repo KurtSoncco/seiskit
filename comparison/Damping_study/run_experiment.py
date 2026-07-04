@@ -61,9 +61,7 @@ def _configure_slurm_environment() -> None:
     task_id = os.getenv("SLURM_ARRAY_TASK_ID", "-")
     node = os.getenv("SLURMD_NODENAME", os.uname().nodename)
     cpus = slurm_cpus or "-"
-    print(
-        f"[slurm] job_id={job_id} array_id={array_id} task_id={task_id} node={node} cpus={cpus}"
-    )
+    print(f"[slurm] job_id={job_id} array_id={array_id} task_id={task_id} node={node} cpus={cpus}")
 
 
 def _install_sigterm_handler():
@@ -86,7 +84,9 @@ def _install_sigterm_handler():
 def _fmt_hms(seconds: float) -> str:
     """Format seconds as HH:MM:SS."""
     total_seconds = int(seconds)
-    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    return (
+        f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    )
 
 
 def plot_damping_realization(
@@ -245,9 +245,7 @@ def run_damping_case(index: int = 0):
     Lx = Lx_variability + 2 * BC_width  # 1500m total
 
     # Total combinations: 4 damping methods × 2 rH/CV combinations × 5 seeds = 40
-    total_combinations = (
-        len(damping_methods) * len(rH_CV_combinations) * len(seed_values)
-    )
+    total_combinations = len(damping_methods) * len(rH_CV_combinations) * len(seed_values)
 
     if index < 0 or index >= total_combinations:
         raise IndexError(
@@ -294,9 +292,7 @@ def run_damping_case(index: int = 0):
     print(f"  Damping method: {damping_method}")
     print(f"  rH = {rH} m, CV = {CV}, seed = {seed}, realization = {realization_str}")
     print(f"  Motion frequency = {motion_freq} Hz")
-    print(
-        f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m"
-    )
+    print(f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m")
 
     # Generate VS field
     t_field_start = time.time()

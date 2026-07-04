@@ -117,7 +117,9 @@ def derive_execution_parameters(
 ) -> ExecutionParameters:
     """Derive the mesh-consistent execution values used by the runner."""
     soil_layer_count, H_discretized = _discretize_length(H, dz_1D)
-    bedrock_layer_count, bedrock_thickness_discretized = _discretize_length(bedrock_thickness, dz_1D)
+    bedrock_layer_count, bedrock_thickness_discretized = _discretize_length(
+        bedrock_thickness, dz_1D
+    )
     Lz_discretized = (soil_layer_count + bedrock_layer_count) * dz_1D
     f0_effective = Vs1 / (4 * H_discretized)
     duration = 50.0 if f0_effective < 1.0 else 30.0
@@ -138,7 +140,9 @@ def derive_execution_parameters(
     )
 
 
-def lognormal_parameter(lower: float, upper: float, confidence: float = DEFAULT_CONFIDENCE) -> tuple[float, float]:
+def lognormal_parameter(
+    lower: float, upper: float, confidence: float = DEFAULT_CONFIDENCE
+) -> tuple[float, float]:
     """Return ``(scale, sigma)`` for a lognormal distribution fit to bounds."""
     ln_lower, ln_upper = np.log(lower), np.log(upper)
     z_score = norm.ppf(1 - (1 - confidence) / 2)
@@ -159,7 +163,9 @@ def unit_to_physical(unit_samples: np.ndarray) -> np.ndarray:
     """Map unit-cube samples with shape ``(n, 6)`` into physical parameters."""
     raw = np.asarray(unit_samples, dtype=float)
     if raw.ndim != 2 or raw.shape[1] != len(PHYSICAL_COLUMNS):
-        raise ValueError(f"Expected samples with shape (n, {len(PHYSICAL_COLUMNS)}), got {raw.shape}.")
+        raise ValueError(
+            f"Expected samples with shape (n, {len(PHYSICAL_COLUMNS)}), got {raw.shape}."
+        )
 
     phys = np.zeros_like(raw)
     phys[:, 0] = lognorm.ppf(raw[:, 0], s=sigma_Vs1, scale=scale_Vs1)
@@ -175,7 +181,9 @@ def physical_to_unit(physical_samples: np.ndarray) -> np.ndarray:
     """Map physical samples with shape ``(n, 6)`` into the unit cube."""
     physical = np.asarray(physical_samples, dtype=float)
     if physical.ndim != 2 or physical.shape[1] != len(PHYSICAL_COLUMNS):
-        raise ValueError(f"Expected samples with shape (n, {len(PHYSICAL_COLUMNS)}), got {physical.shape}.")
+        raise ValueError(
+            f"Expected samples with shape (n, {len(PHYSICAL_COLUMNS)}), got {physical.shape}."
+        )
 
     unit = np.zeros_like(physical)
     unit[:, 0] = lognorm.cdf(physical[:, 0], s=sigma_Vs1, scale=scale_Vs1)
@@ -377,16 +385,24 @@ def load_manifest_csv(path: str | Path) -> list[ManifestEntry]:
                     aHV=float(row["aHV"]),
                     Vs2=float(row["Vs2"]),
                     dz_1D=float(row.get("dz_1D", execution.dz_1D)),
-                    bedrock_thickness=float(row.get("bedrock_thickness", execution.bedrock_thickness)),
-                    bedrock_thickness_discretized=float(
-                        row.get("bedrock_thickness_discretized", execution.bedrock_thickness_discretized)
+                    bedrock_thickness=float(
+                        row.get("bedrock_thickness", execution.bedrock_thickness)
                     ),
-                    bedrock_layer_count=int(row.get("bedrock_layer_count", execution.bedrock_layer_count)),
+                    bedrock_thickness_discretized=float(
+                        row.get(
+                            "bedrock_thickness_discretized", execution.bedrock_thickness_discretized
+                        )
+                    ),
+                    bedrock_layer_count=int(
+                        row.get("bedrock_layer_count", execution.bedrock_layer_count)
+                    ),
                     Lz_discretized=float(row.get("Lz_discretized", execution.Lz_discretized)),
                     motion_freq=float(row.get("motion_freq", execution.motion_freq)),
                     f0_effective=float(row.get("f0_effective", execution.f0_effective)),
                     duration=float(row.get("duration", execution.duration)),
-                    damping_freq_first=float(row.get("damping_freq_first", execution.damping_freq_first)),
+                    damping_freq_first=float(
+                        row.get("damping_freq_first", execution.damping_freq_first)
+                    ),
                 )
             )
     return manifest

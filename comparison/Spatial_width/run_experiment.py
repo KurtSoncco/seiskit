@@ -138,13 +138,9 @@ def main():
 
     # Prepare all tasks
     all_tasks = []
-    for i, (task_config, material_data) in enumerate(
-        zip(task_configs, material_data_list)
-    ):
+    for i, (task_config, material_data) in enumerate(zip(task_configs, material_data_list)):
         # Create AnalysisConfig from task parameters
-        config = AnalysisConfig(
-            **{k: v for k, v in task_config.items() if k != "task_id"}
-        )
+        config = AnalysisConfig(**{k: v for k, v in task_config.items() if k != "task_id"})
 
         # Create output directory
         output_dir = results[Lx_variability_values[i]]
@@ -326,12 +322,8 @@ def compare_sequential_vs_parallel():
     print("\n1. Sequential Execution:")
     start_time = time.time()
 
-    for i, (task_config, material_data) in enumerate(
-        zip(task_configs, material_data_list)
-    ):
-        config = AnalysisConfig(
-            **{k: v for k, v in task_config.items() if k != "task_id"}
-        )
+    for i, (task_config, material_data) in enumerate(zip(task_configs, material_data_list)):
+        config = AnalysisConfig(**{k: v for k, v in task_config.items() if k != "task_id"})
         output_dir = f"results/comparison/Lx_{Lx_variability_values[i]}"
         os.makedirs(output_dir, exist_ok=True)
 
@@ -341,9 +333,7 @@ def compare_sequential_vs_parallel():
         model_data = build_model_data(
             config, material_data["vs"], material_data["rho"], material_data["nu"]
         )
-        result = run_opensees_analysis(
-            config, model_data, task_config["task_id"], output_dir
-        )
+        result = run_opensees_analysis(config, model_data, task_config["task_id"], output_dir)
         print(f"  Sequential {task_config['task_id']}: {result}")
 
     sequential_time = time.time() - start_time
@@ -354,12 +344,8 @@ def compare_sequential_vs_parallel():
     start_time = time.time()
 
     all_tasks = []
-    for i, (task_config, material_data) in enumerate(
-        zip(task_configs, material_data_list)
-    ):
-        config = AnalysisConfig(
-            **{k: v for k, v in task_config.items() if k != "task_id"}
-        )
+    for i, (task_config, material_data) in enumerate(zip(task_configs, material_data_list)):
+        config = AnalysisConfig(**{k: v for k, v in task_config.items() if k != "task_id"})
         output_dir = f"results/comparison_parallel/Lx_{Lx_variability_values[i]}"
         os.makedirs(output_dir, exist_ok=True)
 

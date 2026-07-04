@@ -114,8 +114,11 @@ def compute_transfer_function(
 
     try:
         freq, tf = TTF(
-            top_accel_interpolated, base_accel_interpolated,
-            dt=dt / 10, dz=dz, Vsmin=Vsmin,
+            top_accel_interpolated,
+            base_accel_interpolated,
+            dt=dt / 10,
+            dz=dz,
+            Vsmin=Vsmin,
         )
     except (ValueError, Exception) as e:
         print(
@@ -124,8 +127,11 @@ def compute_transfer_function(
         )
         safe_vsmin = max_allowed_fmax * 10 * dz
         freq, tf = TTF(
-            top_accel_interpolated, base_accel_interpolated,
-            dt=dt / 10, dz=dz, Vsmin=safe_vsmin,
+            top_accel_interpolated,
+            base_accel_interpolated,
+            dt=dt / 10,
+            dz=dz,
+            Vsmin=safe_vsmin,
         )
 
     return freq, tf
@@ -161,7 +167,8 @@ def interpolate_to_common_frequency(
 
 
 def load_all_results(
-    results_dir: Path, Vsmin: float = 1000.0,
+    results_dir: Path,
+    Vsmin: float = 1000.0,
 ) -> Dict[Tuple[float, str], List[Tuple[np.ndarray, np.ndarray, int]]]:
     """Load all transfer functions from result directories."""
     tf_dict = defaultdict(list)
@@ -262,9 +269,11 @@ def create_comparison_plots(
             }
 
         n_freqs = len(motion_freqs)
-        colors = COLORBLIND_COLORS[:n_freqs] if n_freqs <= len(COLORBLIND_COLORS) else [
-            COLORBLIND_COLORS[i % len(COLORBLIND_COLORS)] for i in range(n_freqs)
-        ]
+        colors = (
+            COLORBLIND_COLORS[:n_freqs]
+            if n_freqs <= len(COLORBLIND_COLORS)
+            else [COLORBLIND_COLORS[i % len(COLORBLIND_COLORS)] for i in range(n_freqs)]
+        )
 
         # Plot 1: Complete (all realizations + geomean)
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -275,13 +284,19 @@ def create_comparison_plots(
 
             for tf, seed in zip(data["individual_tfs"], data["seeds"]):
                 ax.loglog(
-                    data["freq"], tf,
-                    color=color, alpha=0.3, linewidth=0.8, linestyle="--",
+                    data["freq"],
+                    tf,
+                    color=color,
+                    alpha=0.3,
+                    linewidth=0.8,
+                    linestyle="--",
                 )
 
             ax.loglog(
-                data["freq"], data["geomean"],
-                color=color, linewidth=2.5,
+                data["freq"],
+                data["geomean"],
+                color=color,
+                linewidth=2.5,
                 label=f"Ricker freq = {motion_freq:.1f} Hz (geomean, n={len(data['individual_tfs'])})",
             )
 
@@ -312,8 +327,10 @@ def create_comparison_plots(
         for idx, motion_freq in enumerate(motion_freqs):
             data = plot_data[motion_freq]
             ax.loglog(
-                data["freq"], data["geomean"],
-                color=colors[idx], linewidth=2.5,
+                data["freq"],
+                data["geomean"],
+                color=colors[idx],
+                linewidth=2.5,
                 label=f"Ricker freq = {motion_freq:.1f} Hz (n={len(data['individual_tfs'])})",
             )
 
@@ -341,8 +358,10 @@ def create_comparison_plots(
         for idx, motion_freq in enumerate(motion_freqs):
             data = plot_data[motion_freq]
             ax.semilogx(
-                data["freq"], data["cv"],
-                color=colors[idx], linewidth=2.5,
+                data["freq"],
+                data["cv"],
+                color=colors[idx],
+                linewidth=2.5,
                 label=f"Ricker freq = {motion_freq:.1f} Hz (n={len(data['individual_tfs'])})",
             )
 

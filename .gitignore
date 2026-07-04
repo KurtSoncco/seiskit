@@ -95,6 +95,8 @@ test_results/
 *.npz
 *.log
 *.db
+*.tar.gz
+*.parquet
 
 # Ignore any subfolder called code inside data_generation
 data_generation/**/code/
@@ -112,3 +114,6 @@ comparison/Damping_study/results/
 # Ignore results directory
 results/
 results/*
+
+# Computed caches (SHAP values, bootstrap results)
+.cache/

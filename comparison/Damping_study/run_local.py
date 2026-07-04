@@ -153,9 +153,7 @@ def run_parallel(
                 results.append((index, f"Exception: {str(e)}", 0.0))
                 completed += 1
                 if show_progress:
-                    print(
-                        f"[{completed:3d}/{total}] ✗ Index {index:3d}: Exception: {str(e)}"
-                    )
+                    print(f"[{completed:3d}/{total}] ✗ Index {index:3d}: Exception: {str(e)}")
 
     # Sort results by index to maintain order
     results.sort(key=lambda x: x[0])
@@ -166,9 +164,7 @@ def print_summary(results: List[tuple[int, str, float]]) -> None:
     """Print summary of results."""
     total = len(results)
     successful = sum(
-        1
-        for _, status, _ in results
-        if "success" in status.lower() or "done" in status.lower()
+        1 for _, status, _ in results if "success" in status.lower() or "done" in status.lower()
     )
     failed = total - successful
     total_time = sum(time for _, _, time in results)
@@ -277,9 +273,7 @@ Examples:
     # Determine indices to run
     if args.index is not None:
         if args.index < 0 or args.index >= args.total:
-            print(
-                f"Error: Index must be between 0 and {args.total - 1}", file=sys.stderr
-            )
+            print(f"Error: Index must be between 0 and {args.total - 1}", file=sys.stderr)
             sys.exit(1)
         indices = [args.index]
     elif args.start is not None:

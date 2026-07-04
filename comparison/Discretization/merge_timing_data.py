@@ -103,9 +103,7 @@ def merge_timing_files(
     print("\nFiles found by case type:")
     for case_type in sorted(found_files.keys()):
         indices = sorted(found_files[case_type])
-        print(
-            f"  {case_type}: {len(indices)} files (indices: {min(indices)}-{max(indices)})"
-        )
+        print(f"  {case_type}: {len(indices)} files (indices: {min(indices)}-{max(indices)})")
 
     # Check for missing files
     missing = find_missing_indices(found_files, expected_total=30)
@@ -181,8 +179,7 @@ def merge_timing_files(
         print(f"  Failed to read: {failed_reads} files")
     if missing:
         total_expected = sum(
-            len(indices) + len(missing.get(ct, []))
-            for ct, indices in found_files.items()
+            len(indices) + len(missing.get(ct, [])) for ct, indices in found_files.items()
         )
         print(f"  Expected total: {total_expected} files (across all case types)")
         print(f"  Missing: {sum(len(m) for m in missing.values())} files")

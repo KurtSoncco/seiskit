@@ -45,9 +45,7 @@ def activate_venv():
     if venv_path.exists():
         # Note: This is informational - actual activation should be done in shell
         print(f"Note: Virtual environment available at {venv_path}")
-        print(
-            "Please ensure virtual environment is activated: source .venv/bin/activate"
-        )
+        print("Please ensure virtual environment is activated: source .venv/bin/activate")
 
 
 def parse_result_folder(folder_name: str) -> Dict[str, float | str] | None:
@@ -116,8 +114,7 @@ def compute_index_from_params(params: Dict[str, float]) -> int:
 
         # Compute index
         index = (
-            Vs1_idx
-            * (len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values))
+            Vs1_idx * (len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values))
             + thickness_idx * (len(rH_list) * len(CV_list) * len(seed_values))
             + rH_idx * (len(CV_list) * len(seed_values))
             + CV_idx * len(seed_values)
@@ -536,9 +533,7 @@ def plot_grouped_by_rH_CV(
             common_freq = None
             for key, (freq, tf) in tf_list:
                 if common_freq is None:
-                    common_freq = (
-                        freq  # Use frequency from first TF (all should be the same)
-                    )
+                    common_freq = freq  # Use frequency from first TF (all should be the same)
                 tf_arrays.append(tf)
 
             # Plot individual realizations (light, thin lines) if requested
@@ -662,9 +657,7 @@ def plot_grouped_by_Vs1_thickness(
             common_freq = None
             for key, (freq, tf) in tf_list:
                 if common_freq is None:
-                    common_freq = (
-                        freq  # Use frequency from first TF (all should be the same)
-                    )
+                    common_freq = freq  # Use frequency from first TF (all should be the same)
                 tf_arrays.append(tf)
 
             # Plot individual realizations (light, thin lines) if requested
@@ -709,9 +702,7 @@ def plot_grouped_by_Vs1_thickness(
     for idx in range(len(Vs1_th_combos), n_rows * n_cols):
         axes_flat[idx].set_visible(False)
     plt.tight_layout()
-    output_file = (
-        output_dir / "transfer_functions_grouped_by_Vs1_thickness_combined.png"
-    )
+    output_file = output_dir / "transfer_functions_grouped_by_Vs1_thickness_combined.png"
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     print(f"Saved plot: {output_file}")
     plt.close()
@@ -727,9 +718,7 @@ def plot_grouped_by_Vs1_thickness(
     for idx in range(len(Vs1_th_combos), n_rows * n_cols):
         axes_flat[idx].set_visible(False)
     plt.tight_layout()
-    output_file = (
-        output_dir / "transfer_functions_grouped_by_Vs1_thickness_geomean_only.png"
-    )
+    output_file = output_dir / "transfer_functions_grouped_by_Vs1_thickness_geomean_only.png"
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     print(f"Saved plot: {output_file}")
     plt.close()
@@ -765,15 +754,11 @@ def plot_grouped_by_Vs1_and_thickness(
         """Plot a single subplot for given (Vs1, thickness) combination."""
         # Filter TFs for this (Vs1, thickness)
         filtered_tfs = {
-            key: value
-            for key, value in tf_dict.items()
-            if key[2] == Vs1 and key[3] == thickness
+            key: value for key, value in tf_dict.items() if key[2] == Vs1 and key[3] == thickness
         }
 
         if len(filtered_tfs) == 0:
-            ax.text(
-                0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes
-            )
+            ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
             ax.set_title(f"h={thickness:.0f} m")
             ax.set_xlim(1e-1, 10)  # 0.1 to 10 Hz
             ax.set_ylim(1e-2, 1e2)  # 0.01 to 100
@@ -796,9 +781,7 @@ def plot_grouped_by_Vs1_and_thickness(
             common_freq = None
             for key, (freq, tf) in tf_list:
                 if common_freq is None:
-                    common_freq = (
-                        freq  # Use frequency from first TF (all should be the same)
-                    )
+                    common_freq = freq  # Use frequency from first TF (all should be the same)
                 tf_arrays.append(tf)
 
             # Plot individual realizations (light, thin lines) if requested
@@ -1100,15 +1083,11 @@ def plot_grouped_by_Vs1_and_thickness_CV(
         """Plot CV for a single subplot for given (Vs1, thickness) combination."""
         # Filter TFs for this (Vs1, thickness)
         filtered_tfs = {
-            key: value
-            for key, value in tf_dict.items()
-            if key[2] == Vs1 and key[3] == thickness
+            key: value for key, value in tf_dict.items() if key[2] == Vs1 and key[3] == thickness
         }
 
         if len(filtered_tfs) == 0:
-            ax.text(
-                0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes
-            )
+            ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
             ax.set_title(f"h={thickness:.0f} m")
             ax.set_xlim(1e-1, 10)  # 0.1 to 10 Hz
             return
@@ -1240,9 +1219,7 @@ def plot_individual_cases(
                         tf_arrays.append(tf)
 
                     # Sort by seed to ensure consistent ordering
-                    sorted_indices = sorted(
-                        range(len(seed_list)), key=lambda i: seed_list[i]
-                    )
+                    sorted_indices = sorted(range(len(seed_list)), key=lambda i: seed_list[i])
                     tf_arrays = [tf_arrays[i] for i in sorted_indices]
                     seed_list = [seed_list[i] for i in sorted_indices]
 
@@ -1285,7 +1262,9 @@ def plot_individual_cases(
                     ax.legend(loc="best", fontsize=9)
 
                     # Create filename
-                    filename = f"thickness_{thickness:.0f}_rH_{rH:.0f}_Vs1_{Vs1:.0f}_CV_{CV:.3f}.png"
+                    filename = (
+                        f"thickness_{thickness:.0f}_rH_{rH:.0f}_Vs1_{Vs1:.0f}_CV_{CV:.3f}.png"
+                    )
                     output_file = individual_dir / filename
 
                     plt.tight_layout()
@@ -1414,9 +1393,7 @@ def plot_individual_seed_vs_uniform(
     rH_values = sorted(set(k[0] for k in tf_dict.keys()))
     damping_method = "global_avg"  # Only one damping method
 
-    print(
-        f"Creating individual seed plots for seed={seed} comparing with uniform 1D cases..."
-    )
+    print(f"Creating individual seed plots for seed={seed} comparing with uniform 1D cases...")
 
     plot_count = 0
     skipped_count = 0
@@ -1633,9 +1610,7 @@ def main():
 
     # Create individual case plots
     print("\nGenerating individual case plots...")
-    print(
-        "  Creating individual plots for each (thickness, rH, Vs1, CV) combination..."
-    )
+    print("  Creating individual plots for each (thickness, rH, Vs1, CV) combination...")
     plot_individual_cases(tf_dict, output_dir)
 
     # Create individual seed vs uniform plots
@@ -1652,15 +1627,11 @@ def main():
             print(
                 f"  Creating individual seed plots for seed={seed_to_plot} comparing with uniform 1D cases..."
             )
-            plot_individual_seed_vs_uniform(
-                tf_dict, tf_dict_1D, output_dir, seed=seed_to_plot
-            )
+            plot_individual_seed_vs_uniform(tf_dict, tf_dict_1D, output_dir, seed=seed_to_plot)
         else:
             print("  No seeds available in tf_dict")
     else:
-        print(
-            "  Skipping individual seed vs uniform plots (no 1D uniform results found)"
-        )
+        print("  Skipping individual seed vs uniform plots (no 1D uniform results found)")
 
     print("\n" + "=" * 60)
     print("Transfer function computation complete!")
@@ -1709,9 +1680,7 @@ def _find_peak_amplification(tf: np.ndarray) -> float:
     return float(np.max(tf))
 
 
-def _compute_bandwidth_3db(
-    freq: np.ndarray, tf: np.ndarray, f_peak: float, A_peak: float
-) -> float:
+def _compute_bandwidth_3db(freq: np.ndarray, tf: np.ndarray, f_peak: float, A_peak: float) -> float:
     """
     Compute frequency bandwidth using -3dB (half-power) method.
 
@@ -1791,21 +1760,15 @@ def _compute_bandwidth_3db(
                     f_upper = float(upper_freq[idx])
             else:
                 # No crossing found, use last point above threshold or last frequency
-                f_upper = (
-                    float(upper_freq[-1]) if len(upper_freq) > 0 else float(freq[-1])
-                )
+                f_upper = float(upper_freq[-1]) if len(upper_freq) > 0 else float(freq[-1])
         else:
             # All above or all below threshold
             if np.all(upper_tf >= half_power_level):
                 # All above threshold, use last frequency
-                f_upper = (
-                    float(upper_freq[-1]) if len(upper_freq) > 0 else float(freq[-1])
-                )
+                f_upper = float(upper_freq[-1]) if len(upper_freq) > 0 else float(freq[-1])
             else:
                 # All below threshold, need to extrapolate or use last frequency
-                f_upper = (
-                    float(upper_freq[-1]) if len(upper_freq) > 0 else float(freq[-1])
-                )
+                f_upper = float(upper_freq[-1]) if len(upper_freq) > 0 else float(freq[-1])
     else:
         f_upper = float(freq[-1])
 
@@ -1927,9 +1890,7 @@ def _fit_regression(
         if len(x_clean) >= 3:
             # Suppress RankWarning for polynomial fit with few points
             with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    "ignore", message="Polyfit may be poorly conditioned"
-                )
+                warnings.filterwarnings("ignore", message="Polyfit may be poorly conditioned")
                 coeffs = np.polyfit(x_clean, y_clean, 2)
             y_pred = np.polyval(coeffs, x_clean)
         else:
@@ -2091,9 +2052,7 @@ def compute_spectral_metrics(
                     uniform_freq, uniform_tf, f_peak_homogeneous, A_peak_homogeneous
                 )
             else:
-                bandwidth_homogeneous = _compute_bandwidth_spectral_moment(
-                    uniform_freq, uniform_tf
-                )
+                bandwidth_homogeneous = _compute_bandwidth_spectral_moment(uniform_freq, uniform_tf)
 
             # Get heterogeneous ensemble statistics
             het_stats = results["level1"]["ensemble_stats"][group_key]
@@ -2145,9 +2104,7 @@ def compute_spectral_metrics(
         # Get all unique seeds
         all_seeds = sorted(set(k[4] for k in tf_dict.keys()))
         # Generate all pairs
-        coherency_pairs = [
-            (s1, s2) for i, s1 in enumerate(all_seeds) for s2 in all_seeds[i + 1 :]
-        ]
+        coherency_pairs = [(s1, s2) for i, s1 in enumerate(all_seeds) for s2 in all_seeds[i + 1 :]]
 
     # Compute coherency for each group
     for group_key in results["level1"]["ensemble_stats"]:
@@ -2204,16 +2161,12 @@ def compute_spectral_metrics(
 
         # Extract metrics for regression
         f_peak_means = [
-            results["level1"]["ensemble_stats"][gk]["f_peak"]["mean"]
-            for gk in group_keys
+            results["level1"]["ensemble_stats"][gk]["f_peak"]["mean"] for gk in group_keys
         ]
         A_peak_covs = [
-            results["level1"]["ensemble_stats"][gk]["A_peak"]["cov"]
-            for gk in group_keys
+            results["level1"]["ensemble_stats"][gk]["A_peak"]["cov"] for gk in group_keys
         ]
-        Q_means = [
-            results["level1"]["ensemble_stats"][gk]["Q"]["mean"] for gk in group_keys
-        ]
+        Q_means = [results["level1"]["ensemble_stats"][gk]["Q"]["mean"] for gk in group_keys]
 
         # Get Q(0) for normalization (use lowest CV case)
         Q_0 = Q_means[0] if len(Q_means) > 0 and not np.isnan(Q_means[0]) else None
@@ -2255,9 +2208,7 @@ def compute_spectral_metrics(
         valid_mask_Q = ~np.isnan(Q_array) & (Q_array > 0)
         if Q_0 is not None and Q_0 > 0 and np.sum(valid_mask_Q) >= 1:
             Q_degradation = Q_array[valid_mask_Q] / Q_0
-            Q_degradation_linear = _fit_regression(
-                CV_values[valid_mask_Q], Q_degradation, "linear"
-            )
+            Q_degradation_linear = _fit_regression(CV_values[valid_mask_Q], Q_degradation, "linear")
         else:
             Q_degradation_linear = {
                 "coeffs": np.array([]),
@@ -2285,9 +2236,7 @@ def compute_spectral_metrics(
     return results
 
 
-def plot_level1_metrics(
-    metrics_results: Dict, output_dir: Path, group_by: str = "CV"
-) -> None:
+def plot_level1_metrics(metrics_results: Dict, output_dir: Path, group_by: str = "CV") -> None:
     """
     Plot Level 1 per-realization spectral metrics.
 
@@ -2807,9 +2756,7 @@ def plot_level4_metrics(metrics_results: Dict, output_dir: Path) -> None:
                     label=f"Linear (R²={linear_fit.get('R2', 0):.3f})",
                 )
 
-    ax3.axhline(
-        1.0, color="black", linestyle="--", linewidth=1, alpha=0.5, label="Q(0)"
-    )
+    ax3.axhline(1.0, color="black", linestyle="--", linewidth=1, alpha=0.5, label="Q(0)")
     ax3.set_xlabel("Coefficient of Variation (CV)")
     ax3.set_ylabel("Q(CV) / Q(0)")
     ax3.set_title("Quality Factor Degradation")

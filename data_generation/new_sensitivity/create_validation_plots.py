@@ -277,7 +277,8 @@ def plot_CV_effect_at_fixed_rH(
             ax1.set_ylabel(to_title_case("Transfer Function Magnitude"))
             format_title(
                 f"Geomean TF: Vs1={Vs1:.0f} m/s, $H$={thickness:.0f} m, "
-                + format_label(f"rH={rH:.0f} m") + f", damping={damping_method}",
+                + format_label(f"rH={rH:.0f} m")
+                + f", damping={damping_method}",
                 ax=ax1,
             )
             ax1.set_xlim(1e-1, 5e1)
@@ -318,8 +319,10 @@ def plot_CV_effect_at_fixed_rH(
             ax2.set_xlabel(to_title_case("Frequency (Hz)"))
             ax2.set_ylabel(to_title_case(format_label("CoV")))
             format_title(
-                format_label("CoV") + f" vs Frequency: Vs1={Vs1:.0f} m/s, $H$={thickness:.0f} m, "
-                + format_label(f"rH={rH:.0f} m") + f", damping={damping_method}",
+                format_label("CoV")
+                + f" vs Frequency: Vs1={Vs1:.0f} m/s, $H$={thickness:.0f} m, "
+                + format_label(f"rH={rH:.0f} m")
+                + f", damping={damping_method}",
                 ax=ax2,
             )
             ax2.set_xlim(1e-1, 5e1)
@@ -358,9 +361,7 @@ def plot_rH_effect_at_fixed_CV(
             # Panel 1: Transfer functions
             ax1 = axes[0]
 
-            theoretical_freqs = compute_theoretical_resonance_frequencies(
-                Vs1, thickness, n_modes=5
-            )
+            theoretical_freqs = compute_theoretical_resonance_frequencies(Vs1, thickness, n_modes=5)
             window_fraction = 0.1
 
             rh_colors = [COLORBLIND_COLORS[0], COLORBLIND_COLORS[1]]
@@ -407,7 +408,8 @@ def plot_rH_effect_at_fixed_CV(
             ax1.set_ylabel(to_title_case("Transfer Function Magnitude"))
             format_title(
                 f"Geomean TF: Vs1={Vs1:.0f} m/s, $H$={thickness:.0f} m, "
-                + format_label(f"CV={CV:.2f}") + f", damping={damping_method}",
+                + format_label(f"CV={CV:.2f}")
+                + f", damping={damping_method}",
                 ax=ax1,
             )
             ax1.set_xlim(1e-1, 5e1)
@@ -456,9 +458,7 @@ def plot_rH_effect_at_fixed_CV(
                     for rH in rH_values:
                         if len(mode_data[mode_num][rH]) > 0:
                             plot_data.append(mode_data[mode_num][rH])
-                            plot_labels.append(
-                                f"Mode {mode_num}\n" + format_label(f"rH={rH:.0f}m")
-                            )
+                            plot_labels.append(f"Mode {mode_num}\n" + format_label(f"rH={rH:.0f}m"))
                             plot_positions.append(pos)
                             pos += 1
                     pos += 0.5
@@ -616,9 +616,13 @@ def plot_rH_effect_at_fixed_CV(
                         )
             else:
                 ax3.text(
-                    0.5, 0.5,
+                    0.5,
+                    0.5,
                     "No normalized data\n(Uniform TF not available)",
-                    ha="center", va="center", transform=ax3.transAxes, color="gray",
+                    ha="center",
+                    va="center",
+                    transform=ax3.transAxes,
+                    color="gray",
                 )
                 ax3.set_ylabel(
                     to_title_case("Normalized Band-Averaged TF\n(Relative To Uniform 1D)")
@@ -653,7 +657,9 @@ def plot_velocity_dependent_sensitivity(
 
         combinations = [(rH, cv) for rH in rH_values for cv in CV_values]
         combo_colors = COLORBLIND_COLORS[: len(combinations)]
-        colors_map = {combo: combo_colors[i % len(combo_colors)] for i, combo in enumerate(combinations)}
+        colors_map = {
+            combo: combo_colors[i % len(combo_colors)] for i, combo in enumerate(combinations)
+        }
 
         for idx, Vs1 in enumerate(Vs1_values):
             ax = axes[idx]
@@ -705,8 +711,7 @@ def plot_velocity_dependent_sensitivity(
         )
         plt.tight_layout()
         output_file = (
-            output_dir
-            / f"validation_velocity_dependent_sensitivity_damping_{damping_method}.png"
+            output_dir / f"validation_velocity_dependent_sensitivity_damping_{damping_method}.png"
         )
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         print(f"Saved plot: {output_file}")
@@ -770,10 +775,18 @@ def plot_amplification_vs_CV(
             if uniform_key in tf_dict_1D:
                 uniform_freq, uniform_tf = tf_dict_1D[uniform_key]
                 uniform_peak_1st = find_peak_amplification(
-                    uniform_freq, uniform_tf, mode_number=1, Vs1=Vs1, thickness=thickness,
+                    uniform_freq,
+                    uniform_tf,
+                    mode_number=1,
+                    Vs1=Vs1,
+                    thickness=thickness,
                 )
                 uniform_peak_3rd = find_peak_amplification(
-                    uniform_freq, uniform_tf, mode_number=3, Vs1=Vs1, thickness=thickness,
+                    uniform_freq,
+                    uniform_tf,
+                    mode_number=3,
+                    Vs1=Vs1,
+                    thickness=thickness,
                 )
 
             ax1 = axes[0, col_idx]
@@ -801,22 +814,32 @@ def plot_amplification_vs_CV(
                         geomean = compute_geometric_mean(tf_arrays)
                         peak_amp = find_peak_amplification(
                             common_freq if common_freq is not None else np.array([]),
-                            geomean, mode_number=1, Vs1=Vs1, thickness=thickness,
+                            geomean,
+                            mode_number=1,
+                            Vs1=Vs1,
+                            thickness=thickness,
                         )
                         amplifications.append(peak_amp)
                     else:
                         amplifications.append(np.nan)
 
                 ax1.plot(
-                    CV_values, amplifications, marker="o",
-                    color=rh_colors[rh_idx % len(rh_colors)], linewidth=2.0,
+                    CV_values,
+                    amplifications,
+                    marker="o",
+                    color=rh_colors[rh_idx % len(rh_colors)],
+                    linewidth=2.0,
                     label=format_label(f"rH={rH:.0f} m"),
                 )
 
             if uniform_peak_1st is not None:
                 ax1.axhline(
-                    uniform_peak_1st, color="black", linestyle="--",
-                    linewidth=2.0, alpha=0.7, label="Uniform (1D)",
+                    uniform_peak_1st,
+                    color="black",
+                    linestyle="--",
+                    linewidth=2.0,
+                    alpha=0.7,
+                    label="Uniform (1D)",
                 )
 
             ax1.set_xlabel(to_title_case(format_label("CV")))
@@ -856,22 +879,32 @@ def plot_amplification_vs_CV(
                         geomean = compute_geometric_mean(tf_arrays)
                         peak_amp = find_peak_amplification(
                             common_freq if common_freq is not None else np.array([]),
-                            geomean, mode_number=3, Vs1=Vs1, thickness=thickness,
+                            geomean,
+                            mode_number=3,
+                            Vs1=Vs1,
+                            thickness=thickness,
                         )
                         amplifications.append(peak_amp)
                     else:
                         amplifications.append(np.nan)
 
                 ax2.plot(
-                    CV_values, amplifications, marker="s",
-                    color=rh_colors[rh_idx % len(rh_colors)], linewidth=2.0,
+                    CV_values,
+                    amplifications,
+                    marker="s",
+                    color=rh_colors[rh_idx % len(rh_colors)],
+                    linewidth=2.0,
                     label=format_label(f"rH={rH:.0f} m"),
                 )
 
             if uniform_peak_3rd is not None:
                 ax2.axhline(
-                    uniform_peak_3rd, color="black", linestyle="--",
-                    linewidth=2.0, alpha=0.7, label="Uniform (1D)",
+                    uniform_peak_3rd,
+                    color="black",
+                    linestyle="--",
+                    linewidth=2.0,
+                    alpha=0.7,
+                    label="Uniform (1D)",
                 )
 
             ax2.set_xlabel(to_title_case(format_label("CV")))
@@ -888,9 +921,7 @@ def plot_amplification_vs_CV(
             subfig_idx += 1
 
         plt.tight_layout()
-        output_file = (
-            output_dir / f"validation_amplification_vs_CV_damping_{damping_method}.png"
-        )
+        output_file = output_dir / f"validation_amplification_vs_CV_damping_{damping_method}.png"
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         print(f"Saved plot: {output_file}")
         plt.close()
@@ -919,8 +950,12 @@ def plot_damping_method_comparison(
             if uniform_key in tf_dict_1D:
                 uniform_freq, uniform_tf = tf_dict_1D[uniform_key]
                 ax.loglog(
-                    uniform_freq, uniform_tf, color=color, linewidth=2.0,
-                    linestyle="-", alpha=0.7,
+                    uniform_freq,
+                    uniform_tf,
+                    color=color,
+                    linewidth=2.0,
+                    linestyle="-",
+                    alpha=0.7,
                     label=f"Uniform (1D), {damping_method}",
                 )
 
@@ -943,9 +978,15 @@ def plot_damping_method_comparison(
                     tf_arrays.append(tf)
                 geomean = compute_geometric_mean(tf_arrays)
                 ax.loglog(
-                    common_freq, geomean, color=color, linewidth=2.5, linestyle="--",
-                    label=format_label(f"rH={rH:.0f}") + f", "
-                    + format_label(f"CV={CV:.2f}") + f", {damping_method}",
+                    common_freq,
+                    geomean,
+                    color=color,
+                    linewidth=2.5,
+                    linestyle="--",
+                    label=format_label(f"rH={rH:.0f}")
+                    + f", "
+                    + format_label(f"CV={CV:.2f}")
+                    + f", {damping_method}",
                 )
 
         ax.set_xlabel(to_title_case("Frequency (Hz)"))
@@ -953,7 +994,9 @@ def plot_damping_method_comparison(
         format_title(
             "Damping Method Comparison",
             subtitle=f"Vs1={Vs1:.0f} m/s, $H$={thickness:.0f} m, "
-            + format_label(f"rH={rH:.0f} m") + ", " + format_label(f"CV={CV:.2f}"),
+            + format_label(f"rH={rH:.0f} m")
+            + ", "
+            + format_label(f"CV={CV:.2f}"),
             ax=ax,
         )
         ax.set_xlim(1e-1, 5e1)
@@ -963,9 +1006,7 @@ def plot_damping_method_comparison(
         add_subfigure_label(ax, 0)
 
         plt.tight_layout()
-        output_file = (
-            output_dir / f"damping_comparison_Vs1_{Vs1:.0f}_rH_{rH:.0f}_CV_{CV:.2f}.png"
-        )
+        output_file = output_dir / f"damping_comparison_Vs1_{Vs1:.0f}_rH_{rH:.0f}_CV_{CV:.2f}.png"
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         print(f"Saved plot: {output_file}")
         plt.close()
@@ -998,8 +1039,12 @@ def plot_damping_method_subplots(
             if uniform_key in tf_dict_1D:
                 uniform_freq, uniform_tf = tf_dict_1D[uniform_key]
                 ax.loglog(
-                    uniform_freq, uniform_tf, color="black", linewidth=2.5,
-                    linestyle="-", label="Uniform (1D)",
+                    uniform_freq,
+                    uniform_tf,
+                    color="black",
+                    linewidth=2.5,
+                    linestyle="-",
+                    label="Uniform (1D)",
                 )
 
             filtered_tfs = {
@@ -1021,10 +1066,15 @@ def plot_damping_method_subplots(
                     tf_arrays.append(tf)
                 geomean = compute_geometric_mean(tf_arrays)
                 ax.loglog(
-                    common_freq, geomean, color=COLORBLIND_COLORS[1], linewidth=2.5,
+                    common_freq,
+                    geomean,
+                    color=COLORBLIND_COLORS[1],
+                    linewidth=2.5,
                     linestyle="--",
-                    label=format_label(f"rH={rH:.0f}") + ", "
-                    + format_label(f"CV={CV:.2f}") + " (geomean)",
+                    label=format_label(f"rH={rH:.0f}")
+                    + ", "
+                    + format_label(f"CV={CV:.2f}")
+                    + " (geomean)",
                 )
 
             ax.set_xlabel(to_title_case("Frequency (Hz)"))
@@ -1039,14 +1089,15 @@ def plot_damping_method_subplots(
         fig.suptitle(
             f"$\\bf{{Damping\\ Method\\ Comparison}}$\n"
             f"Vs1={Vs1:.0f} m/s, $H$={thickness:.0f} m, "
-            + format_label(f"rH={rH:.0f} m") + ", " + format_label(f"CV={CV:.2f}"),
+            + format_label(f"rH={rH:.0f} m")
+            + ", "
+            + format_label(f"CV={CV:.2f}"),
             fontsize=14,
             y=1.04,
         )
         plt.tight_layout()
         output_file = (
-            output_dir
-            / f"damping_comparison_subplots_Vs1_{Vs1:.0f}_rH_{rH:.0f}_CV_{CV:.2f}.png"
+            output_dir / f"damping_comparison_subplots_Vs1_{Vs1:.0f}_rH_{rH:.0f}_CV_{CV:.2f}.png"
         )
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         print(f"Saved plot: {output_file}")
@@ -1123,9 +1174,7 @@ def main():
     print("\nMerging timing data...")
     merge_timing_data(script_dir)
 
-    pickle_file = (
-        script_dir / "transfer_function_results" / "transfer_functions_dict.pkl"
-    )
+    pickle_file = script_dir / "transfer_function_results" / "transfer_functions_dict.pkl"
     tf_dict = None
     if pickle_file.exists():
         print(f"\nLoading transfer functions from pickle: {pickle_file}")
@@ -1177,13 +1226,9 @@ def main():
 
     print("\n6. Creating damping method comparison plots...")
     print("  Creating side-by-side comparison plots...")
-    plot_damping_method_comparison(
-        tf_dict, tf_dict_1D, output_dir, rH=50.0, CV=0.3, thickness=50.0
-    )
+    plot_damping_method_comparison(tf_dict, tf_dict_1D, output_dir, rH=50.0, CV=0.3, thickness=50.0)
     print("  Creating subplot comparison plots...")
-    plot_damping_method_subplots(
-        tf_dict, tf_dict_1D, output_dir, rH=50.0, CV=0.3, thickness=50.0
-    )
+    plot_damping_method_subplots(tf_dict, tf_dict_1D, output_dir, rH=50.0, CV=0.3, thickness=50.0)
 
     print("\n" + "=" * 60)
     print("Validation plots complete!")

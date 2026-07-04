@@ -94,7 +94,9 @@ def _install_sigterm_handler():
 def _fmt_hms(seconds: float) -> str:
     """Format seconds as HH:MM:SS."""
     total_seconds = int(seconds)
-    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    return (
+        f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    )
 
 
 def re_discretization(
@@ -135,9 +137,7 @@ def re_discretization(
         raise TypeError(f"Vs_array must be a numpy array, got {type(Vs_array)}")
 
     if Vs_array.ndim != 2:
-        raise ValueError(
-            f"Vs_array must be 2D, got shape {Vs_array.shape} ({Vs_array.ndim}D)"
-        )
+        raise ValueError(f"Vs_array must be 2D, got shape {Vs_array.shape} ({Vs_array.ndim}D)")
 
     if dx_new is None:
         dx_new = dz_new
@@ -234,11 +234,7 @@ def run_case(
     seed_values = [10, 20, 30, 40, 50, 60]  # 6 different seeds
 
     total_combinations = (
-        len(Vs1_list)
-        * len(thickness_list)
-        * len(rH_list)
-        * len(CV_list)
-        * len(seed_values)
+        len(Vs1_list) * len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values)
     )
 
     if index < 0 or index >= total_combinations:
@@ -250,12 +246,8 @@ def run_case(
     # Map index to parameter combination
     # Index structure: index = Vs1_idx * (2*1*1*6) + thickness_idx * (1*1*6) + rH_idx * (1*6) + CV_idx * (6) + seed_idx
     # Order: Vs1 -> thickness -> rH -> CV -> seed
-    Vs1_idx = index // (
-        len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values)
-    )
-    remainder = index % (
-        len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values)
-    )
+    Vs1_idx = index // (len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values))
+    remainder = index % (len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values))
     thickness_idx = remainder // (len(rH_list) * len(CV_list) * len(seed_values))
     remainder = remainder % (len(rH_list) * len(CV_list) * len(seed_values))
     rH_idx = remainder // (len(CV_list) * len(seed_values))
@@ -315,9 +307,7 @@ def run_case(
     # Format realization string and task ID
     realization_idx = seed_idx + 1  # 1-based for s01, s02, etc.
     realization_str = f"s{realization_idx:02d}"
-    task_id = (
-        f"{case_name}_Vs1{Vs1:.0f}_th{thickness:.0f}_rH{rH:.0f}_CV{CV:.3f}_s{seed}"
-    )
+    task_id = f"{case_name}_Vs1{Vs1:.0f}_th{thickness:.0f}_rH{rH:.0f}_CV{CV:.3f}_s{seed}"
 
     print(f"[{case_name}] Starting task {task_id} (index={index})")
     print(f"  Case: {case_name}, Element type: {element_type}")
@@ -330,9 +320,7 @@ def run_case(
     print(f"  f0 = {f0:.4f} Hz")
     print(f"  Duration = {duration:.1f} seconds")
     print(f"  Damping frequencies = {damping_freqs} Hz")
-    print(
-        f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m"
-    )
+    print(f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m")
 
     # Generate VS field with base discretization (2x2)
     t_field_start = time.time()
@@ -373,9 +361,7 @@ def run_case(
     Vs_extended, _ = _extend_profile(Vs_realization, Lx=Lx, dx=dx)
 
     # Extend bedrock mask similarly
-    bedrock_mask_extended, _ = _extend_profile(
-        bedrock_mask_var.astype(float), Lx=Lx, dx=dx
-    )
+    bedrock_mask_extended, _ = _extend_profile(bedrock_mask_var.astype(float), Lx=Lx, dx=dx)
     bedrock_mask_extended = bedrock_mask_extended.astype(bool)
 
     # Save 2D Vs array (needed for results plots)
@@ -623,26 +609,18 @@ if __name__ == "__main__":
             )
             sys.exit(1)
         print(f"[local] Running single case: {args.case}, index={idx}")
-        run_case(
-            args.case, idx
-        )  # type: ignore[arg-type] - argparse validates choices
+        run_case(args.case, idx)  # type: ignore[arg-type] - argparse validates choices
     elif args.case is not None:
         # Run all indices for specific case
-        print(
-            f"[local] Running all {combinations_per_case} combinations for case: {args.case}"
-        )
+        print(f"[local] Running all {combinations_per_case} combinations for case: {args.case}")
         print("[local] This may take a very long time!")
 
         successful = failed = 0
         for i in range(combinations_per_case):
             print(f"\n{'=' * 80}")
-            print(
-                f"[local] Running {args.case} case {i + 1}/{combinations_per_case} (index={i})"
-            )
+            print(f"[local] Running {args.case} case {i + 1}/{combinations_per_case} (index={i})")
             print(f"{'=' * 80}")
-            success, result = _run_single_case(
-                args.case, i
-            )  # type: ignore[arg-type] - argparse validates choices
+            success, result = _run_single_case(args.case, i)  # type: ignore[arg-type] - argparse validates choices
             if success:
                 successful += 1
             else:
@@ -668,9 +646,7 @@ if __name__ == "__main__":
         case_idx = idx // combinations_per_case
         local_idx = idx % combinations_per_case
         case_type = case_types[case_idx]
-        print(
-            f"[slurm] Global index {idx} -> case: {case_type}, local index: {local_idx}"
-        )
+        print(f"[slurm] Global index {idx} -> case: {case_type}, local index: {local_idx}")
         run_case(case_type, local_idx)
     else:
         # Default: Run all cases and all combinations
@@ -694,9 +670,7 @@ if __name__ == "__main__":
                     successful += 1
                 else:
                     failed += 1
-                    print(
-                        f"[local] Case {case_type} index {i} completed with status: {result}"
-                    )
+                    print(f"[local] Case {case_type} index {i} completed with status: {result}")
 
         print(f"\n{'=' * 80}")
         print("[local] All cases completed!")

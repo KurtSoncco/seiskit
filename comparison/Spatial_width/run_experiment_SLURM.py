@@ -65,7 +65,7 @@ def run_array_index(index: int):
 
     # CRITICAL: Set numpy random seed to ensure consistent fields across array tasks
     np.random.seed(seed)
-    
+
     # Generate a single large realization so cropping is consistent across array tasks
     Lx_total_for_field = max(Lx_variability_values)
     print(
@@ -175,7 +175,7 @@ def main():
 
     # Set numpy random seed for reproducibility
     np.random.seed(seed)
-    
+
     print(f"Generating Vs realization for Lx = {np.max(Lx_variability_values)} m...")
     Vs_total_realization, x_coords, z_coords, h_mean = _generate_vs_variability_field(
         Vs_profile_1D,
@@ -265,13 +265,9 @@ def main():
 
     # Prepare all tasks
     all_tasks = []
-    for i, (task_config, material_data) in enumerate(
-        zip(task_configs, material_data_list)
-    ):
+    for i, (task_config, material_data) in enumerate(zip(task_configs, material_data_list)):
         # Create AnalysisConfig from task parameters
-        config = AnalysisConfig(
-            **{k: v for k, v in task_config.items() if k != "task_id"}
-        )
+        config = AnalysisConfig(**{k: v for k, v in task_config.items() if k != "task_id"})
 
         # Create output directory
         output_dir = results[Lx_variability_values[i]]
@@ -455,12 +451,8 @@ def compare_sequential_vs_parallel():
     print("\n1. Sequential Execution:")
     start_time = time.time()
 
-    for i, (task_config, material_data) in enumerate(
-        zip(task_configs, material_data_list)
-    ):
-        config = AnalysisConfig(
-            **{k: v for k, v in task_config.items() if k != "task_id"}
-        )
+    for i, (task_config, material_data) in enumerate(zip(task_configs, material_data_list)):
+        config = AnalysisConfig(**{k: v for k, v in task_config.items() if k != "task_id"})
         output_dir = f"results/comparison/Lx_{Lx_variability_values[i]}"
         os.makedirs(output_dir, exist_ok=True)
 
@@ -470,9 +462,7 @@ def compare_sequential_vs_parallel():
         model_data = build_model_data(
             config, material_data["vs"], material_data["rho"], material_data["nu"]
         )
-        result = run_opensees_analysis(
-            config, model_data, task_config["task_id"], output_dir
-        )
+        result = run_opensees_analysis(config, model_data, task_config["task_id"], output_dir)
         print(f"  Sequential {task_config['task_id']}: {result}")
 
     sequential_time = time.time() - start_time
@@ -483,12 +473,8 @@ def compare_sequential_vs_parallel():
     start_time = time.time()
 
     all_tasks = []
-    for i, (task_config, material_data) in enumerate(
-        zip(task_configs, material_data_list)
-    ):
-        config = AnalysisConfig(
-            **{k: v for k, v in task_config.items() if k != "task_id"}
-        )
+    for i, (task_config, material_data) in enumerate(zip(task_configs, material_data_list)):
+        config = AnalysisConfig(**{k: v for k, v in task_config.items() if k != "task_id"})
         output_dir = f"results/comparison_parallel/Lx_{Lx_variability_values[i]}"
         os.makedirs(output_dir, exist_ok=True)
 
@@ -523,13 +509,9 @@ def _parse_args():
         description="Run Spatial Width experiment. Use --index or SLURM_ARRAY_TASK_ID for array mode."
     )
     p.add_argument("--index", type=int, help="Array index (over Lx_variability_values)")
-    p.add_argument(
-        "--full", action="store_true", help="Run the full parallel experiment then plot"
-    )
+    p.add_argument("--full", action="store_true", help="Run the full parallel experiment then plot")
     p.add_argument("--plot", action="store_true", help="Generate plots from results")
-    p.add_argument(
-        "--compare", action="store_true", help="Compare sequential vs parallel"
-    )
+    p.add_argument("--compare", action="store_true", help="Compare sequential vs parallel")
     return p.parse_args()
 
 
@@ -578,9 +560,7 @@ if __name__ == "__main__":
     else:
         # Default to help if nothing specified
         print("No action specified. Use one of:")
-        print(
-            "  --index N        # run one Lx case by array index (or set SLURM_ARRAY_TASK_ID)"
-        )
+        print("  --index N        # run one Lx case by array index (or set SLURM_ARRAY_TASK_ID)")
         print("  --full           # run full parallel experiment then plot results")
         print("  --plot           # generate plots from existing results")
         print("  --compare        # small perf comparison")

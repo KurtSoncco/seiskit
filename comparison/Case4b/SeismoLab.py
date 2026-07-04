@@ -121,9 +121,7 @@ def resample_to_common_time(
     # Resample the dataset with fewer points
     if reference_accel.ndim == 1:
         # Single node
-        interp_func = interp1d(
-            reference_time, reference_accel, bounds_error=False, fill_value=0.0
-        )
+        interp_func = interp1d(reference_time, reference_accel, bounds_error=False, fill_value=0.0)
         resampled_ref = interp_func(common_time)
         resampled_target = target_accel
     else:
@@ -186,18 +184,14 @@ def plot_error_comparison(
 
     node_indices = np.arange(seismolab_accel.shape[1])
 
-    axes[0].plot(
-        node_indices, mean_abs_error, "b-o", markersize=4, label="Mean Absolute Error"
-    )
+    axes[0].plot(node_indices, mean_abs_error, "b-o", markersize=4, label="Mean Absolute Error")
     axes[0].set_xlabel("Node Index")
     axes[0].set_ylabel("Mean Absolute Error (m/s²)")
     axes[0].set_title("Mean Absolute Error per Node")
     axes[0].grid(True, alpha=0.3)
     axes[0].legend()
 
-    axes[1].plot(
-        node_indices, max_abs_error, "r-o", markersize=4, label="Max Absolute Error"
-    )
+    axes[1].plot(node_indices, max_abs_error, "r-o", markersize=4, label="Max Absolute Error")
     axes[1].set_xlabel("Node Index")
     axes[1].set_ylabel("Max Absolute Error (m/s²)")
     axes[1].set_title("Maximum Absolute Error per Node")
@@ -265,9 +259,7 @@ def plot_pga_comparison(
     axes[1].grid(True, alpha=0.3)
     axes[1].legend()
 
-    axes[2].plot(
-        node_indices, pga_error_percent, "m-o", markersize=4, label="PGA Error %"
-    )
+    axes[2].plot(node_indices, pga_error_percent, "m-o", markersize=4, label="PGA Error %")
     axes[2].axhline(y=0, color="k", linestyle="--", linewidth=1)
     axes[2].set_xlabel("Node Index")
     axes[2].set_ylabel("PGA Error (%)")
@@ -320,9 +312,7 @@ def plot_transfer_functions_opensees(
         print("Warning: Base and surface time arrays don't match. Using surface time.")
         common_time = surface_time
         # Resample base acceleration to match surface time
-        interp_func = interp1d(
-            base_time, base_accel, bounds_error=False, fill_value=0.0
-        )
+        interp_func = interp1d(base_time, base_accel, bounds_error=False, fill_value=0.0)
         base_accel = interp_func(common_time)
     else:
         common_time = base_time
@@ -450,15 +440,9 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("Summary Statistics")
     print("=" * 60)
-    print(
-        f"Mean Absolute Error - Mean: {np.mean(error_stats['mean_abs_error']):.6e} m/s²"
-    )
-    print(
-        f"Mean Absolute Error - Max: {np.max(error_stats['mean_abs_error']):.6e} m/s²"
-    )
-    print(
-        f"Max Absolute Error - Mean: {np.mean(error_stats['max_abs_error']):.6e} m/s²"
-    )
+    print(f"Mean Absolute Error - Mean: {np.mean(error_stats['mean_abs_error']):.6e} m/s²")
+    print(f"Mean Absolute Error - Max: {np.max(error_stats['mean_abs_error']):.6e} m/s²")
+    print(f"Max Absolute Error - Mean: {np.mean(error_stats['max_abs_error']):.6e} m/s²")
     print(f"Max Absolute Error - Max: {np.max(error_stats['max_abs_error']):.6e} m/s²")
     print(f"RMSE - Mean: {np.mean(error_stats['rmse']):.6e} m/s²")
     print(f"RMSE - Max: {np.max(error_stats['rmse']):.6e} m/s²")

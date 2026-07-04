@@ -37,9 +37,7 @@ def main() -> int:
         raise SystemExit(f"H5 dir not found: {h5_dir}")
 
     complete = {
-        int(p.stem.split("_")[1])
-        for p in h5_dir.glob("run_*.h5")
-        if p.stem.split("_")[1].isdigit()
+        int(p.stem.split("_")[1]) for p in h5_dir.glob("run_*.h5") if p.stem.split("_")[1].isdigit()
     }
 
     to_remove: list[Path] = []

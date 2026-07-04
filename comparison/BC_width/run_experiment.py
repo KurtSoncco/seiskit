@@ -29,7 +29,9 @@ from seiskit.ttf.TTF import TTF
 def _fmt_hms(seconds: float) -> str:
     """Format seconds as HH:MM:SS."""
     total_seconds = int(seconds)
-    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    return (
+        f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    )
 
 
 def run_array_index(index: int):
@@ -339,9 +341,7 @@ def _parse_args():
         description="Run BC Width experiment. Use --index or SLURM_ARRAY_TASK_ID for array mode."
     )
     p.add_argument("--index", type=int, help="Array index (0-13)")
-    p.add_argument(
-        "--full", action="store_true", help="Run the full parallel experiment"
-    )
+    p.add_argument("--full", action="store_true", help="Run the full parallel experiment")
     p.add_argument("--plot", action="store_true", help="Generate plots from results")
     return p.parse_args()
 
@@ -372,9 +372,7 @@ if __name__ == "__main__":
     # Non-array modes
     if args.full:
         print("[program] Running full experiment (array mode recommended)...")
-        print(
-            "For full experiment with 14 tasks, use SLURM array job or run each index manually."
-        )
+        print("For full experiment with 14 tasks, use SLURM array job or run each index manually.")
         sys.exit(1)
 
     elif args.plot:

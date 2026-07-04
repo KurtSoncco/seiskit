@@ -296,9 +296,7 @@ def plot_stacked_acceleration(
             scaled_accel = accel * scale_factor
             ax.plot(scaled_accel, time, color="gray", alpha=alpha, linewidth=0.8)
 
-        format_title(
-            f"{model_name} — Surface Nodes Acceleration X (Stacked And Scaled)", ax=ax
-        )
+        format_title(f"{model_name} — Surface Nodes Acceleration X (Stacked And Scaled)", ax=ax)
         ax.set_xlabel(to_title_case("Acceleration + Offset (m/s²)"))
         ax.set_ylabel(to_title_case("Time (S)"))
         ax.grid(True, alpha=0.3)
@@ -594,7 +592,9 @@ def plot_realization(
     ax.set_xlabel(to_title_case("Distance (M)"))
     ax.set_ylabel(to_title_case("Depth (M)"))
     format_title(
-        title if title is not None else r"Optimized 2D $V_s$ Realization (Soil-Focused Color Scale)",
+        title
+        if title is not None
+        else r"Optimized 2D $V_s$ Realization (Soil-Focused Color Scale)",
         ax=ax,
     )
     ax.grid(False)

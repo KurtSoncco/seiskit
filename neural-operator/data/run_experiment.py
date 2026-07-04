@@ -223,7 +223,9 @@ def _recorder_y_sort_key(path: Path) -> float:
     return float(match.group(1))
 
 
-def _load_recorder_txt(recorder_dir: Path, quantity: str = "accel") -> tuple[np.ndarray, np.ndarray]:
+def _load_recorder_txt(
+    recorder_dir: Path, quantity: str = "accel"
+) -> tuple[np.ndarray, np.ndarray]:
     """Load OpenSees recorder files and return ``(time, data)``."""
     center_glob = list(recorder_dir.glob(f"center_node_y*_dof1_{quantity}.txt"))
     row_glob = list(recorder_dir.glob(f"row_y*_dof1_{quantity}.txt"))
@@ -299,13 +301,19 @@ def _write_h5(
     try:
         import h5py  # type: ignore[import-untyped]
     except ImportError as exc:
-        raise ImportError("h5py is required for HDF5 output; install with pip install h5py") from exc
+        raise ImportError(
+            "h5py is required for HDF5 output; install with pip install h5py"
+        ) from exc
 
     h5_path.parent.mkdir(parents=True, exist_ok=True)
     lossy = os.getenv("SOBOL_H5_LOSSY", "0") == "1"
     lossy_tol = float(os.getenv("SOBOL_H5_LOSSY_TOLERANCE", "1e-5"))
     comp_grid = _get_compression_grid()
-    comp_ts = _get_compression_recorder_lossy(lossy_tol) if lossy else _get_compression_recorder_lossless()
+    comp_ts = (
+        _get_compression_recorder_lossy(lossy_tol)
+        if lossy
+        else _get_compression_recorder_lossless()
+    )
 
     def _kw(compression):
         return compression if isinstance(compression, dict) else {"compression": compression}
@@ -428,7 +436,9 @@ def _run_case_impl(
     output_dir.mkdir(parents=True, exist_ok=True)
     np.savetxt(output_dir / "Vs_profile_1D.txt", Vs_profile_1D)
 
-    task_id = f"{CASE_TYPE}_sample{entry.sample_id:04d}_rep{entry.replicate_id:02d}_seed{entry.rf_seed}"
+    task_id = (
+        f"{CASE_TYPE}_sample{entry.sample_id:04d}_rep{entry.replicate_id:02d}_seed{entry.rf_seed}"
+    )
 
     print(f"[{CASE_TYPE}] Starting task {task_id} (index={index})")
     print(
@@ -474,7 +484,10 @@ def _run_case_impl(
         boundary_condition_type="2D",
         record_center_nodes=False,
         center_node_y_positions=[2.0, Lz],
-        record_lateral_span_at_center_depths=(10, 15.0), # Nodes each side of center node, spacing between nodes
+        record_lateral_span_at_center_depths=(
+            10,
+            15.0,
+        ),  # Nodes each side of center node, spacing between nodes
         record_all_surface_nodes=False,
         element_type=ELEMENT_TYPE,
         solver_type="Mumps",

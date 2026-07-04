@@ -69,9 +69,7 @@ def re_discretization(
         raise TypeError(f"Vs_array must be a numpy array, got {type(Vs_array)}")
 
     if Vs_array.ndim != 2:
-        raise ValueError(
-            f"Vs_array must be 2D, got shape {Vs_array.shape} ({Vs_array.ndim}D)"
-        )
+        raise ValueError(f"Vs_array must be 2D, got shape {Vs_array.shape} ({Vs_array.ndim}D)")
 
     if not np.issubdtype(Vs_array.dtype, np.number):
         raise ValueError(f"Vs_array must have numeric dtype, got {Vs_array.dtype}")
@@ -193,21 +191,15 @@ if __name__ == "__main__":
         except (OSError, IOError):
             if attempt == max_retries - 1:
                 raise
-            time.sleep(
-                0.1 * (attempt + 1)
-            )  # Exponential backoff: 0.1s, 0.2s, 0.3s, 0.4s
+            time.sleep(0.1 * (attempt + 1))  # Exponential backoff: 0.1s, 0.2s, 0.3s, 0.4s
 
     print(f"[run_array_index] Starting task {task_id} (index={index})")
     print(f"  rH = {rH} m, CV = {CV}, seed = {seed}")
-    print(
-        f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m"
-    )
+    print(f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m")
 
     # Generate VS field with the specified parameters
     print(f"[run_array_index] Generating VS field with seed={seed}")
-    print(
-        f"[run_array_index] Using interlayer_seed={interlayer_seed} for wavy boundary"
-    )
+    print(f"[run_array_index] Using interlayer_seed={interlayer_seed} for wavy boundary")
     np.random.seed(seed)
     Vs_realization, x_coords, z_coords, h_mean = _generate_vs_variability_field(
         Vs_profile_1D,

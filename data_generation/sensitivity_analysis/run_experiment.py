@@ -60,9 +60,7 @@ def _configure_slurm_environment() -> None:
     task_id = os.getenv("SLURM_ARRAY_TASK_ID", "-")
     node = os.getenv("SLURMD_NODENAME", os.uname().nodename)
     cpus = slurm_cpus or "-"
-    print(
-        f"[slurm] job_id={job_id} array_id={array_id} task_id={task_id} node={node} cpus={cpus}"
-    )
+    print(f"[slurm] job_id={job_id} array_id={array_id} task_id={task_id} node={node} cpus={cpus}")
 
 
 def _install_sigterm_handler():
@@ -85,7 +83,9 @@ def _install_sigterm_handler():
 def _fmt_hms(seconds: float) -> str:
     """Format seconds as HH:MM:SS."""
     total_seconds = int(seconds)
-    return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    return (
+        f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+    )
 
 
 def run_case(index: int = 0):
@@ -119,11 +119,7 @@ def run_case(index: int = 0):
     seed_values = [10, 20, 30, 40, 50]  # 5 different seeds
 
     total_combinations = (
-        len(Vs1_list)
-        * len(thickness_list)
-        * len(rH_list)
-        * len(CV_list)
-        * len(seed_values)
+        len(Vs1_list) * len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values)
     )
 
     if index < 0 or index >= total_combinations:
@@ -134,12 +130,8 @@ def run_case(index: int = 0):
 
     # Map index to parameter combination
     # Index structure: index = Vs1_idx * (3*2*3*5) + thickness_idx * (2*3*5) + rH_idx * (3*5) + CV_idx * 5 + seed_idx
-    Vs1_idx = index // (
-        len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values)
-    )
-    remainder = index % (
-        len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values)
-    )
+    Vs1_idx = index // (len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values))
+    remainder = index % (len(thickness_list) * len(rH_list) * len(CV_list) * len(seed_values))
     thickness_idx = remainder // (len(rH_list) * len(CV_list) * len(seed_values))
     remainder = remainder % (len(rH_list) * len(CV_list) * len(seed_values))
     rH_idx = remainder // (len(CV_list) * len(seed_values))
@@ -182,9 +174,7 @@ def run_case(index: int = 0):
     # Format realization string and task ID
     realization_idx = seed_idx + 1  # 1-based for s01, s02, etc.
     realization_str = f"s{realization_idx:02d}"
-    task_id = (
-        f"{case_type}_Vs1{Vs1:.0f}_th{thickness:.0f}_rH{rH:.0f}_CV{CV:.3f}_s{seed}"
-    )
+    task_id = f"{case_type}_Vs1{Vs1:.0f}_th{thickness:.0f}_rH{rH:.0f}_CV{CV:.3f}_s{seed}"
 
     print(f"[{case_type}] Starting task {task_id} (index={index})")
     print(f"  Case: {case_type}, Element type: {element_type}")
@@ -194,29 +184,25 @@ def run_case(index: int = 0):
     print(f"  Damping method: {damping_method}")
     print(f"  rH = {rH} m, CV = {CV}, seed = {seed}, realization = {realization_str}")
     print(f"  Motion frequency = {motion_freq} Hz")
-    print(
-        f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m"
-    )
+    print(f"  Lx_variability = {Lx_variability} m, BC_width = {BC_width} m, Total Lx = {Lx} m")
 
     # Generate VS field
     t_field_start = time.time()
     print(f"[{case_type}] Generating VS field with seed={seed}")
     np.random.seed(seed)
-    Vs_realization, x_coords, z_coords, h_mean, bedrock_mask_var = (
-        _generate_vs_variability_field(
-            Vs_profile_1D,
-            Lx_variability,
-            Lz,
-            dx,
-            dz,
-            rH,
-            aHV,
-            CV,
-            seed=seed,
-            dz_1D=dz_1D,
-            interlayer_seed=interlayer_seed,
-            interlayer_amplitude=interlayer_amplitude,
-        )
+    Vs_realization, x_coords, z_coords, h_mean, bedrock_mask_var = _generate_vs_variability_field(
+        Vs_profile_1D,
+        Lx_variability,
+        Lz,
+        dx,
+        dz,
+        rH,
+        aHV,
+        CV,
+        seed=seed,
+        dz_1D=dz_1D,
+        interlayer_seed=interlayer_seed,
+        interlayer_amplitude=interlayer_amplitude,
     )
     field_generation_time = time.time() - t_field_start
 
@@ -233,9 +219,7 @@ def run_case(index: int = 0):
         Lx=Lx,
         dx=dx,
     )
-    bedrock_mask_extended = bedrock_mask_extended.astype(
-        bool
-    )  # Convert back to boolean
+    bedrock_mask_extended = bedrock_mask_extended.astype(bool)  # Convert back to boolean
 
     # Save  Vs realization plot
     plot_realization(
