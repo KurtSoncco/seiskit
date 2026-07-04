@@ -21,10 +21,6 @@ import threading
 import time
 from pathlib import Path
 
-THIS_DIR = Path(__file__).resolve().parent
-if str(THIS_DIR) not in sys.path:
-    sys.path.insert(0, str(THIS_DIR))
-
 import numpy as np
 
 from seiskit.analysis import run_opensees_analysis
@@ -33,12 +29,17 @@ from seiskit.config import AnalysisConfig
 from seiskit.gaussian_field import _extend_profile, _generate_vs_variability_field
 from seiskit.plot_results import get_damping_zeta_grid
 from seiskit.solver_utils import get_solver_info
-from sobol import (
+
+THIS_DIR = Path(__file__).resolve().parent
+if str(THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(THIS_DIR))
+
+from sobol import (  # noqa: E402
     DEFAULT_BEDROCK_THICKNESS,
     DEFAULT_DZ_1D,
     DEFAULT_MOTION_FREQ,
-    DEFAULT_RF_SEEDS_PER_SAMPLE,
     DEFAULT_RF_SEED_GENERATOR,
+    DEFAULT_RF_SEEDS_PER_SAMPLE,
     DEFAULT_SAMPLER_SEED,
     DEFAULT_SOBOL_SAMPLE_COUNT,
     ManifestEntry,

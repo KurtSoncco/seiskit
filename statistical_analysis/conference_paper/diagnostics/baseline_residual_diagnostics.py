@@ -7,21 +7,21 @@ and predicted vs actual for channel 50 baseline models.
 """
 
 import sys
-from pathlib import Path
 import warnings
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from scipy import stats
 import statsmodels.formula.api as smf
+from scipy import stats
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_channel50, FACTORS
+from config import FACTORS, load_channel50  # noqa: E402
 
 d50 = load_channel50()
 

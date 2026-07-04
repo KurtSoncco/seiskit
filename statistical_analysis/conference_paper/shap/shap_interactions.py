@@ -6,12 +6,13 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+
 import shap
 
 matplotlib.use("Agg")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_channel50, FACTORS, load_mean_models, seed_grouped_split, cached_shap
+from config import FACTORS, cached_shap, load_channel50, load_mean_models, seed_grouped_split
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 

@@ -7,20 +7,20 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
 import shap
+from seiskit.plot_config import apply_style, panel_letter, result_path
 
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import (
-    load_channel50,
+from config import (  # noqa: E402
     FACTORS,
+    cached_shap,
+    load_channel50,
     load_quantile_models,
     seed_grouped_split,
-    cached_shap,
 )
-
-from seiskit.plot_config import apply_style, panel_letter, result_path
 
 apply_style(auto_format=True, font_size=10, frame="open")
 

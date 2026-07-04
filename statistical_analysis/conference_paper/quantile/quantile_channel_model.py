@@ -32,15 +32,14 @@ from pathlib import Path
 
 import joblib
 import lightgbm as lgb
-import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.model_selection import GroupShuffleSplit
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_channel50, FACTORS, MODELS_DIR
+from config import FACTORS, MODELS_DIR, load_channel50
 
 # ---------------------------------------------------------------------------
 # CLI flags
@@ -96,6 +95,7 @@ print(f"  └─ Fit: {len(fit_df):,}  Val (early-stop): {len(val_df):,}")
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def pinball_loss(y_true, y_pred, tau):
     """Quantile (pinball) loss."""
@@ -264,8 +264,12 @@ for col_idx, (tgt_key, tgt_col) in enumerate(TARGETS.items()):
     xs = np.arange(len(sort_idx))
 
     ax.fill_between(
-        xs, pred_05[sort_idx], pred_95[sort_idx],
-        color=color, alpha=0.15, label="5-95 %",
+        xs,
+        pred_05[sort_idx],
+        pred_95[sort_idx],
+        color=color,
+        alpha=0.15,
+        label="5-95 %",
     )
     ax.plot(xs, pred_50[sort_idx], "-", color=color, lw=0.6, label="median")
     ax.plot(xs, y_te[sort_idx], ",", color="0.3", alpha=0.15, rasterized=True)

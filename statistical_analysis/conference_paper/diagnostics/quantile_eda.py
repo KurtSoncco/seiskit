@@ -11,13 +11,13 @@ In each panel, three lines represent p5, p50, and p95, by changing the values of
 import sys
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_channel50, FACTORS
+from config import FACTORS, load_channel50
 
 # Load data
 d50 = load_channel50()

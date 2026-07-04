@@ -7,8 +7,8 @@ Generates a 1x3 panel figure covering distributions in panels a-c.
 import sys
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 

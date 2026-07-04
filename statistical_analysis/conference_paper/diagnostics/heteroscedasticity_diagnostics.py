@@ -10,19 +10,18 @@ Focus on f_ratio and log_abs_TF_ratio.
 import sys
 from pathlib import Path
 
+import cmcrameri.cm as cmc
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import statsmodels.api as sm
 from scipy.stats import levene, pearsonr
 from statsmodels.stats.diagnostic import het_breuschpagan
-import statsmodels.api as sm
-
-import cmcrameri.cm as cmc
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_channel50, FACTORS
+from config import FACTORS, load_channel50
 
 # Load data
 d50 = load_channel50()
@@ -176,7 +175,7 @@ axes[1, 1].set_ylim(0, 0.8)
 ax = axes[1, 2]
 xpos = 0
 
-# Standarize colors of factors using cmc.nuuk 
+# Standarize colors of factors using cmc.nuuk
 factor_colors = {
     "Vs1": cmc.nuuk(0.2),
     "Height": cmc.nuuk(0.8),

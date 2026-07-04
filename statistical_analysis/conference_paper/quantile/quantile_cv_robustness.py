@@ -24,15 +24,15 @@ from itertools import product
 from pathlib import Path
 
 import lightgbm as lgb
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.model_selection import GroupKFold
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_channel50, FACTORS
+from config import FACTORS, load_channel50
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -47,11 +47,13 @@ TARGETS = {"f_ratio": "f_ratio", "log_abs": "log_abs"}
 # ---------------------------------------------------------------------------
 # Hyperparameter grid — keep it small to stay tractable
 # ---------------------------------------------------------------------------
-HP_GRID = list(product(
-    [0.01, 0.05, 0.10],          # learning_rate
-    [15, 31, 63],                 # num_leaves
-    [20, 50],                     # min_child_samples
-))
+HP_GRID = list(
+    product(
+        [0.01, 0.05, 0.10],  # learning_rate
+        [15, 31, 63],  # num_leaves
+        [20, 50],  # min_child_samples
+    )
+)
 HP_NAMES = ["lr", "leaves", "min_child"]
 
 LGB_FIXED = dict(
@@ -79,6 +81,7 @@ print(f"Data loaded: {len(d50):,} rows, {N_FOLDS}-fold CV\n")
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def pinball_loss(y_true, y_pred, tau):
     e = y_true - y_pred
     return np.mean(np.where(e >= 0, tau * e, (tau - 1) * e))
@@ -88,9 +91,11 @@ def _fit_one(X_fit, y_fit, X_val, y_val, params):
     ds_fit = lgb.Dataset(X_fit, label=y_fit, free_raw_data=False)
     ds_val = lgb.Dataset(X_val, label=y_val, reference=ds_fit, free_raw_data=False)
     model = lgb.train(
-        params, ds_fit,
+        params,
+        ds_fit,
         num_boost_round=MAX_ROUNDS,
-        valid_sets=[ds_val], valid_names=["val"],
+        valid_sets=[ds_val],
+        valid_names=["val"],
         callbacks=[
             lgb.early_stopping(stopping_rounds=EARLY_STOP),
             lgb.log_evaluation(period=0),
@@ -112,6 +117,7 @@ def _inner_val_split(X_tr, y_tr, groups_tr, rng):
 # ---------------------------------------------------------------------------
 # CV evaluation for one (target, split_by, hp_combo)
 # ---------------------------------------------------------------------------
+
 
 def cv_evaluate(tgt_col, split_by, lr, leaves, mcs, rng):
     """Run grouped K-fold CV and return per-fold metrics."""
@@ -149,11 +155,15 @@ def cv_evaluate(tgt_col, split_by, lr, leaves, mcs, rng):
         for j, tau in enumerate(TAUS):
             pl = pinball_loss(y_te, raw[:, j], tau)
             cov = np.mean(y_te <= raw[:, j])
-            fold_records.append(dict(
-                fold=fold, tau=tau,
-                pinball=pl, coverage=cov,
-                cal_error=abs(cov - tau),
-            ))
+            fold_records.append(
+                dict(
+                    fold=fold,
+                    tau=tau,
+                    pinball=pl,
+                    coverage=cov,
+                    cal_error=abs(cov - tau),
+                )
+            )
 
     return pd.DataFrame(fold_records)
 
@@ -179,9 +189,13 @@ for split_by in ["seed", "cell"]:
     agg = (
         split_results[split_by]
         .groupby(["target", "tau"])
-        .agg(pinball_mean=("pinball", "mean"), pinball_std=("pinball", "std"),
-             cov_mean=("coverage", "mean"), cov_std=("coverage", "std"),
-             cal_err=("cal_error", "mean"))
+        .agg(
+            pinball_mean=("pinball", "mean"),
+            pinball_std=("pinball", "std"),
+            cov_mean=("coverage", "mean"),
+            cov_std=("coverage", "std"),
+            cal_err=("cal_error", "mean"),
+        )
         .reset_index()
     )
     print(agg.to_string(index=False, float_format="%.4f"))
@@ -197,17 +211,22 @@ print("=" * 70)
 hp_records = []
 for i, (lr, leaves, mcs) in enumerate(HP_GRID):
     tag = f"lr={lr} leaves={leaves} mcs={mcs}"
-    print(f"  [{i+1}/{len(HP_GRID)}] {tag}", flush=True)
+    print(f"  [{i + 1}/{len(HP_GRID)}] {tag}", flush=True)
     rng = np.random.default_rng(0)
     for tgt_key, tgt_col in TARGETS.items():
         df = cv_evaluate(tgt_col, "seed", lr, leaves, mcs, rng)
         median_rows = df[df.tau == 0.50]
-        hp_records.append(dict(
-            lr=lr, leaves=leaves, mcs=mcs, target=tgt_key,
-            pinball_mean=median_rows["pinball"].mean(),
-            pinball_std=median_rows["pinball"].std(),
-            cal_err_mean=median_rows["cal_error"].mean(),
-        ))
+        hp_records.append(
+            dict(
+                lr=lr,
+                leaves=leaves,
+                mcs=mcs,
+                target=tgt_key,
+                pinball_mean=median_rows["pinball"].mean(),
+                pinball_std=median_rows["pinball"].std(),
+                cal_err_mean=median_rows["cal_error"].mean(),
+            )
+        )
 
 hp_df = pd.DataFrame(hp_records)
 for tgt_key in TARGETS:
@@ -232,18 +251,31 @@ for col_idx, (tgt_key, _) in enumerate(TARGETS.items()):
     ax = axes[0, col_idx]
     for split_by in ["seed", "cell"]:
         sub = split_results[split_by]
-        sub = sub[sub.target == tgt_key].groupby("tau").agg(
-            m=("pinball", "mean"), s=("pinball", "std"),
-        ).reset_index()
+        sub = (
+            sub[sub.target == tgt_key]
+            .groupby("tau")
+            .agg(
+                m=("pinball", "mean"),
+                s=("pinball", "std"),
+            )
+            .reset_index()
+        )
         ax.plot(
-            sub["tau"], sub["m"],
-            marker=split_marker[split_by], ls=split_ls[split_by],
-            color=tcol[tgt_key], ms=5, lw=1.5,
+            sub["tau"],
+            sub["m"],
+            marker=split_marker[split_by],
+            ls=split_ls[split_by],
+            color=tcol[tgt_key],
+            ms=5,
+            lw=1.5,
             label=f"{split_by}-grouped",
         )
         ax.fill_between(
-            sub["tau"], sub["m"] - sub["s"], sub["m"] + sub["s"],
-            color=tcol[tgt_key], alpha=0.12,
+            sub["tau"],
+            sub["m"] - sub["s"],
+            sub["m"] + sub["s"],
+            color=tcol[tgt_key],
+            alpha=0.12,
         )
     ax.set_xlabel(r"quantile $\tau$")
     ax.set_ylabel("pinball loss (CV mean ± 1 sd)")
@@ -257,18 +289,31 @@ for col_idx, (tgt_key, _) in enumerate(TARGETS.items()):
     ax.plot([0, 1], [0, 1], "k--", lw=0.8, alpha=0.4, label="ideal")
     for split_by in ["seed", "cell"]:
         sub = split_results[split_by]
-        sub = sub[sub.target == tgt_key].groupby("tau").agg(
-            m=("coverage", "mean"), s=("coverage", "std"),
-        ).reset_index()
+        sub = (
+            sub[sub.target == tgt_key]
+            .groupby("tau")
+            .agg(
+                m=("coverage", "mean"),
+                s=("coverage", "std"),
+            )
+            .reset_index()
+        )
         ax.plot(
-            sub["tau"], sub["m"],
-            marker=split_marker[split_by], ls=split_ls[split_by],
-            color=tcol[tgt_key], ms=5, lw=1.5,
+            sub["tau"],
+            sub["m"],
+            marker=split_marker[split_by],
+            ls=split_ls[split_by],
+            color=tcol[tgt_key],
+            ms=5,
+            lw=1.5,
             label=f"{split_by}-grouped",
         )
         ax.fill_between(
-            sub["tau"], sub["m"] - sub["s"], sub["m"] + sub["s"],
-            color=tcol[tgt_key], alpha=0.12,
+            sub["tau"],
+            sub["m"] - sub["s"],
+            sub["m"] + sub["s"],
+            color=tcol[tgt_key],
+            alpha=0.12,
         )
     ax.set_xlabel(r"nominal $\tau$")
     ax.set_ylabel("observed coverage (CV mean ± 1 sd)")
@@ -280,7 +325,8 @@ for col_idx, (tgt_key, _) in enumerate(TARGETS.items()):
 
 fig.suptitle(
     f"QBM robustness: {N_FOLDS}-fold grouped CV — split strategy & calibration",
-    fontsize=11, y=1.005,
+    fontsize=11,
+    y=1.005,
 )
 fig.tight_layout()
 fname = result_path("plots", "quantile_cv_robustness.png")

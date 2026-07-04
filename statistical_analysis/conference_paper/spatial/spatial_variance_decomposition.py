@@ -6,13 +6,12 @@ Produces: spatial_variance_decomposition.csv
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from seiskit.plot_config import result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_master, FACTORS
+from config import FACTORS, load_master
 
 # ---------------------------------------------------------------------------
 # Data

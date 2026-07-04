@@ -16,13 +16,9 @@ All figures follow the centralized publication-quality style from
 
 import os
 import re
-import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,7 +29,6 @@ from seiskit.plot_config import (
     add_subfigure_label,
     apply_style,
     format_title,
-    get_crameri_cmap,
     place_legend,
     to_title_case,
 )

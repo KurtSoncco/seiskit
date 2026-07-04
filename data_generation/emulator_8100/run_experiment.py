@@ -307,7 +307,10 @@ def _write_h5(
         if lossy
         else _get_compression_recorder_lossless()
     )
-    _kw = lambda c: c if isinstance(c, dict) else {"compression": c}
+
+    def _kw(c):
+        return c if isinstance(c, dict) else {"compression": c}
+
     # Load recorders and apply time downsampling before writing
     time_arr, data = _load_recorder_txt(recorder_dir, quantity="accel")
     downsample = max(1, int(os.getenv("EMULATOR_8100_H5_DOWNSAMPLE", "1")))

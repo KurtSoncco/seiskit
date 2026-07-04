@@ -36,7 +36,6 @@ from seiskit.gaussian_field import (
 from seiskit.plot_results import plot_damping_realization, plot_realization
 from seiskit.solver_utils import get_solver_info
 
-
 TOTAL_COMBINATIONS = 32  # 10 + 10 + 12
 
 

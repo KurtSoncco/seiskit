@@ -8,16 +8,16 @@ for both target variables at channel 50.
 import sys
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import numpy as np
 from scipy import stats
 from scipy.stats import boxcox, boxcox_normmax
-import matplotlib.ticker as ticker
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_channel50, FACTORS
+from config import FACTORS, load_channel50
 
 # Load data
 d50 = load_channel50()
@@ -131,7 +131,7 @@ qq(axes[0, 1], np.log(d50["abs_TF_ratio"]), "abs TF ratio — log", "#C44E52", s
 qq(
     axes[0, 2],
     d50["abs_TF_ratio"] ** 0 + bc(d50["abs_TF_ratio"].values, lam_abs),
-    f"abs TF ratio — Box-Cox $\lambda$ = {lam_abs:.2f}",
+    rf"abs TF ratio — Box-Cox $\lambda$ = {lam_abs:.2f}",
     "#C44E52",
     step=1.0,
 )
@@ -144,14 +144,14 @@ qq(axes[1, 1], np.log(d50["f_ratio"]), "f ratio — log", "#4C72B0", step=0.2)
 qq(
     axes[1, 2],
     bc(d50["f_ratio"].values, lam_f),
-    f"f ratio — Box-Cox $\lambda$ = {lam_f:.2f}",
+    rf"f ratio — Box-Cox $\lambda$ = {lam_f:.2f}",
     "#4C72B0",
     step=0.2,
 )
 
 # Add panel letters and title
-for l, ax in zip("abcdef", axes.ravel()):
-    panel_letter(ax, l)
+for letter, ax in zip("abcdef", axes.ravel()):
+    panel_letter(ax, letter)
 fig.suptitle(
     "Normal QQ plots: Raw, Log, and Box-Cox transformed targets (Recorder 50) · Points on the line = Normal",
     fontsize=10,

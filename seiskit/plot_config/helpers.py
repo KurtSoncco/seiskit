@@ -7,7 +7,6 @@ from __future__ import annotations
 import string
 from typing import Iterable, Sequence
 
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure

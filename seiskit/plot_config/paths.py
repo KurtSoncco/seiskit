@@ -29,6 +29,7 @@ TOPIC_BY_SCRIPT = {
     "quantile_shap_interactions": "shap",
     "quantile_shap_interactions_101ch": "shap",
     "quantile_shap_tails": "shap",
+    "quantile_shape_cell": "shap",
     "shap_interactions": "shap",
     "shap_summary_abs_TF": "shap",
     "shap_summary_f_ratio": "shap",

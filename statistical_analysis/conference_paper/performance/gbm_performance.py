@@ -9,19 +9,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.metrics import r2_score, mean_pinball_loss
-
-from seiskit.plot_config import apply_style, panel_letter, result_path
 from config import (
-    load_channel50,
     FACTORS,
+    load_channel50,
     load_mean_models,
     load_quantile_models,
     seed_grouped_split,
 )
+from sklearn.metrics import mean_pinball_loss, r2_score
+
+from seiskit.plot_config import apply_style, panel_letter, result_path
 
 warnings.filterwarnings("ignore")
 

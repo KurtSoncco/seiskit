@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
-from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -15,7 +14,7 @@ THIS_DIR = Path(__file__).resolve().parent
 if str(THIS_DIR) not in sys.path:
     sys.path.insert(0, str(THIS_DIR))
 
-from sobol import load_manifest_csv
+from sobol import load_manifest_csv  # noqa: E402
 
 
 def main() -> int:

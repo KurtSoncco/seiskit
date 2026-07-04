@@ -6,20 +6,20 @@ dashed OLS reference line.
 """
 
 import sys
+import warnings
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
-import warnings
-
-warnings.filterwarnings("ignore")
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
+warnings.filterwarnings("ignore")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_channel50, FACTORS
+from config import FACTORS, load_channel50  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Data

@@ -8,15 +8,13 @@ seed structure, and interaction heatmap for the center recorder.
 import sys
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_channel50, FACTORS
-
-import cmcrameri.cm as cmc
+from config import FACTORS, load_channel50
 
 # Load data
 d50 = load_channel50()
@@ -72,7 +70,7 @@ for j, (tgt, col, ttl) in enumerate(
     ax.set_xticks(xticks)
     ax.set_xticklabels(xlabs, fontsize=6)
     ax.set_ylabel(f"mean {ttl}")
-    ax.set_title(f"{ttl}: marginal means ($V_{s1}$·$H$·$CoV$·$r_h$·$a_hv$)", loc="left")
+    ax.set_title(f"{ttl}: marginal means ($V_{{s1}}$·$H$·$CoV$·$r_h$·$a_hv$)", loc="left")
     panel_letter(ax, "de"[j])
 
 ax = fig.add_subplot(gs[1, 2])
@@ -111,7 +109,7 @@ ax.plot(sm.index, sm.values, "o", ms=3, color="#8172B3", alpha=0.7)
 ax.axhline(sm.mean(), color="0.3", ls="--", lw=1, label=f"grand mean {sm.mean():.2f}")
 ax.set_xlabel("seed")
 ax.set_ylabel("mean abs TF ratio")
-ax.set_title(f"Per-seed mean varies 0.08–0.54 (not flat)", loc="left")
+ax.set_title("Per-seed mean varies 0.08–0.54 (not flat)", loc="left")
 ax.legend(loc="upper right", fontsize=6)
 panel_letter(ax, "h")
 

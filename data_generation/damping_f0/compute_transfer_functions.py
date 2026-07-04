@@ -24,15 +24,9 @@ import seaborn as sns
 from scipy.interpolate import interp1d
 
 from seiskit.plot_config import (
-    COLORBLIND_COLORS,
-    add_subfigure_label,
     apply_style,
-    format_title,
-    get_crameri_cmap,
-    place_legend,
     to_title_case,
 )
-from seiskit.plot_config.labels import format_label
 from seiskit.ttf.TTF import TTF
 
 # Apply centralized publication-quality style

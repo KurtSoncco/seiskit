@@ -5,24 +5,24 @@ reproducibility, spread attribution, and extrapolation degradation curves.
 """
 
 import sys
+import warnings
 from pathlib import Path
 
+import lightgbm as lgb
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from scipy import stats
 from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.pipeline import make_pipeline
-import lightgbm as lgb
-import warnings
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+
+from seiskit.plot_config import apply_style, panel_letter, result_path
 
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_channel50, FACTORS
-
-from seiskit.plot_config import apply_style, panel_letter, result_path
+from config import FACTORS, load_channel50  # noqa: E402
 
 apply_style(auto_format=True, font_size=10, frame="open")
 

@@ -7,15 +7,16 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
 import shap
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import (
-    load_channel50,
     FACTORS,
+    cached_shap,
+    load_channel50,
     load_quantile_models,
     seed_grouped_split,
-    cached_shap,
 )
 
 from seiskit.plot_config import apply_style, panel_letter, result_path

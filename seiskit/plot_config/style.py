@@ -11,11 +11,9 @@ sizes, and legend placement — eliminating boilerplate in analysis scripts.
 from __future__ import annotations
 
 import itertools
-import re
-from typing import Iterator, Sequence
+from typing import Iterator
 
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
@@ -94,13 +92,20 @@ HATCH_PATTERNS: list[str] = ["", "//", "\\\\", "xx", "..", "++", "oo", "**"]
 _ACTIVE_FONT_SIZE: int = FONT_SIZE
 
 
-def _patched_set_xlabel(self, xlabel, *args, **kwargs):
+def _normalize_font_kw(kwargs: dict) -> None:
+    """Map matplotlib font aliases so ``size`` and ``fontsize`` are not both set."""
+    if "size" in kwargs:
+        kwargs.setdefault("fontsize", kwargs.pop("size"))
     kwargs.setdefault("fontsize", _ACTIVE_FONT_SIZE)
+
+
+def _patched_set_xlabel(self, xlabel, *args, **kwargs):
+    _normalize_font_kw(kwargs)
     return _ORIG_SET_XLABEL(self, to_title_case(format_label(xlabel)), *args, **kwargs)
 
 
 def _patched_set_ylabel(self, ylabel, *args, **kwargs):
-    kwargs.setdefault("fontsize", _ACTIVE_FONT_SIZE)
+    _normalize_font_kw(kwargs)
     return _ORIG_SET_YLABEL(self, to_title_case(format_label(ylabel)), *args, **kwargs)
 
 

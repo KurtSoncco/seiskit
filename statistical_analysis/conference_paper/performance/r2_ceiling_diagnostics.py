@@ -3,15 +3,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
-import lightgbm as lgb
+from config import FACTORS, load_channel50
 from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.model_selection import cross_val_predict, KFold, GroupShuffleSplit
 from sklearn.metrics import r2_score
+from sklearn.model_selection import GroupShuffleSplit, KFold, cross_val_predict
 
 from seiskit.plot_config import result_path
-from config import load_channel50, FACTORS
 
 d = load_channel50()
 d["cell"] = d.groupby(FACTORS).ngroup()

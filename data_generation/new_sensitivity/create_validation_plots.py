@@ -20,7 +20,6 @@ from typing import Dict, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 from compute_transfer_functions import (
     compute_coefficient_of_variation,
     compute_geometric_mean,
@@ -29,6 +28,7 @@ from compute_transfer_functions import (
     load_all_results,
     load_tf_dict_from_pickle,
 )
+
 from seiskit.plot_config import (
     COLORBLIND_COLORS,
     add_subfigure_label,
@@ -485,7 +485,7 @@ def plot_rH_effect_at_fixed_CV(
 
                     ax2.set_ylabel(to_title_case("Local Band-Averaged TF"))
                     format_title(
-                        f"Local Band-Averaged TF Around Each Mode",
+                        "Local Band-Averaged TF Around Each Mode",
                         subtitle=f"Vs1={Vs1:.0f} m/s, $H$={thickness:.0f} m",
                         ax=ax2,
                     )
@@ -683,7 +683,7 @@ def plot_velocity_dependent_sensitivity(
                         tf_arrays.append(tf)
 
                     geomean = compute_geometric_mean(tf_arrays)
-                    label = format_label(f"rH={rH:.0f}") + f", " + format_label(f"CV={cv:.1f}")
+                    label = format_label(f"rH={rH:.0f}") + ", " + format_label(f"CV={cv:.1f}")
                     ax.loglog(
                         common_freq,
                         geomean,
@@ -984,7 +984,7 @@ def plot_damping_method_comparison(
                     linewidth=2.5,
                     linestyle="--",
                     label=format_label(f"rH={rH:.0f}")
-                    + f", "
+                    + ", "
                     + format_label(f"CV={CV:.2f}")
                     + f", {damping_method}",
                 )

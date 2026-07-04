@@ -1,18 +1,19 @@
 """Per-quantile SHAP interaction heatmaps across all 101 recorders."""
 
-import sys
 import string
+import sys
 import time
 from pathlib import Path
 
+import lightgbm as lgb
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
 import shap
-import lightgbm as lgb
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_master, FACTORS, seed_grouped_split, cached_shap
+from config import FACTORS, cached_shap, load_master, seed_grouped_split
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 

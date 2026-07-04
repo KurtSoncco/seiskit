@@ -384,7 +384,7 @@ def _write_h5(
             )
             ds_data.attrs["layout"] = "n_time x n_channels"
             # Lateral row depths (m), ascending, matching column blocks after numeric file sort.
-            row_paths = list(recorder_dir.glob(f"row_y*_dof1_accel.txt"))
+            row_paths = list(recorder_dir.glob("row_y*_dof1_accel.txt"))
             if row_paths:
                 ys = sorted({_recorder_y_sort_key(p) for p in row_paths})
                 ds_data.attrs["row_y_m"] = np.asarray(ys, dtype=np.float64)

@@ -24,13 +24,11 @@ from seiskit.damping import (
     compute_quality_factor,
 )
 from seiskit.plot_config.colormaps import get_crameri_cmap
-from seiskit.plot_config.helpers import add_subfigure_label, format_title, place_legend
+from seiskit.plot_config.helpers import add_subfigure_label, format_title
 from seiskit.plot_config.labels import format_label, to_title_case
 from seiskit.plot_config.style import (
     COLORBLIND_COLORS,
-    FONT_SIZE,
     apply_style,
-    get_model_color,
     get_plotly_layout,
 )
 from seiskit.ttf.TTF import TTF

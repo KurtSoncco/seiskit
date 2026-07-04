@@ -5,19 +5,19 @@ Uses pre-trained quantile models from models/ instead of re-fitting,
 reducing runtime from hours to ~30 seconds.
 """
 
-import sys
 import string
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+from config import FACTORS, load_master, load_quantile_models, seed_grouped_split
 from sklearn.metrics import r2_score
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
-from config import load_master, FACTORS, load_quantile_models, seed_grouped_split
 
 apply_style(auto_format=True, font_size=10, frame="open")
 

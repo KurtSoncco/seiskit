@@ -6,22 +6,21 @@ variance component.
 Produces: spatial_101ch_structure.png
 """
 
-import sys
 import string
+import sys
 import warnings
 from pathlib import Path
 
+import cmcrameri.cm as cmc
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from numpy.linalg import lstsq
-
-import cmcrameri.cm as cmc
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import load_master, FACTORS
+from config import FACTORS, load_master
 
 warnings.filterwarnings("ignore")
 
@@ -182,7 +181,15 @@ labs = [
     "design×chan",
     "3-way+resid",
 ]
-cols_ = [cmc.lapaz(0.2), cmc.lapaz(0.8), cmc.lapaz(0.4), cmc.lapaz(0.6), cmc.lapaz(0.3), cmc.lapaz(0.7), cmc.lapaz(0.5)]
+cols_ = [
+    cmc.lapaz(0.2),
+    cmc.lapaz(0.8),
+    cmc.lapaz(0.4),
+    cmc.lapaz(0.6),
+    cmc.lapaz(0.3),
+    cmc.lapaz(0.7),
+    cmc.lapaz(0.5),
+]
 bottom = np.zeros(2)
 x = [0, 1]
 for comp, lab, cc in zip(comps, labs, cols_):
