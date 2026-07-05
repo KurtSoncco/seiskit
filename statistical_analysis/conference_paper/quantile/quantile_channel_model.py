@@ -219,30 +219,30 @@ if SAVE:
 # Figure — diagnostics
 # ---------------------------------------------------------------------------
 apply_style(auto_format=True, font_size=10, frame="open")
-fig, axes = plt.subplots(3, 2, figsize=(12, 13))
+fig, axes = plt.subplots(2, 4, figsize=(13, 5), layout="constrained")
 
 nice = {"log_abs": "log_abs", "f_ratio": "$f$ ratio"}
 tcol = {"log_abs": "#C44E52", "f_ratio": "#4C72B0"}
 
-for col_idx, (tgt_key, tgt_col) in enumerate(TARGETS.items()):
+for row_idx, (tgt_key, tgt_col) in enumerate(TARGETS.items()):
     X_te, y_te = test[FACTORS], test[tgt_col].values
     color = tcol[tgt_key]
     preds_sorted = predict_sorted(models[tgt_key], X_te)
 
-    # --- Row 0: Feature importance (gain) for median model ---
-    ax = axes[0, col_idx]
+    # --- Column 0: Feature importance (gain) for median model ---
+    ax = axes[row_idx, 0]
     imp = models[tgt_key][0.50].feature_importance(importance_type="gain")
     imp = imp / imp.sum()
     order = np.argsort(imp)
     ax.barh(np.arange(len(FACTORS)), imp[order], color=color, alpha=0.85)
     ax.set_yticks(np.arange(len(FACTORS)))
     ax.set_yticklabels(np.array(FACTORS)[order])
-    ax.set_xlabel("normalised gain")
-    ax.set_title(f"{nice[tgt_key]}: feature importance (median QBM)", loc="left")
-    panel_letter(ax, chr(97 + col_idx))
+    ax.set_xlabel("Normalised Gain")
+    ax.set_xlim(0, 1)
+    ax.set_title(f"{nice[tgt_key]}: feature importance (Median QBM)", loc="left")
 
-    # --- Row 1: Calibration — observed coverage vs nominal (corrected) ---
-    ax = axes[1, col_idx]
+    # --- Column 1: Calibration — observed coverage vs nominal (corrected) ---
+    ax = axes[row_idx, 1]
     coverages = [np.mean(y_te <= preds_sorted[:, j]) for j in range(len(TAUS))]
     ax.plot(TAUS, coverages, "o-", color=color, ms=6, lw=1.8, label="observed", zorder=3)
     ax.plot([0, 1], [0, 1], "k--", lw=1, alpha=0.5, label="ideal")
@@ -252,10 +252,9 @@ for col_idx, (tgt_key, tgt_col) in enumerate(TARGETS.items()):
     ax.legend(fontsize=8, frameon=False)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    panel_letter(ax, chr(99 + col_idx))
 
-    # --- Row 2: Prediction interval fan (crossing-corrected) ---
-    ax = axes[2, col_idx]
+    # --- Column 2: Prediction interval fan (crossing-corrected) ---
+    ax = axes[row_idx, 2]
     pred_50 = preds_sorted[:, TAUS.index(0.50)]
     pred_05 = preds_sorted[:, TAUS.index(0.05)]
     pred_95 = preds_sorted[:, TAUS.index(0.95)]
@@ -273,17 +272,49 @@ for col_idx, (tgt_key, tgt_col) in enumerate(TARGETS.items()):
     )
     ax.plot(xs, pred_50[sort_idx], "-", color=color, lw=0.6, label="median")
     ax.plot(xs, y_te[sort_idx], ",", color="0.3", alpha=0.15, rasterized=True)
-    ax.set_xlabel("test observations (sorted by predicted median)")
+    ax.set_xlabel("Test Observations (Sorted by Predicted Median)")
     ax.set_ylabel(nice[tgt_key])
-    ax.set_title(f"{nice[tgt_key]}: prediction interval fan (test set)", loc="left")
-    ax.legend(fontsize=7, frameon=False, loc="upper left")
-    panel_letter(ax, chr(101 + col_idx))
+    ax.set_xlim(0, len(sort_idx))
+
+    # For f_Ratio, yaxis would be from 0.6 to 1.4, for log_abs, y axis would be from -4 to 1
+    if tgt_key == "f_ratio":
+        ax.set_ylim(0.6, 1.4)
+    elif tgt_key == "log_abs":
+        ax.set_ylim(-4, 1)
+    ax.set_title(f"{nice[tgt_key]}: prediction interval fan (Test Set)", loc="left")
+    ax.legend(fontsize=10, frameon=False)
+
+    # --- Column 3: Pinball loss vs quantile ---
+    ax = axes[row_idx, 3]
+    pb_losses = [pinball_loss(y_te, preds_sorted[:, j], TAUS[j]) for j in range(len(TAUS))]
+    ax.plot(TAUS, pb_losses, "o-", color=color, ms=6, lw=1.8, label="pinball loss")
+    ax.set_xlabel("nominal quantile $\tau$")
+    ax.set_ylabel("pinball loss")
+    ax.set_title(f"{nice[tgt_key]}: pinball loss vs quantile", loc="left")
+    ax.legend(fontsize=8, frameon=False)
+    ax.set_xlim(0, 1)
+
+    # for f_ratio, yaxis from 1e-3 to 2.25e-2. for log_abs, yaxis from 1e-2 to 0.5.
+    if tgt_key == "f_ratio":
+        ax.set_ylim(1e-3, 3.0e-2)
+    elif tgt_key == "log_abs":
+        ax.set_ylim(1e-2, 0.5)
+
+    ax.set_title(f"{nice[tgt_key]}: pinball loss vs quantile", loc="left")
+
 
 fig.suptitle(
     f"Quantile Boosting Models — LightGBM  ({label} test set)",
     fontsize=11,
-    y=1.005,
 )
+panel_letter(axes[0, 0], "a")
+panel_letter(axes[0, 1], "b")
+panel_letter(axes[0, 2], "c")
+panel_letter(axes[0, 3], "d")
+panel_letter(axes[1, 0], "e")
+panel_letter(axes[1, 1], "f")
+panel_letter(axes[1, 2], "g")
+panel_letter(axes[1, 3], "h")
 fig.tight_layout()
 fname = result_path("plots", "quantile_channel_model.png")
 fig.savefig(fname, dpi=150, bbox_inches="tight")

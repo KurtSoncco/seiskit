@@ -24,6 +24,7 @@ from itertools import combinations
 from pathlib import Path
 
 import cmcrameri.cm as cmc
+import matplotlib.cm as mpl_cm
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.model_selection import GroupShuffleSplit
@@ -41,27 +42,27 @@ SHAP_N = 2000
 PDP_GRID = 25
 
 # Uniform coloring of factors
-FACTOR_COL = {
-    "Vs1": cmc.nuuk(0.2),
-    "Height": cmc.nuuk(0.8),
-    "CoV": cmc.nuuk(0.4),
-    "rH": cmc.nuuk(0.6),
-    "aHV": cmc.nuuk(0.3),
+FACTOR_PLOT = {
+    "Vs1": {"color": cmc.nuuk(0.2), "marker": "o"},
+    "Height": {"color": cmc.nuuk(0.8), "marker": "v"},
+    "CoV": {"color": cmc.nuuk(0.4), "marker": "s"},
+    "rH": {"color": cmc.nuuk(0.6), "marker": "d"},
+    "aHV": {"color": cmc.nuuk(0.3), "marker": "x"},
 }
 
 FACTOR_LIM = {
-    "Vs1": (100, 360),
-    "Height": (15, 100),
-    "CoV": (0.1, 0.3),
-    "rH": (10, 50),
-    "aHV": (1, 50),
+    "Vs1": {"limits": (100, 360), "step": 40},
+    "Height": {"limits": (15, 100), "step": 10},
+    "CoV": {"limits": (0.1, 0.3), "step": 0.05},
+    "rH": {"limits": (10, 50), "step": 10},
+    "aHV": {"limits": (1, 50), "step": 5},
 }
 
 # Nice labels for targets
 NICE = {"log_abs": "log_abs", "f_ratio": "$f$ ratio"}
 
 # Target-specific colors
-TCOL = {"log_abs": FACTOR_COL["Vs1"], "f_ratio": FACTOR_COL["Height"]}
+TCOL = {"log_abs": "#C44E52", "f_ratio": "#4C72B0"}
 
 # Cell-grouped train split (matches quantile_channel_model.py --split cell)
 d50 = load_channel50()
@@ -144,16 +145,44 @@ pairs = list(combinations(range(len(FACTORS)), 2))
 # Apply style to plots
 apply_style(auto_format=True, font_size=10, frame="open")
 
-# Plot beeswarm (τ=0.50)
-for tgt_key in TARGETS:
-    plt.figure(figsize=(8, 5))
-    shap.summary_plot(shap_vals[tgt_key][0.50], X_shap, feature_names=FACTORS, show=False)
-    plt.title(f"{NICE[tgt_key]}: SHAP beeswarm (τ=0.50, cell-grouped)")
-    plt.tight_layout()
-    plt.savefig(
-        result_path("plots", f"quantile_shap_beeswarm_{tgt_key}.png"), dpi=150, bbox_inches="tight"
+# Plot beeswarm (τ=0.50) for both targets in a 1x2 figure with one colorbar
+beeswarm_cmap = cmc.berlin
+fig, axes = plt.subplots(1, 2, figsize=(13, 5), layout="constrained")
+mean_abs = np.mean([np.abs(shap_vals[t][0.50]).mean(0) for t in TARGETS], axis=0)
+feature_order = np.argsort(-mean_abs)
+
+for col, tgt_key in enumerate(TARGETS):
+    expl = shap.Explanation(
+        values=shap_vals[tgt_key][0.50],
+        data=X_shap.values,
+        feature_names=FACTORS,
     )
-    plt.close()
+    shap.plots.beeswarm(
+        expl,
+        ax=axes[col],
+        show=False,
+        color=beeswarm_cmap,
+        color_bar=False,
+        plot_size=None,
+        order=feature_order,
+    )
+    axes[col].set_title(NICE[tgt_key])
+    if col > 0:
+        axes[col].set_yticklabels([])
+    panel_letter(axes[col], "ab"[col])
+
+sm = mpl_cm.ScalarMappable(cmap=beeswarm_cmap)
+sm.set_array([0, 1])
+# Locate correctly the colorbar to the right of the figure, without superimposing on the plots
+cbar = fig.colorbar(sm, ax=axes, ticks=[0, 1], shrink=0.85, location="right")
+cbar.set_ticklabels(["Low", "High"])
+cbar.set_label("Feature value")
+cbar.ax.tick_params(length=0)
+
+fig.suptitle("SHAP beeswarm (τ=0.50, Cell-Grouped QBM)")
+fig.tight_layout()
+fig.savefig(result_path("plots", "quantile_shap_beeswarm.png"), dpi=150, bbox_inches="tight")
+plt.close()
 
 # Plot quantile-specific physics
 fig, axes = plt.subplots(1, 2, figsize=(13, 5))
@@ -161,15 +190,34 @@ for col, tgt_key in enumerate(TARGETS):
     ax = axes[col]
     for fi, feat in enumerate(FACTORS):
         y = [np.abs(shap_vals[tgt_key][t][:, fi]).mean() for t in TAUS]
-        ax.plot(TAUS, y, "o-", color=FACTOR_COL[feat], ms=5, lw=1.5, label=feat)
+        ax.plot(
+            TAUS,
+            y,
+            marker=FACTOR_PLOT[feat]["marker"],
+            color=FACTOR_PLOT[feat]["color"],
+            ms=5,
+            lw=1.5,
+            label=feat,
+        )
     ax.set(
         xlabel=r"quantile $\tau$",
         ylabel=r"mean $|$SHAP$|$",
-        title=f"{NICE[tgt_key]}: quantile-specific physics",
     )
-    ax.legend(fontsize=7, frameon=False, ncol=2)
+    ax.legend(fontsize=10, frameon=False, ncol=2)
+    ax.set_title(f"{NICE[tgt_key]}: quantile-specific physics", loc="left")
+
+    # Set xlim and xticks
+    ax.set_xlim(0, 1)
+    ax.set_xticks(np.arange(0, 1.01, 0.1))
+
+    # For f_ratio, ylim would be from 0 to 0.06, for log_abs, ylim would be from 0 to 0.6
+    if tgt_key == "f_ratio":
+        ax.set_ylim(0, 0.06)
+    elif tgt_key == "log_abs":
+        ax.set_ylim(0, 0.6)
+
     panel_letter(ax, "ab"[col])
-fig.suptitle("Factor importance across quantiles (cell-grouped QBM)")
+fig.suptitle("Factor importance across quantiles (Cell-Grouped QBM)", fontsize=10)
 fig.tight_layout()
 fig.savefig(result_path("plots", "quantile_shap_physics.png"), dpi=150, bbox_inches="tight")
 plt.close()
@@ -188,7 +236,14 @@ for tgt_key in TARGETS:
                 ax.set_ylabel(f"τ={tau:g}\nPD")
             if row == 2:
                 ax.set_xlabel(feat)
-            ax.set_xlim(FACTOR_LIM[feat])
+            ax.set_xlim(FACTOR_LIM[feat]["limits"][0], FACTOR_LIM[feat]["limits"][1])
+            ax.set_xticks(
+                np.arange(
+                    FACTOR_LIM[feat]["limits"][0],
+                    FACTOR_LIM[feat]["limits"][1] + FACTOR_LIM[feat]["step"],
+                    FACTOR_LIM[feat]["step"],
+                )
+            )
     fig.suptitle(f"{NICE[tgt_key]}: partial dependence (cell-grouped QBM)")
     fig.tight_layout()
     fig.savefig(
@@ -198,7 +253,7 @@ for tgt_key in TARGETS:
 
 # Plot Friedman H² heatmaps
 for tgt_key in TARGETS:
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4.2))
+    fig, axes = plt.subplots(1, 3, figsize=(13, 5))
     im = None
     for k, (ax, tau) in enumerate(zip(axes, [0.05, 0.50, 0.95])):
         model = models[tgt_key][tau]
@@ -207,7 +262,7 @@ for tgt_key in TARGETS:
             h[i, j] = h[j, i] = friedman_h2(
                 model, X_ref, i, j, grids[FACTORS[i]], grids[FACTORS[j]]
             )
-        im = ax.imshow(h, cmap=cmc.tokyo, vmin=0, vmax=max(0.15, h.max()))
+        im = ax.imshow(h, cmap=cmc.lapaz, vmin=0, vmax=max(0.15, h.max()))
         ax.set_xticks(range(len(FACTORS)))
         ax.set_yticks(range(len(FACTORS)))
         ax.set_xticklabels(FACTORS, rotation=45, ha="right", fontsize=8)
@@ -223,7 +278,5 @@ for tgt_key in TARGETS:
     fig.colorbar(im, ax=axes, location="right", shrink=0.8, label=r"$H^2$")
 
     fig.suptitle(f"{NICE[tgt_key]}: Friedman $H^2$ interaction strength")
-    fig.savefig(
-        result_path("plots", f"quantile_shap_hstat_{tgt_key}.png"), dpi=150, bbox_inches="tight"
-    )
+    fig.savefig(result_path("plots", f"quantile_shap_hstat_{tgt_key}.png"), dpi=150)
     plt.close()
