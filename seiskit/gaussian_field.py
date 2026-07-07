@@ -58,6 +58,25 @@ def generate_gaussian_field_fft(
     return field
 
 
+def _wavy_interface_depth(
+    base_depth: float,
+    x: np.ndarray,
+    rng: np.random.Generator,
+    amplitude: float,
+) -> np.ndarray:
+    """Generate a randomly wavy interface depth profile (sum of 3 sinusoids)."""
+    freq1 = rng.uniform(1 / 80, 1 / 40)
+    freq2 = rng.uniform(1 / 40, 1 / 20)
+    freq3 = rng.uniform(1 / 20, 1 / 10)
+    phase_offset = rng.uniform(0, 2 * np.pi)
+    wave_amplitude = amplitude * (
+        np.sin(2 * np.pi * freq1 * x + phase_offset)
+        + np.sin(2 * np.pi * freq2 * x + phase_offset)
+        + np.sin(2 * np.pi * freq3 * x + phase_offset)
+    )
+    return base_depth + wave_amplitude
+
+
 def _generate_vs_variability_field(
     Vs_profile: np.ndarray,
     Lx_variability: float,
@@ -136,16 +155,7 @@ def _generate_vs_variability_field(
     # 3. Interlayer Variability (Wavy Boundary)
     # Generate a random wavy interface using a sum of sinusoids
     # Use interlayer_rng to allow separate seed control
-    freq1 = interlayer_rng.uniform(1 / 80, 1 / 40)
-    freq2 = interlayer_rng.uniform(1 / 40, 1 / 20)
-    freq3 = interlayer_rng.uniform(1 / 20, 1 / 10)
-    phase_offset = interlayer_rng.uniform(0, 2 * np.pi)
-    wave_amplitude = (interlayer_amplitude) * (
-        np.sin(2 * np.pi * freq1 * x_var + phase_offset)
-        + np.sin(2 * np.pi * freq2 * x_var + phase_offset)
-        + np.sin(2 * np.pi * freq3 * x_var + phase_offset)
-    )
-    interface_depth = h + wave_amplitude
+    interface_depth = _wavy_interface_depth(h, x_var, interlayer_rng, interlayer_amplitude)
 
     # 4. Combine Layers and Handle Boundary Cells
     # Find the row index of the cell containing the interface for each column
@@ -359,6 +369,295 @@ def create_vs_realization(
         final_Vs = var_Vs_field
         x_total = x_var
         bedrock_mask = mask_bottom_layer
+
+    return final_Vs, x_total, z, h, bedrock_mask
+
+
+def _generate_three_layer_vs_variability_field(
+    Vs1: float,
+    Vs_mid: float,
+    Vs_bedrock: float,
+    H1: float,
+    H2: float,
+    Lx_variability: float,
+    Lz: float,
+    dx: float,
+    dz: float,
+    rH1: float,
+    aHV1: float,
+    CV1: float,
+    rH2: float,
+    aHV2: float,
+    CV2: float,
+    seed1: Optional[int] = 42,
+    seed2: Optional[int] = 43,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Tuple[float, float], np.ndarray]:
+    """
+    Generates a 2D Vs variability field for a 3-layer profile: two independently
+    variable soil layers (each with its own lognormal random field) over a
+    constant-velocity bedrock half-space. Both interfaces are flat (horizontal)
+    — only intralayer variability is modeled, no interlayer waviness.
+
+    Args:
+        Vs1: Nominal shear wave velocity of the top soil layer [m/s].
+        Vs_mid: Nominal shear wave velocity of the middle soil layer [m/s].
+        Vs_bedrock: Constant shear wave velocity of the bedrock [m/s].
+        H1: Nominal thickness of the top soil layer [m].
+        H2: Nominal thickness of the middle soil layer [m].
+        Lx_variability: Horizontal length of the spatially variable region [m].
+        Lz: Vertical depth of the domain [m].
+        dx: Grid spacing in the horizontal direction [m].
+        dz: Grid spacing in the vertical direction [m].
+        rH1, aHV1, CV1: Correlation length, anisotropy ratio, and coefficient of
+            variation for the top layer's intralayer variability.
+        rH2, aHV2, CV2: Same, for the middle layer.
+        seed1, seed2: Random seeds for each layer's spatial field.
+    Returns:
+        A tuple containing:
+        - var_Vs_field (np.ndarray): The 2D Vs variability field, shape (nz, nx_var).
+        - x_var (np.ndarray): The horizontal coordinates array for the variable region.
+        - z (np.ndarray): The vertical coordinates array.
+        - (h1, h2): Nominal depths of the top and bottom interfaces [m].
+        - bedrock_mask (np.ndarray): Boolean mask, True where bedrock.
+    """
+    rng1 = np.random.default_rng(seed1)
+    rng2 = np.random.default_rng(seed2)
+
+    nx_var = int(Lx_variability / dx)
+    nz = int(Lz / dz)
+    x_var = np.linspace(0, Lx_variability - dx, nx_var) + dx / 2
+    z = np.linspace(0, Lz - dz, nz) + dz / 2
+
+    def _lognormal_field(nominal: float, rH: float, aHV: float, CV: float, rng) -> np.ndarray:
+        gaussian_field = generate_gaussian_field_fft(nx_var, nz, dx, dz, rH, aHV, rng)
+        log_std = np.sqrt(np.log(1 + CV**2))
+        log_mean = np.log(nominal) - 0.5 * log_std**2
+        field = np.exp(log_mean + log_std * gaussian_field)
+        v_min, v_max = np.exp(log_mean - 2 * log_std), np.exp(log_mean + 2 * log_std)
+        return np.clip(field, v_min, v_max)
+
+    field1 = _lognormal_field(Vs1, rH1, aHV1, CV1, rng1)
+    field2 = _lognormal_field(Vs_mid, rH2, aHV2, CV2, rng2)
+
+    h1 = H1
+    h2 = H1 + H2
+    interface1_depth = np.full_like(x_var, h1)
+    interface2_depth = np.full_like(x_var, h2)
+
+    mask1 = z[:, np.newaxis] > interface1_depth[np.newaxis, :]  # below top interface
+    mask2 = z[:, np.newaxis] > interface2_depth[np.newaxis, :]  # below bottom interface (bedrock)
+
+    Vs_field = np.where(mask1, field2, field1)
+    Vs_field = np.where(mask2, Vs_bedrock, Vs_field)
+
+    cols = np.arange(nx_var)
+
+    # Harmonic average at the top-interface boundary cells (layer1 <-> layer2)
+    row1 = np.clip(np.floor(interface1_depth / dz).astype(int), 0, nz - 1)
+    h1_in_cell = interface1_depth - row1 * dz
+    h2_in_cell = dz - h1_in_cell
+    top_val = field1[row1, cols]
+    bot_val = field2[row1, cols]
+    Vs_field[row1, cols] = dz / (h1_in_cell / top_val + h2_in_cell / bot_val)
+
+    # Harmonic average at the bottom-interface boundary cells (layer2 <-> bedrock)
+    row2 = np.clip(np.floor(interface2_depth / dz).astype(int), 0, nz - 1)
+    h1_in_cell2 = interface2_depth - row2 * dz
+    h2_in_cell2 = dz - h1_in_cell2
+    top_val2 = field2[row2, cols]
+    Vs_field[row2, cols] = dz / (h1_in_cell2 / top_val2 + h2_in_cell2 / Vs_bedrock)
+
+    return Vs_field, x_var, z, (h1, h2), mask2
+
+
+def create_three_layer_vs_realization(
+    Vs1: float,
+    Vs_mid: float,
+    Vs_bedrock: float,
+    H1: float,
+    H2: float,
+    Lx: float,
+    Lx_variability: float,
+    Lz: float,
+    dx: float,
+    dz: float,
+    rH1: float,
+    aHV1: float,
+    CV1: float,
+    rH2: float,
+    aHV2: float,
+    CV2: float,
+    seed1: Optional[int] = 42,
+    seed2: Optional[int] = 43,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Tuple[float, float], np.ndarray]:
+    """Generates a 2D spatial variability realization of a 3-layer Vs profile
+    (top soil / middle soil / bedrock), extended to the full domain width.
+
+    See `_generate_three_layer_vs_variability_field` for parameter details.
+    """
+    if Lx < Lx_variability:
+        raise ValueError("Total length Lx must be greater than or equal to Lx_variability.")
+
+    var_Vs_field, x_var, z, h, bedrock_mask_var = _generate_three_layer_vs_variability_field(
+        Vs1=Vs1,
+        Vs_mid=Vs_mid,
+        Vs_bedrock=Vs_bedrock,
+        H1=H1,
+        H2=H2,
+        Lx_variability=Lx_variability,
+        Lz=Lz,
+        dx=dx,
+        dz=dz,
+        rH1=rH1,
+        aHV1=aHV1,
+        CV1=CV1,
+        rH2=rH2,
+        aHV2=aHV2,
+        CV2=CV2,
+        seed1=seed1,
+        seed2=seed2,
+    )
+
+    final_Vs, x_total = _extend_profile(var_Vs_field, Lx=Lx, dx=dx)
+    bedrock_mask_f, _ = _extend_profile(bedrock_mask_var.astype(float), Lx=Lx, dx=dx)
+    bedrock_mask = bedrock_mask_f.astype(bool)
+
+    return final_Vs, x_total, z, h, bedrock_mask
+
+
+def _generate_dipping_vs_variability_field(
+    Vs_profile: np.ndarray,
+    Lx_variability: float,
+    Lz: float,
+    dx: float,
+    dz: float,
+    rH: float,
+    aHV: float,
+    CV: float,
+    dip_angle_deg: float,
+    dip_span: Optional[float] = None,
+    seed: Optional[int] = 42,
+    dz_1D: float = 1.0,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float, np.ndarray]:
+    """
+    Generates a 2D Vs variability field for the top layer using a lognormal
+    transformation of a Gaussian random field, with a straight interface that
+    dips at a fixed angle instead of the randomly wavy interface used by
+    `_generate_vs_variability_field`.
+
+    Args:
+        Vs_profile: 1D array of shear wave velocities defining the initial layers.
+        Lx_variability: Horizontal length of the spatially variable region [m].
+        Lz: Vertical depth of the domain [m].
+        dx: Grid spacing in the horizontal direction [m].
+        dz: Grid spacing in the vertical direction [m].
+        rH: Correlation length (horizontal) for intralayer variability [m].
+        aHV: Anisotropy ratio (rH / rV) for intralayer variability.
+        CV: Coefficient of variation for the top layer's Vs.
+        dip_angle_deg: Dip angle of the interface [degrees]. This is the true
+            (vertical) dip angle of the layer boundary — a real soil interface
+            dipping at anything but a shallow angle is not physically
+            plausible, so this should be a small value (a few degrees).
+        dip_span: Horizontal extent [m], centered in the domain, over which the
+            interface actually dips. Outside this central span the interface
+            stays flat at the depth reached at the span's edge — this avoids
+            unphysically large depth swings when the dip is applied across the
+            full (often much wider than the soil layer is thick) variability
+            region. Defaults to the full `Lx_variability` when not given.
+        seed: Random seed for spatial field generation.
+        dz_1D: Vertical spacing for 1D profile [m].
+    Returns:
+        Same contract as `_generate_vs_variability_field`: (var_Vs_field, x_var,
+        z, h, mask_bottom_layer).
+    """
+    rng = np.random.default_rng(seed)
+
+    Vs_unique = np.unique(Vs_profile)
+    if len(Vs_unique) < 2:
+        raise ValueError("Vs_profile must contain at least two distinct layers.")
+    Vs1, Vs2 = Vs_unique[0], Vs_unique[1]
+
+    h = np.count_nonzero(Vs_profile == Vs1) * dz_1D
+
+    nx_var = int(Lx_variability / dx)
+    nz = int(Lz / dz)
+    x_var = np.linspace(0, Lx_variability - dx, nx_var) + dx / 2
+    z = np.linspace(0, Lz - dz, nz) + dz / 2
+
+    gaussian_field = generate_gaussian_field_fft(nx_var, nz, dx, dz, rH, aHV, rng)
+    log_std = np.sqrt(np.log(1 + CV**2))
+    log_mean = np.log(Vs1) - 0.5 * log_std**2
+    Vs_field = np.exp(log_mean + log_std * gaussian_field)
+    v_min, v_max = np.exp(log_mean - 2 * log_std), np.exp(log_mean + 2 * log_std)
+    Vs_field = np.clip(Vs_field, v_min, v_max)
+
+    # Straight, fixed-angle dip instead of a randomly wavy interface. The dip
+    # pivots about the horizontal center so the mean interface depth over the
+    # variable region stays at `h`, matching the wavy-interface convention.
+    # The dip is confined to a central `dip_span`; outside it the interface is
+    # flat, since applying a dip across the full (typically much wider than
+    # the soil is thick) variability region produces unphysical depth swings.
+    half_span = (dip_span if dip_span is not None else Lx_variability) / 2.0
+    rel_x = np.clip(x_var - Lx_variability / 2.0, -half_span, half_span)
+    interface_depth = h + rel_x * np.tan(np.radians(dip_angle_deg))
+
+    interface_row_idx = np.floor(interface_depth / dz).astype(int)
+    interface_row_idx = np.clip(interface_row_idx, 0, nz - 1)
+
+    h1_in_cell = interface_depth - (interface_row_idx * dz)
+    h2_in_cell = dz - h1_in_cell
+
+    cols = np.arange(nx_var)
+    vs1_in_cell = Vs_field[interface_row_idx, cols]
+
+    harmonic_avg = dz / (h1_in_cell / vs1_in_cell + h2_in_cell / Vs2)
+    Vs_field[interface_row_idx, cols] = harmonic_avg
+
+    mask_bottom_layer = z[:, np.newaxis] > interface_depth[np.newaxis, :]
+    var_Vs_field = np.where(mask_bottom_layer, Vs2, Vs_field)
+
+    return var_Vs_field, x_var, z, h, mask_bottom_layer
+
+
+def create_dipping_vs_realization(
+    Vs_profile: np.ndarray,
+    Lx: float,
+    Lx_variability: float,
+    Lz: float,
+    dx: float,
+    dz: float,
+    rH: float,
+    aHV: float,
+    CV: float,
+    dip_angle_deg: float,
+    dip_span: Optional[float] = None,
+    seed: Optional[int] = 42,
+    dz_1D: float = 1.0,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float, np.ndarray]:
+    """Generates a 2D spatial variability realization of a dipping-interface Vs
+    profile, extended to the full domain width. See
+    `_generate_dipping_vs_variability_field` for parameter details."""
+    if Lx < Lx_variability:
+        raise ValueError("Total length Lx must be greater than or equal to Lx_variability.")
+
+    var_Vs_field, x_var, z, h, mask_bottom_layer = _generate_dipping_vs_variability_field(
+        Vs_profile,
+        Lx_variability,
+        Lz,
+        dx,
+        dz,
+        rH,
+        aHV,
+        CV,
+        dip_angle_deg,
+        dip_span=dip_span,
+        seed=seed,
+        dz_1D=dz_1D,
+    )
+
+    final_Vs, x_total = _extend_profile(var_Vs_field, Lx=Lx, dx=dx)
+    bedrock_mask_f, _ = _extend_profile(mask_bottom_layer.astype(float), Lx=Lx, dx=dx)
+    bedrock_mask = bedrock_mask_f.astype(bool)
 
     return final_Vs, x_total, z, h, bedrock_mask
 
