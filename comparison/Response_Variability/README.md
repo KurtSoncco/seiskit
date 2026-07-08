@@ -39,15 +39,36 @@ python analyze_response.py --h5-dir results/h5 --out-dir results/analysis
 python plot_comparison.py --h5-dir results/h5 --out-dir results/figures
 ```
 
-## HPC (SLURM)
+## HPC (SLURM / Savio)
+
+Production runs mirror `data_generation/emulator_first` (phase1 Savio2 + GNU Parallel) and `emulator_second` (phase2 HTC reruns).
 
 ```bash
-mkdir -p logs
-# Adjust --array for total_combinations() from manifest
-sbatch job_experiment.sh
+cd comparison/Response_Variability
+chmod +x submit_phase1.sh submit_phase2.sh submit_local.sh
+
+# Smoke on cluster (50 indices, array 0-2, 24 sims/node)
+./submit_phase1.sh --smoke
+
+# Full campaign (15,000 indices, array 0-624)
+./submit_phase1.sh
+
+# Rerun failed indices on HTC (array task = experiment index)
+./submit_phase2.sh --array=12,45,99
 ```
 
-Set `RV_OUTDIR` and `RV_H5_DIR` for scratch output on clusters.
+Scratch outputs (set automatically by the job scripts):
+
+- `RV_OUTDIR` → `/global/scratch/users/$USER/rv_comparison/opensees_runs/...`
+- `RV_H5_DIR` → `/global/scratch/users/$USER/rv_comparison/h5`
+
+Single-index debug on Savio3 (Parametric_study pattern):
+
+```bash
+sbatch --array=0 job_experiment.sh
+```
+
+Per-array-task logs and failure summaries: `logs/per_idx/job_<JOB_ID>/task_<N>/joblog.tsv` and `logs/array_job_<JOB_ID>_summary.txt`.
 
 ## Modules
 
