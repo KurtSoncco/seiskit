@@ -48,20 +48,17 @@ from seiskit.gaussian_field import (
     _extend_profile,
     _generate_vs_variability_field,
 )
-from seiskit.intensity_measures import compute_sa, default_periods, pga
+from seiskit.intensity_measures import compute_sa, default_periods, pga, sigma_ln
 from seiskit.plot_results import get_damping_zeta_grid
 from seiskit.profile_randomization import (
     ProfileRandomizationConfig,
-    build_layered_profile,
-    generate_tts_randomized_profile,
-    generate_vs_randomized_profile,
+    RandomizedProfile,
+    generate_tts_randomized_profile_full,
+    generate_vs_randomized_profile_full,
+    profile_to_opensees_column,
 )
 from seiskit.solver_utils import get_solver_info
-from seiskit.ttf.TTF import TTF
-
-# Calibrated once per process for 1D Hallal arms (lazy)
-_RHO_VS: float | None = None
-_RHO_TTS: float | None = None
+from seiskit.ttf.TTF import TTF, TTF_batch_fast
 
 
 def _results_root() -> Path:
@@ -89,7 +86,7 @@ def _recorder_y_sort_key(path: Path) -> float:
 
 
 def _load_surface_base(recorder_dir: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Load time, surface accel, base accel from center or row recorders."""
+    """Load time, center surface accel, center base accel."""
     center = sorted(recorder_dir.glob("center_node_y*_dof1_accel.txt"), key=_recorder_y_sort_key)
     if len(center) >= 2:
         base_arr = np.loadtxt(center[0])
@@ -121,6 +118,64 @@ def _load_surface_base(recorder_dir: Path) -> tuple[np.ndarray, np.ndarray, np.n
     return time_arr, accel.ravel(), accel.ravel()
 
 
+def _load_lateral_surface_base(
+    recorder_dir: Path,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """Load time and multi-node surface/base accel from lateral row recorders.
+
+    Returns
+    -------
+    time, surface (n_time, n_nodes), base (n_time, n_nodes)
+    or None if fewer than 2 lateral channels are available.
+    """
+    rows = sorted(recorder_dir.glob("row_y*_dof1_accel.txt"), key=_recorder_y_sort_key)
+    if len(rows) < 2:
+        return None
+    base_arr = np.loadtxt(rows[0])
+    surf_arr = np.loadtxt(rows[-1])
+    if base_arr.ndim == 1:
+        base_arr = base_arr.reshape(-1, 1)
+    if surf_arr.ndim == 1:
+        surf_arr = surf_arr.reshape(-1, 1)
+    if base_arr.shape[1] < 3 or surf_arr.shape[1] < 3:
+        return None
+    t = base_arr[:, 0]
+    # Match channel count (time column already removed)
+    n = min(base_arr.shape[1], surf_arr.shape[1]) - 1
+    return t, surf_arr[:, 1 : n + 1], base_arr[:, 1 : n + 1]
+
+
+def _spatial_af_percentiles(
+    surf_nodes: np.ndarray,
+    base_nodes: np.ndarray,
+    dt: float,
+    *,
+    vs_min: float,
+    dz: float,
+) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
+    """AF(f) at each surface node vs co-located base node; return percentiles."""
+    # TTF_batch_fast expects (n_channels, n_time)
+    freq, af_ch = TTF_batch_fast(
+        base_nodes.T,
+        surf_nodes.T,
+        dt=dt,
+        Vsmin=vs_min,
+        dz=dz,
+    )
+    return (
+        freq,
+        af_ch.astype(np.float32),
+        {
+            "median": np.median(af_ch, axis=0).astype(np.float32),
+            "p16": np.percentile(af_ch, 16, axis=0).astype(np.float32),
+            "p84": np.percentile(af_ch, 84, axis=0).astype(np.float32),
+            "sigma_ln": np.array(
+                [sigma_ln(af_ch[:, j]) for j in range(af_ch.shape[1])], dtype=np.float32
+            ),
+        },
+    )
+
+
 def _load_recorder_txt(
     recorder_dir: Path, quantity: str = "accel"
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -150,15 +205,10 @@ def _profile_config(vs1: float) -> ProfileRandomizationConfig:
         vs_mean=vs1,
         thickness=THICKNESS,
         dz=dz,
+        vs_bedrock=VS2,
+        bedrock_thickness=BEDROCK_DEPTH,
         cov=COV,
-        layer_thickness=dz,
     )
-
-
-def _mean_profile_layers(vs1: float) -> np.ndarray:
-    dz = active_dz()
-    n = max(1, int(round(THICKNESS / dz)))
-    return np.full(n, vs1)
 
 
 def _build_2d_grf(
@@ -200,24 +250,30 @@ def _build_1d_profile(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Build (Vs_2d nz x 1, bedrock_mask, Vs_profile_1D)."""
     cfg = _profile_config(p.vs1)
-    global _RHO_VS, _RHO_TTS
 
     if p.method == "hallal_vs":
-        if _RHO_VS is None:
-            _RHO_VS = 0.75
-        soil = generate_vs_randomized_profile(cfg, rng, rho=_RHO_VS)
+        prof = generate_vs_randomized_profile_full(cfg, rng)
     elif p.method == "hallal_tts":
-        if _RHO_TTS is None:
-            _RHO_TTS = 0.80
-        soil = generate_tts_randomized_profile(cfg, rng, rho=_RHO_TTS)
+        prof = generate_tts_randomized_profile_full(cfg, rng)
     elif p.method == "hallal_dmin":
-        soil = _mean_profile_layers(p.vs1)
+        from seiskit.profile_randomization import build_base_case_profile
+
+        vs_profile = build_base_case_profile(cfg)
+        prof = RandomizedProfile(
+            vs_depth=vs_profile,
+            n_soil_samples=max(1, int(round(THICKNESS / active_dz()))),
+            interface_depth=THICKNESS,
+        )
     else:
         raise ValueError(f"Not a 1D method: {p.method}")
 
-    vs_col, mask = build_layered_profile(soil, VS2, BEDROCK_DEPTH, active_dz())
-    vs_profile_1d = vs_col.ravel()
-    return vs_col, mask, vs_profile_1d
+    if p.method != "hallal_dmin":
+        vs_profile = prof.vs_depth
+    vs_col, mask = profile_to_opensees_column(
+        vs_profile,
+        prof.n_soil_samples,
+    )
+    return vs_col, mask, vs_profile
 
 
 def _analysis_config(
@@ -269,6 +325,8 @@ def _write_h5(
     task_id: str,
     freq: np.ndarray,
     af: np.ndarray,
+    af_spatial: np.ndarray | None = None,
+    af_spatial_stats: dict[str, np.ndarray] | None = None,
 ) -> None:
     import h5py
 
@@ -313,6 +371,15 @@ def _write_h5(
         tf = f.create_group("transfer_function")
         tf.create_dataset("freq", data=freq.astype(np.float32))
         tf.create_dataset("AF", data=af.astype(np.float32))
+        # Spatial AF percentiles across lateral surface nodes (2D arms)
+        if af_spatial is not None and af_spatial_stats is not None:
+            tf.create_dataset("AF_spatial", data=af_spatial.astype(np.float32))
+            tf.create_dataset("AF_spatial_median", data=af_spatial_stats["median"])
+            tf.create_dataset("AF_spatial_p16", data=af_spatial_stats["p16"])
+            tf.create_dataset("AF_spatial_p84", data=af_spatial_stats["p84"])
+            tf.create_dataset("AF_spatial_sigma_ln", data=af_spatial_stats["sigma_ln"])
+            tf.attrs["n_spatial_nodes"] = int(af_spatial.shape[0])
+            tf.attrs["spatial_source"] = "row_recorders"
 
 
 def run_case(index: int, *, force: bool = False) -> str:
@@ -383,6 +450,17 @@ def run_case(index: int, *, force: bool = False) -> str:
     vs_min = float(np.min(vs_field[~bedrock_mask])) if np.any(~bedrock_mask) else float(p.vs1)
     freq, af = TTF(surface, base, dt=dt, Vsmin=vs_min, dz=dz)
 
+    af_spatial = None
+    af_spatial_stats = None
+    if is_2d:
+        lateral = _load_lateral_surface_base(recorder_dir)
+        if lateral is not None:
+            _t_lat, surf_nodes, base_nodes = lateral
+            _freq_sp, af_spatial, af_spatial_stats = _spatial_af_percentiles(
+                surf_nodes, base_nodes, dt, vs_min=vs_min, dz=dz
+            )
+            print(f"  spatial AF from {af_spatial.shape[0]} surface nodes")
+
     _write_h5(
         h5_path,
         p,
@@ -395,6 +473,8 @@ def run_case(index: int, *, force: bool = False) -> str:
         task_id=task_id,
         freq=freq,
         af=af,
+        af_spatial=af_spatial,
+        af_spatial_stats=af_spatial_stats,
     )
     print(f"  wrote {h5_path}")
     return "ok"

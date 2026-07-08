@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+logs/
+results/h5/*.h5
+results/idx_*/
+results/figures/*.png
+results/analysis/*.csv

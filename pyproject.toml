@@ -35,7 +35,7 @@ analysis = [
     "fsspec",
     "ujson",
     "pyarrow",
-    "cmcrameri"
+    "cmcrameri",
 ]
 ml = [
     "lightgbm",

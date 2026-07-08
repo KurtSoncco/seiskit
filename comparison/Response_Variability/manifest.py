@@ -22,14 +22,17 @@ METHODS: list[MethodId] = [
     "hallal_dmin",
 ]
 
-VS1_LIST = [100.0, 230.0, 360.0]
-MOTION_IDS = ["M0", "M1", "M2", "M3", "M4"]
+# Phase-1 primary cell only (expand Vs1 / motions later for sensitivity).
+VS1_LIST = [230.0]
+# TF-first design: one broadband drive. Under linear viscoelasticity, AF(f) is
+# motion-independent; multiple motions add little except estimation noise / Sa checks.
+MOTION_IDS = ["M1"]
 MOTION_FREQS = {
     "M0": 0.5,
     "M1": 3.0,
     "M2": 8.0,
     "M3": None,  # f0 per site
-    "M4": 3.0,  # placeholder; broadband handled in runner if needed
+    "M4": 3.0,
 }
 
 # Primary geostatistics (empirical shallow-soil band)
@@ -85,15 +88,11 @@ def active_duration(f0: float) -> float:
 
 
 def active_vs1_list() -> list[float]:
-    if _smoke_mode():
-        return [230.0]
-    return VS1_LIST
+    return list(VS1_LIST)
 
 
 def active_motion_ids() -> list[str]:
-    if _smoke_mode():
-        return ["M1"]
-    return MOTION_IDS
+    return list(MOTION_IDS)
 
 
 def active_seeds() -> list[int]:

@@ -10,16 +10,17 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=48G
 #SBATCH --time=10:00:00
-#SBATCH --array=0-624%50
+#SBATCH --array=0-41%50
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
 #SBATCH --exclude=n0087.savio2,n0141.savio2,n0149.savio2,n0029.savio2
 # Create logs/ before submitting: mkdir -p logs; sbatch phase1_savio2.sh  (or ./submit_phase1.sh).
 #
-# Phase 1: Response_Variability campaign. Savio2 whole-node; GNU Parallel runs
-# 24 sims per array element. Full run (RV_SMOKE unset): 15,000 indices → array 0-624.
+# Phase 1: Response_Variability (TF-first). Savio2 whole-node; GNU Parallel runs
+# 24 sims per array element.
+# Full (RV_SMOKE=0): Vs1=230 × 5 methods × 1 motion × 200 seeds = 1,000 → array 0-41.
 # Smoke (RV_SMOKE=1): 50 indices → array 0-2 via submit_phase1.sh --smoke.
-# Submit: ./submit_phase1.sh   or   RV_SMOKE=1 ./submit_phase1.sh --smoke
+# Submit: ./submit_phase1.sh   or   ./submit_phase1.sh --smoke
 #
 # Hardening: per-index logs, joblog, retries, timeout, scratch TMPDIR, pre-flight
 # writes, post-run failure summary, consolidated summary log (logs/array_job_<JOB_ID>_summary.txt).
