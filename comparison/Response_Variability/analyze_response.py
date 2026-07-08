@@ -1,9 +1,8 @@
 """
 Aggregate Response_Variability HDF5 outputs and compare methods vs 2D GRF reference.
 
-Primary comparison is transfer-function based (Hallal / de la Torre style): for linear
-viscoelastic small-strain analyses, AF(f) is an intrinsic site property and does not
-depend on the input ground motion (beyond estimation quality of the FAS ratio).
+Primary comparison is transfer-function based: AF(f) is an intrinsic site property
+under linear viscoelasticity.
 
 Usage (from comparison/Response_Variability):
   python analyze_response.py
@@ -26,6 +25,7 @@ def _load_h5(path: Path) -> dict:
     import h5py
 
     with h5py.File(path, "r") as f:
+        params = f["params"]
         method = f.attrs.get("method", "")
         motion_id = f.attrs.get("motion_id", "")
         pga = float(f["ims"].attrs.get("PGA_surface", 0.0))
@@ -33,13 +33,16 @@ def _load_h5(path: Path) -> dict:
         sa = f["ims"]["Sa_surface"][:]
         freq = f["transfer_function"]["freq"][:]
         af = f["transfer_function"]["AF"][:]
-        vs1 = float(f["params"].attrs["Vs1"])
-        seed = int(f["params"].attrs["seed"])
         out = {
             "method": method,
             "motion_id": motion_id,
-            "vs1": vs1,
-            "seed": seed,
+            "sobol_id": int(params.attrs.get("sobol_id", 0)),
+            "vs1": float(params.attrs["Vs1"]),
+            "H": float(params.attrs.get("H", 15.0)),
+            "vs2": float(params.attrs.get("Vs2", 1500.0)),
+            "cov": float(params.attrs.get("CoV", 0.2)),
+            "seed": int(params.attrs["seed"]),
+            "seed_kind": str(params.attrs.get("seed_kind", "realization")),
             "pga": pga,
             "periods": periods,
             "sa": sa,
@@ -82,8 +85,12 @@ def _peak_af(freq: np.ndarray, af: np.ndarray) -> tuple[float, float]:
     return float(freq[i]), float(af[i])
 
 
-def reference_curves(df: pd.DataFrame, vs1: float, motion_id: str) -> dict:
-    ref = df[(df["method"] == "grf_2d") & (df["vs1"] == vs1) & (df["motion_id"] == motion_id)]
+def reference_curves(
+    df: pd.DataFrame,
+    sobol_id: int,
+    motion_id: str,
+) -> dict:
+    ref = df[(df["method"] == "grf_2d") & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)]
     if ref.empty:
         return {}
     sa_stack = np.vstack(ref["sa"].tolist())
@@ -96,6 +103,9 @@ def reference_curves(df: pd.DataFrame, vs1: float, motion_id: str) -> dict:
     periods = ref.iloc[0]["periods"]
     f_peak, a_peak = _peak_af(freq, med_af)
     return {
+        "sobol_id": sobol_id,
+        "vs1": float(ref.iloc[0]["vs1"]),
+        "H": float(ref.iloc[0]["H"]),
         "periods": periods,
         "median_sa": med_sa,
         "sigma_ln_sa": sig_sa,
@@ -113,14 +123,16 @@ def summarize_methods(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
     out_dir.mkdir(parents=True, exist_ok=True)
     records = []
 
-    for vs1 in sorted(df["vs1"].unique()):
+    for sobol_id in sorted(df["sobol_id"].unique()):
         for motion in sorted(df["motion_id"].unique()):
-            ref = reference_curves(df, vs1, motion)
+            ref = reference_curves(df, sobol_id, motion)
             if not ref:
                 continue
             for method in sorted(df["method"].unique()):
                 sub = df[
-                    (df["method"] == method) & (df["vs1"] == vs1) & (df["motion_id"] == motion)
+                    (df["method"] == method)
+                    & (df["sobol_id"] == sobol_id)
+                    & (df["motion_id"] == motion)
                 ]
                 if sub.empty:
                     continue
@@ -132,36 +144,31 @@ def summarize_methods(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
                 sig_af = np.array([sigma_ln(af_stack[:, j]) for j in range(af_stack.shape[1])])
                 f_peak, a_peak = _peak_af(ref["freq"], med_af)
 
-                delta_mu_sa = log_residual_bias(ref["median_sa"], med_sa)
-                delta_sigma_sa = float(np.mean(sig_sa - ref["sigma_ln_sa"]))
-                delta_mu_af = log_residual_bias(ref["median_af"], med_af)
-                delta_sigma_af = float(np.mean(sig_af - ref["sigma_ln_af"]))
-                gof_af = anderson_frequency_domain(
-                    ref["freq"],
-                    ref["median_af"],
-                    med_af,
-                    f_weight_center=float(ref["f_peak"]),
-                    f_weight_width=1.5,
-                )
                 records.append(
                     {
-                        "vs1": vs1,
+                        "sobol_id": sobol_id,
+                        "vs1": ref["vs1"],
+                        "H": ref["H"],
                         "motion_id": motion,
                         "method": method,
                         "n_realizations": len(sub),
-                        # Primary TF metrics (motion-independent under linear viscoelasticity)
-                        "delta_mu_ln_af_mean": delta_mu_af,
-                        "delta_sigma_ln_af_mean": delta_sigma_af,
-                        "gof_af": gof_af,
+                        "delta_mu_ln_af_mean": log_residual_bias(ref["median_af"], med_af),
+                        "delta_sigma_ln_af_mean": float(np.mean(sig_af - ref["sigma_ln_af"])),
+                        "gof_af": anderson_frequency_domain(
+                            ref["freq"],
+                            ref["median_af"],
+                            med_af,
+                            f_weight_center=float(ref["f_peak"]),
+                            f_weight_width=1.5,
+                        ),
                         "f_peak": f_peak,
                         "A_peak": a_peak,
                         "delta_f_peak": f_peak - ref["f_peak"],
                         "delta_ln_A_peak": float(
                             np.log(max(a_peak, 1e-12) / max(ref["A_peak"], 1e-12))
                         ),
-                        # Secondary IM checks (motion-dependent envelopes of AF × FAS)
-                        "delta_mu_ln_sa_mean": delta_mu_sa,
-                        "delta_sigma_ln_sa_mean": delta_sigma_sa,
+                        "delta_mu_ln_sa_mean": log_residual_bias(ref["median_sa"], med_sa),
+                        "delta_sigma_ln_sa_mean": float(np.mean(sig_sa - ref["sigma_ln_sa"])),
                         "pga_median": float(np.median(sub["pga"])),
                         "pga_bias_ln": log_residual_bias(
                             np.array([ref["pga_median"]]),

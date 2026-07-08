@@ -1,12 +1,12 @@
 """
 Response_Variability comparison campaign runner.
 
-Compares 2D GRF reference, de la Torre protocol, and Hallal 1D methods on
-shallow synthetic H<20 m domains. Response-focused outputs (HDF5).
+Sobol base cases (Vs1, H, CoV, Vs2) with fixed rH=10, aHV=50.
+Methods: grf_2d (2D), delatorre (1D from GRF center column), Hallal 1D arms.
 
 Usage:
   python run_experiment.py --index 0
-  RV_SMOKE=1 python run_experiment.py --index 0   # 10 seeds, 1 motion, Vs1=230
+  RV_SMOKE=1 python run_experiment.py --index 0
 """
 
 from __future__ import annotations
@@ -20,22 +20,15 @@ from pathlib import Path
 
 import numpy as np
 from manifest import (
-    AHV,
-    BEDROCK_DEPTH,
-    COV,
-    DAMPING_ZETA_BASE,
-    DAMPING_ZETA_DMIN_MULT,
-    RH,
-    RV,
-    THICKNESS,
-    VS2,
     CaseParams,
+    active_bc_width,
     active_duration,
     active_dx,
     active_dz,
     active_lx_total,
     active_lx_var,
     case_tag,
+    damping_method_for,
     index_to_params,
     motion_frequency,
     total_combinations,
@@ -61,6 +54,11 @@ from seiskit.solver_utils import get_solver_info
 from seiskit.ttf.TTF import TTF, TTF_batch_fast
 
 
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+
+
 def _results_root() -> Path:
     base = os.getenv("RV_OUTDIR")
     if base:
@@ -76,8 +74,12 @@ def _h5_path(index: int) -> Path:
 
 
 def _output_dir(p: CaseParams) -> Path:
-    """OpenSees run directory: results/idx_NNNNN/ (recorders in idx_NNNNN/task_id/)."""
     return _results_root() / f"idx_{p.index:05d}"
+
+
+# ---------------------------------------------------------------------------
+# Recorders / transfer functions
+# ---------------------------------------------------------------------------
 
 
 def _recorder_y_sort_key(path: Path) -> float:
@@ -86,17 +88,20 @@ def _recorder_y_sort_key(path: Path) -> float:
 
 
 def _load_surface_base(recorder_dir: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Load time, center surface accel, center base accel."""
     center = sorted(recorder_dir.glob("center_node_y*_dof1_accel.txt"), key=_recorder_y_sort_key)
     if len(center) >= 2:
         base_arr = np.loadtxt(center[0])
         surf_arr = np.loadtxt(center[-1])
-        if base_arr.ndim == 1:
-            base_arr = base_arr.reshape(-1, 1)
-        if surf_arr.ndim == 1:
-            surf_arr = surf_arr.reshape(-1, 1)
-        t = base_arr[:, 0]
-        return t, surf_arr[:, 1], base_arr[:, 1]
+        if base_arr.size == 0 or surf_arr.size == 0:
+            pass
+        else:
+            if base_arr.ndim == 1:
+                base_arr = base_arr.reshape(-1, 1)
+            if surf_arr.ndim == 1:
+                surf_arr = surf_arr.reshape(-1, 1)
+            if base_arr.shape[1] >= 2 and surf_arr.shape[1] >= 2:
+                t = base_arr[:, 0]
+                return t, surf_arr[:, 1], base_arr[:, 1]
 
     rows = sorted(recorder_dir.glob("row_y*_dof1_accel.txt"), key=_recorder_y_sort_key)
     if len(rows) >= 2:
@@ -121,13 +126,6 @@ def _load_surface_base(recorder_dir: Path) -> tuple[np.ndarray, np.ndarray, np.n
 def _load_lateral_surface_base(
     recorder_dir: Path,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
-    """Load time and multi-node surface/base accel from lateral row recorders.
-
-    Returns
-    -------
-    time, surface (n_time, n_nodes), base (n_time, n_nodes)
-    or None if fewer than 2 lateral channels are available.
-    """
     rows = sorted(recorder_dir.glob("row_y*_dof1_accel.txt"), key=_recorder_y_sort_key)
     if len(rows) < 2:
         return None
@@ -140,7 +138,6 @@ def _load_lateral_surface_base(
     if base_arr.shape[1] < 3 or surf_arr.shape[1] < 3:
         return None
     t = base_arr[:, 0]
-    # Match channel count (time column already removed)
     n = min(base_arr.shape[1], surf_arr.shape[1]) - 1
     return t, surf_arr[:, 1 : n + 1], base_arr[:, 1 : n + 1]
 
@@ -153,8 +150,6 @@ def _spatial_af_percentiles(
     vs_min: float,
     dz: float,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
-    """AF(f) at each surface node vs co-located base node; return percentiles."""
-    # TTF_batch_fast expects (n_channels, n_time)
     freq, af_ch = TTF_batch_fast(
         base_nodes.T,
         surf_nodes.T,
@@ -179,7 +174,6 @@ def _spatial_af_percentiles(
 def _load_recorder_txt(
     recorder_dir: Path, quantity: str = "accel"
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Load time and multi-channel accel from recorder directory."""
     center_glob = list(recorder_dir.glob(f"center_node_y*_dof1_{quantity}.txt"))
     row_glob = list(recorder_dir.glob(f"row_y*_dof1_{quantity}.txt"))
     center_glob.sort(key=_recorder_y_sort_key)
@@ -199,31 +193,47 @@ def _load_recorder_txt(
     return time_arr, np.hstack(chunks)
 
 
-def _profile_config(vs1: float) -> ProfileRandomizationConfig:
-    dz = active_dz()
+# ---------------------------------------------------------------------------
+# Profile builders
+# ---------------------------------------------------------------------------
+
+
+def _profile_config(p: CaseParams) -> ProfileRandomizationConfig:
     return ProfileRandomizationConfig(
-        vs_mean=vs1,
-        thickness=THICKNESS,
-        dz=dz,
-        vs_bedrock=VS2,
-        bedrock_thickness=BEDROCK_DEPTH,
-        cov=COV,
+        vs_mean=p.vs1,
+        thickness=p.H,
+        dz=active_dz(),
+        vs_bedrock=p.vs2,
+        bedrock_thickness=p.bedrock_thickness,
+        cov=p.cov,
+        randomize_layer_thickness=False,
+        randomize_bedrock_depth=False,
+        vary_bedrock_vs=False,
     )
 
 
-def _build_2d_grf(
-    vs1: float,
-    seed: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return (Vs_extended, bedrock_mask_extended, Vs_profile_1D)."""
-    dx, dz = active_dx(), active_dz()
-    layer_1_count = int(THICKNESS / dz)
-    layer_2_count = int(BEDROCK_DEPTH / dz)
-    vs_profile_1d = np.array([vs1] * layer_1_count + [VS2] * layer_2_count)
-    lz = len(vs_profile_1d) * dz
+def _discretized_profile(p: CaseParams) -> tuple[np.ndarray, int, int]:
+    dz = active_dz()
+    n_soil = max(1, int(round(p.H / dz)))
+    n_bed = max(1, int(round(p.bedrock_thickness / dz)))
+    vs_profile_1d = np.array([p.vs1] * n_soil + [p.vs2] * n_bed)
+    return vs_profile_1d, n_soil, n_bed
 
-    rv = RV
-    ahv = RH / rv
+
+def _center_column_index(nx: int, dx: float) -> int:
+    bc_cols = int(round(active_bc_width() / dx))
+    var_cols = int(round(active_lx_var() / dx))
+    return bc_cols + var_cols // 2
+
+
+def _build_2d_grf(
+    p: CaseParams,
+    rf_seed: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return (Vs_extended nz×nx, bedrock_mask_extended, template Vs_profile_1D)."""
+    dx, dz = active_dx(), active_dz()
+    vs_profile_1d, _, _ = _discretized_profile(p)
+    lz = len(vs_profile_1d) * dz
 
     vs_var, _, _, _, bedrock_mask_var = _generate_vs_variability_field(
         vs_profile_1d,
@@ -231,10 +241,10 @@ def _build_2d_grf(
         lz,
         dx,
         dz,
-        RH,
-        ahv,
-        COV,
-        seed=seed,
+        p.rH,
+        p.aHV,
+        p.cov,
+        seed=rf_seed,
         dz_1D=dz,
         interlayer_seed=14,
         interlayer_amplitude=0.0,
@@ -244,12 +254,25 @@ def _build_2d_grf(
     return vs_ext, bedrock_ext.astype(bool), vs_profile_1d
 
 
-def _build_1d_profile(
+def _build_delatorre_1d(
+    p: CaseParams,
+    rf_seed: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """1D column from center of 2D GRF (de la Torre protocol)."""
+    vs_field_2d, bedrock_mask_2d, template = _build_2d_grf(p, rf_seed)
+    dx = active_dx()
+    ic = _center_column_index(vs_field_2d.shape[1], dx)
+    vs_col = vs_field_2d[:, ic : ic + 1]
+    mask_col = bedrock_mask_2d[:, ic : ic + 1]
+    vs_profile_1d = vs_col.ravel()
+    return vs_col, mask_col, vs_profile_1d
+
+
+def _build_1d_hallal(
     p: CaseParams,
     rng: np.random.Generator,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Build (Vs_2d nz x 1, bedrock_mask, Vs_profile_1D)."""
-    cfg = _profile_config(p.vs1)
+    cfg = _profile_config(p)
 
     if p.method == "hallal_vs":
         prof = generate_vs_randomized_profile_full(cfg, rng)
@@ -261,19 +284,19 @@ def _build_1d_profile(
         vs_profile = build_base_case_profile(cfg)
         prof = RandomizedProfile(
             vs_depth=vs_profile,
-            n_soil_samples=max(1, int(round(THICKNESS / active_dz()))),
-            interface_depth=THICKNESS,
+            n_soil_samples=max(1, int(round(p.H / active_dz()))),
+            interface_depth=p.H,
         )
     else:
-        raise ValueError(f"Not a 1D method: {p.method}")
+        raise ValueError(f"Not a 1D Hallal method: {p.method}")
 
-    if p.method != "hallal_dmin":
-        vs_profile = prof.vs_depth
-    vs_col, mask = profile_to_opensees_column(
-        vs_profile,
-        prof.n_soil_samples,
-    )
-    return vs_col, mask, vs_profile
+    vs_col, mask = profile_to_opensees_column(prof.vs_depth, prof.n_soil_samples)
+    return vs_col, mask, prof.vs_depth
+
+
+# ---------------------------------------------------------------------------
+# Analysis config / HDF5
+# ---------------------------------------------------------------------------
 
 
 def _analysis_config(
@@ -284,7 +307,7 @@ def _analysis_config(
     bc_2d: bool,
 ) -> AnalysisConfig:
     dx, dz = active_dx(), active_dz()
-    f0 = p.vs1 / (4.0 * THICKNESS)
+    f0 = p.vs1 / (4.0 * p.H)
     duration = active_duration(f0)
     damping_freq_first = min(f0, motion_freq)
 
@@ -300,8 +323,8 @@ def _analysis_config(
         motion_freq=motion_freq,
         motion_t_shift=0.5,
         damping_freqs=(damping_freq_first, 10.0),
-        damping_zeta=DAMPING_ZETA_BASE,
-        damping_method="global_avg",
+        damping_zeta=0.025,
+        damping_method=damping_method_for(p),
         boundary_condition_type="2D" if bc_2d else "1D",
         record_center_nodes=True,
         center_node_y_positions=[2.0, lz],
@@ -331,25 +354,31 @@ def _write_h5(
     import h5py
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    periods = default_periods(p.vs1, THICKNESS)
+    periods = default_periods(p.vs1, p.H)
     if len(time_arr) == 0:
         raise ValueError("Cannot write HDF5 without time series")
     surface = accel[:, 0] if accel.ndim == 2 and accel.shape[1] > 0 else accel.ravel()
     sa_surf = compute_sa(surface, dt, periods)
+    damp_method = damping_method_for(p)
 
     with h5py.File(path, "w") as f:
         f.attrs["index"] = p.index
         f.attrs["task_id"] = task_id
         f.attrs["method"] = p.method
         f.attrs["motion_id"] = p.motion_id
+        f.attrs["damping_method"] = damp_method
         grp = f.create_group("params")
+        grp.attrs["sobol_id"] = p.sobol_id
         grp.attrs["Vs1"] = p.vs1
-        grp.attrs["CoV"] = COV
-        grp.attrs["rH"] = RH
-        grp.attrs["rV"] = RV
-        grp.attrs["aHV"] = AHV
+        grp.attrs["H"] = p.H
+        grp.attrs["Vs2"] = p.vs2
+        grp.attrs["CoV"] = p.cov
+        grp.attrs["rH"] = p.rH
+        grp.attrs["rV"] = p.rV
+        grp.attrs["aHV"] = p.aHV
         grp.attrs["seed"] = p.seed
-        grp.attrs["thickness"] = THICKNESS
+        grp.attrs["seed_kind"] = p.seed_kind
+        grp.attrs["bedrock_thickness"] = p.bedrock_thickness
         f.create_dataset("Vs_profile_1D", data=vs_profile_1d.astype(np.float32))
         f.create_dataset("Vs_field", data=vs_field.astype(np.float32))
         f.create_dataset("Damping_zeta", data=zeta_grid.astype(np.float32))
@@ -357,8 +386,8 @@ def _write_h5(
         adx, adz = active_dx(), active_dz()
         g.attrs["Lx"] = vs_field.shape[1] * adx if vs_field.ndim == 2 else adz
         g.attrs["Lz"] = vs_field.shape[0] * adz
-        g.attrs["dx"] = active_dx()
-        g.attrs["dz"] = active_dz()
+        g.attrs["dx"] = adx
+        g.attrs["dz"] = adz
         g.attrs["dt"] = dt
         if len(time_arr):
             rec = f.create_group("recorders").create_group("accel")
@@ -371,7 +400,6 @@ def _write_h5(
         tf = f.create_group("transfer_function")
         tf.create_dataset("freq", data=freq.astype(np.float32))
         tf.create_dataset("AF", data=af.astype(np.float32))
-        # Spatial AF percentiles across lateral surface nodes (2D arms)
         if af_spatial is not None and af_spatial_stats is not None:
             tf.create_dataset("AF_spatial", data=af_spatial.astype(np.float32))
             tf.create_dataset("AF_spatial_median", data=af_spatial_stats["median"])
@@ -380,6 +408,11 @@ def _write_h5(
             tf.create_dataset("AF_spatial_sigma_ln", data=af_spatial_stats["sigma_ln"])
             tf.attrs["n_spatial_nodes"] = int(af_spatial.shape[0])
             tf.attrs["spatial_source"] = "row_recorders"
+
+
+# ---------------------------------------------------------------------------
+# Run case
+# ---------------------------------------------------------------------------
 
 
 def run_case(index: int, *, force: bool = False) -> str:
@@ -391,22 +424,20 @@ def run_case(index: int, *, force: bool = False) -> str:
 
     out_dir = _output_dir(p)
     out_dir.mkdir(parents=True, exist_ok=True)
-    motion_freq = motion_frequency(p.vs1, p.motion_id)
+    motion_freq = motion_frequency(p.vs1, p.motion_id, H=p.H)
     task_id = case_tag(p)
     rng = np.random.default_rng(p.seed)
 
-    is_2d = p.method in ("grf_2d", "delatorre_2d")
+    is_2d = p.method == "grf_2d"
     if is_2d:
-        vs_field, bedrock_mask, vs_profile_1d = _build_2d_grf(p.vs1, p.seed)
-        lz = vs_field.shape[0] * active_dz()
+        vs_field, bedrock_mask, vs_profile_1d = _build_2d_grf(p, p.seed)
+    elif p.method == "delatorre":
+        vs_field, bedrock_mask, vs_profile_1d = _build_delatorre_1d(p, p.seed)
     else:
-        vs_field, bedrock_mask, vs_profile_1d = _build_1d_profile(p, rng)
-        lz = vs_field.shape[0] * active_dz()
+        vs_field, bedrock_mask, vs_profile_1d = _build_1d_hallal(p, rng)
 
+    lz = vs_field.shape[0] * active_dz()
     config = _analysis_config(p, lz, motion_freq, bc_2d=is_2d)
-    zeta_mult = DAMPING_ZETA_DMIN_MULT if p.method == "hallal_dmin" else 1.0
-    config.damping_zeta = DAMPING_ZETA_BASE * zeta_mult
-
     _dx, dz = active_dx(), active_dz()
     zeta_grid = get_damping_zeta_grid(
         vs_field,
@@ -423,22 +454,26 @@ def run_case(index: int, *, force: bool = False) -> str:
     nu = np.ones_like(vs_field, dtype=float) * 0.3
 
     print(f"[run] index={index} {task_id}")
-    print(f"  method={p.method} motion={p.motion_id} f={motion_freq:.3f} Hz seed={p.seed}")
+    print(
+        f"  sobol={p.sobol_id} method={p.method} H={p.H:.1f} "
+        f"f={motion_freq:.3f} Hz seed={p.seed} ({p.seed_kind})"
+    )
 
     model_data = build_model_data(config, vs_field, rho, nu, bedrock_mask=bedrock_mask)
     info = get_solver_info(config)
-    print(f"  solver={info['solver_type']} domain={config.Lx}x{lz} m")
+    print(f"  solver={info['solver_type']} domain={config.Lx}x{lz} m damping={config.damping_method}")
 
     t0 = time.time()
-    run_opensees_analysis(config, model_data, task_id, str(out_dir))
+    status = run_opensees_analysis(config, model_data, task_id, str(out_dir))
     print(f"  analysis done in {time.time() - t0:.1f}s")
+    if status.startswith("Failed"):
+        raise RuntimeError(status)
 
     recorder_dir = out_dir / task_id
     time_arr, surface, base = _load_surface_base(recorder_dir)
     if len(time_arr) == 0:
         raise RuntimeError(f"No recorder output in {recorder_dir}")
 
-    # Full channel block for HDF5 (optional)
     _, accel = _load_recorder_txt(recorder_dir)
     if accel.size == 0:
         accel = np.column_stack([surface, base])
@@ -446,7 +481,6 @@ def run_case(index: int, *, force: bool = False) -> str:
     if len(time_arr) > 1:
         dt = float(time_arr[1] - time_arr[0])
 
-    _dx, dz = active_dx(), active_dz()
     vs_min = float(np.min(vs_field[~bedrock_mask])) if np.any(~bedrock_mask) else float(p.vs1)
     freq, af = TTF(surface, base, dt=dt, Vsmin=vs_min, dz=dz)
 

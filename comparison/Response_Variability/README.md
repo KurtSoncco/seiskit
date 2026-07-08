@@ -1,85 +1,107 @@
 # Response_Variability Comparison
 
-Response-focused benchmark comparing:
+Response-focused benchmark comparing five randomization / damping protocols on **64 Sobol base cases** (4D: Vs1, H, CoV, Vs2). Fixed geostatistics: `rH=10 m`, `aHV=50`, bedrock thickness `10 m`.
 
 | Arm | Method | Description |
 |-----|--------|-------------|
-| `grf_2d` | Proposed 2D GRF (reference) | Flat interface, `rV=0.6 m`, `rH=30 m`, `aHV=50` |
-| `delatorre_2d` | de la Torre protocol | Same simulation; spatial averaging in post-processing |
-| `hallal_vs` | 1D Vs randomization | Toro (1995) / Strata-style VsRand |
-| `hallal_tts` | 1D travel-time randomization | `σ_ln(t_ts)=0.02` |
-| `hallal_dmin` | Damping modification | Mean profile + elevated ζ |
+| `hallal_vs` | 1D Vs randomization | Toro (1995) full profile (Vs-only; fixed H) |
+| `hallal_tts` | 1D travel-time randomization | Passeri full profile (Vs-only; fixed H) |
+| `hallal_dmin` | Damping modification | Mean profile + **elemental** Q–Vs damping |
+| `grf_2d` | Proposed 2D GRF (reference) | Full 2D field, `global_avg` Q–Vs |
+| `delatorre` | de la Torre protocol | **1D OpenSees** with center column extracted from same 2D GRF |
 
 ## Comparison philosophy (TF-first)
 
-Under **linear viscoelastic / small-strain** site response (as in Hallal et al. 2022 and de la Torre et al. 2022), the site transfer function
+Under linear viscoelastic site response, the transfer function
 
 \[
 AF(f) = |FAS_{surface}(f)| / |FAS_{base}(f)|
 \]
 
-is an **intrinsic property of the soil profile** (and of 2D scattering geometry). It does **not** depend on which ground motion you drive with — only on estimation quality of the FAS ratio.
-
-So the primary scientific comparison is on **ensemble AF(f)**:
+is an intrinsic property of the profile (and 2D geometry). Primary metrics:
 
 - median `|AF(f)|` and peak metrics (`f_peak`, `A_peak`)
 - `σ_ln AF(f)` across seeds (aleatory TF variability)
 - Anderson-style GOF on `ln AF` near `f_peak`
 
-Sa / PGA remain secondary sanity checks (they fold AF with the input spectrum).
+Sa / PGA are secondary sanity checks.
 
-**Implication for the factorial design:** one broadband drive is enough for TF comparison; a five-motion suite is unnecessary for Phase 1.
+One broadband drive (`M1`, 3 Hz) is sufficient for TF comparison.
 
-## Primary cell (current)
+## Campaign size
 
-- `H=15 m`, **`Vs1=230 m/s` only**, `CV=0.2`, `rH=30 m`, `rV=0.6 m` (`aHV=50`)
-- `dx=dz=0.5 m`, `Lx_var=200 m`, `BC=100 m`
-- Full: **5 methods × 1 motion (`M1`) × 200 seeds = 1,000**
-- Smoke (`RV_SMOKE=1`): 5 × 1 × 10 = **50**
+| Mode | Sobol cases | Hallal seeds | RF seeds | Total runs |
+|------|-------------|--------------|----------|------------|
+| Full (`RV_SMOKE=0`) | 64 | 200 | 30 | **42,240** |
+| Smoke (`RV_SMOKE=1`) | 4 | 10 | 5 | **160** |
+
+Index layout: Hallal block (3 methods × seeds) → GRF block (`grf_2d`, `delatorre` × RF seeds).
+
+Smoke grid: `dx=dz=1 m`, `Lx_var=100 m`, `BC=50 m` (full uses 0.5 m / 200 m / 100 m).
 
 ## Quick start (local smoke)
 
 ```bash
 cd comparison/Response_Variability
 chmod +x submit_local.sh
-./submit_local.sh
+./submit_local.sh              # 5 runs (one seed per method @ Sobol #0)
+./submit_local.sh --all         # full 160-index smoke
 ```
 
-Generated artifacts (`results/h5`, `results/idx_*`, `logs/`) are gitignored. Re-run smoke after code changes.
+Generated artifacts (`results/h5`, `logs/`) are gitignored.
 
 ## Analysis
 
 ```bash
 python analyze_response.py --h5-dir results/h5 --out-dir results/analysis
-python plot_comparison.py --h5-dir results/h5 --out-dir results/figures
+python plot_comparison.py --h5-dir results/h5 --out-dir results/figures --sobol-id 0
 ```
 
-Primary figure: `results/figures/af_method_subplots_Vs1230_M1.png` (AF median + σ_ln / ratio per method).
+Primary smoke figure: `results/figures/tf_methods_sobol00_M1.png` (all methods: median AF ± 1σ_ln band).
 
-Explainability figures:
+Explainability:
 
-- `hallal_profiles_Vs1230.png` — base Vs1 profile vs VsRand / ttsRand realizations (Vs vs depth)
-- `grf2d_explainability_Vs1230_s1.png` — 2D GRF field with highlighted center-column extraction vs base template
+- `hallal_profiles_sobol00.png` — Toro / Passeri realizations vs base profile
+- `grf2d_explainability_*.png` — 2D GRF field + center-column extraction for de la Torre 1D
 
-## HPC (SLURM / Savio)
+## HPC
+
+**Recommended order:** submit 1D Hallal block first, then 2D GRF / de la Torre.
 
 ```bash
-cd comparison/Response_Variability
-chmod +x submit_phase1.sh submit_phase2.sh
+chmod +x submit_phase1_hallal.sh submit_phase1_rf.sh clean_results.sh
 
-./submit_phase1.sh --smoke    # 50 indices, array 0-2
-./submit_phase1.sh            # 1,000 indices, array 0-41
-./submit_phase2.sh --array=12,45,99
+./clean_results.sh                 # optional: wipe local stale results
+
+# Savio2 — phase 1a: Hallal 1D only
+./submit_phase1_hallal.sh --smoke  # 120 indices, array 0-4
+./submit_phase1_hallal.sh          # 38,400 indices, array 0-1599
+
+# Savio2 — phase 1b: 2D GRF + de la Torre (after 1D completes)
+./submit_phase1_rf.sh --smoke      # 40 indices, array 0-1
+./submit_phase1_rf.sh              # 3,840 indices, array 0-159
+
+# Or run everything in one array (mixed 1D + 2D):
+./submit_phase1.sh --smoke
+./submit_phase1.sh
 ```
 
-Scratch:
+**Stampede3 (TACC)** — set `RV_INDEX_OFFSET` / `RV_INDEX_MAX` for 1D-first staging:
 
-- `RV_OUTDIR` → `/global/scratch/users/$USER/rv_comparison/opensees_runs/...`
-- `RV_H5_DIR` → `/global/scratch/users/$USER/rv_comparison/h5`
+```bash
+# 1D block
+RV_INDEX_OFFSET=0 RV_INDEX_MAX=38400 sbatch stampede3_full_run.slurm
+# 2D block (after 1D)
+RV_INDEX_OFFSET=38400 RV_INDEX_MAX=42240 sbatch stampede3_full_run.slurm
+```
+
+Scratch env vars: `RV_OUTDIR`, `RV_H5_DIR`.
 
 ## Modules
 
-- `seiskit/profile_randomization.py` — full Toro (NHPP + bedrock depth + Vs) and Passeri (NHPP + tts + bedrock merge)
-- `seiskit/intensity_measures.py` — PGA, Sa(T), σ_ln
-- `seiskit/gof.py` — Anderson GOF metrics
+- `sobol_base_cases.py` — 4D Sobol CSV (`rv_sobol_base_cases.csv`)
+- `manifest.py` — index → case mapping
+- `run_experiment.py` — OpenSees driver
+- `seiskit/profile_randomization.py` — Toro / Passeri
+- `seiskit/intensity_measures.py` — PGA, Sa, σ_ln
 - `seiskit/ttf/TTF.py` — Konno–Ohmachi AF(f)

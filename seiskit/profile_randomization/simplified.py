@@ -59,7 +59,6 @@ def generate_vs_simplified(
     if soil_idx:
         ln_median = np.log(np.clip(grid.vs_base[soil_idx], 1e-6, None))
         mids = grid.depth_mid[soil_idx]
-        thick = grid.thickness[soil_idx]
         rho_s = (
             np.full(max(1, len(soil_idx) - 1), float(np.clip(rho, 0, 0.99)))
             if rho is not None

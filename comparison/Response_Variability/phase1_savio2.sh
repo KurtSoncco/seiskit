@@ -10,7 +10,7 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=48G
 #SBATCH --time=10:00:00
-#SBATCH --array=0-41%50
+#SBATCH --array=0-1759%50
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
 #SBATCH --exclude=n0087.savio2,n0141.savio2,n0149.savio2,n0029.savio2
@@ -18,8 +18,8 @@
 #
 # Phase 1: Response_Variability (TF-first). Savio2 whole-node; GNU Parallel runs
 # 24 sims per array element.
-# Full (RV_SMOKE=0): Vs1=230 × 5 methods × 1 motion × 200 seeds = 1,000 → array 0-41.
-# Smoke (RV_SMOKE=1): 50 indices → array 0-2 via submit_phase1.sh --smoke.
+# Full (RV_SMOKE=0): 64 Sobol × (3×200 Hallal + 2×30 RF) = 42,240 → array 0-1759.
+# Smoke (RV_SMOKE=1): 160 indices → array 0-6 via submit_phase1.sh --smoke.
 # Submit: ./submit_phase1.sh   or   ./submit_phase1.sh --smoke
 #
 # Hardening: per-index logs, joblog, retries, timeout, scratch TMPDIR, pre-flight
@@ -123,12 +123,14 @@ echo "$(date -Is) | PREFLIGHT | Preflight success." >&2
 
 # Chunking: 24 sims per array element (0-based indices). Last chunk clamped to TOTAL.
 CHUNK=24
-TOTAL=$("${PYTHON_BIN}" -c "from manifest import total_combinations; print(total_combinations())")
-echo "$(date -Is) | CONFIG | TOTAL=${TOTAL} CHUNK=${CHUNK} RV_SMOKE=${RV_SMOKE:-0}" >&2
-START=$((TASK_ID * CHUNK))
+OFFSET=${RV_INDEX_OFFSET:-0}
+LIMIT=${RV_INDEX_MAX:-$("${PYTHON_BIN}" -c "from manifest import total_combinations; print(total_combinations())")}
+TOTAL=$((LIMIT - OFFSET))
+echo "$(date -Is) | CONFIG | OFFSET=${OFFSET} LIMIT=${LIMIT} phase_count=${TOTAL} CHUNK=${CHUNK} RV_SMOKE=${RV_SMOKE:-0}" >&2
+START=$((OFFSET + TASK_ID * CHUNK))
 END=$((START + CHUNK))
-if [ "${END}" -gt "${TOTAL}" ]; then
-  END=${TOTAL}
+if [ "${END}" -gt "${LIMIT}" ]; then
+  END=${LIMIT}
 fi
 COUNT=$((END - START))
 EXTRA_ARGS=""
@@ -171,7 +173,7 @@ echo "$(date -Is) | DIAG | START=${START} END=${END} COUNT=${COUNT} (indices ${S
 
 echo "$(date -Is) | RUN | Task ${TASK_ID}: indices ${START}..$((END-1)) (${COUNT} sims) -j ${CONCURRENCY} timeout=${SIM_TIMEOUT}s retries=${PARALLEL_RETRIES}..." >&2
 
-if [ "$START" -ge "$END" ]; then
+if [ "$START" -ge "$END" ] || [ "$START" -ge "$LIMIT" ]; then
   echo "$(date -Is) | SUMMARY | Nothing to do (START=$START END=$END)" >&2
   exit 0
 fi

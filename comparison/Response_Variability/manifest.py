@@ -1,4 +1,4 @@
-"""Factorial manifest for Response_Variability comparison campaign."""
+"""Sobol-driven manifest for Response_Variability comparison campaign."""
 
 from __future__ import annotations
 
@@ -6,59 +6,60 @@ import os
 from dataclasses import dataclass
 from typing import Literal
 
+from sobol_base_cases import (
+    AHV_FIXED,
+    BEDROCK_DEPTH,
+    DEFAULT_SOBOL_COUNT_FULL,
+    DEFAULT_SOBOL_COUNT_SMOKE,
+    RH_FIXED,
+    SobolBaseCase,
+    ensure_base_cases,
+)
+
 MethodId = Literal[
     "grf_2d",
-    "delatorre_2d",
+    "delatorre",
     "hallal_vs",
     "hallal_tts",
     "hallal_dmin",
 ]
 
-METHODS: list[MethodId] = [
-    "grf_2d",
-    "delatorre_2d",
-    "hallal_vs",
-    "hallal_tts",
-    "hallal_dmin",
-]
+HALLAL_METHODS: list[MethodId] = ["hallal_vs", "hallal_tts", "hallal_dmin"]
+RF_METHODS: list[MethodId] = ["grf_2d", "delatorre"]
+METHODS: list[MethodId] = [*HALLAL_METHODS, *RF_METHODS]
 
-# Phase-1 primary cell only (expand Vs1 / motions later for sensitivity).
-VS1_LIST = [230.0]
-# TF-first design: one broadband drive. Under linear viscoelasticity, AF(f) is
-# motion-independent; multiple motions add little except estimation noise / Sa checks.
 MOTION_IDS = ["M1"]
-MOTION_FREQS = {
-    "M0": 0.5,
-    "M1": 3.0,
-    "M2": 8.0,
-    "M3": None,  # f0 per site
-    "M4": 3.0,
-}
-
-# Primary geostatistics (empirical shallow-soil band)
-THICKNESS = 15.0
-VS2 = 1500.0
-BEDROCK_DEPTH = 10.0
-COV = 0.2
-RH = 30.0
-RV = 0.6  # m; aHV = RH / RV
-AHV = RH / RV  # 50.0
+MOTION_FREQS = {"M1": 3.0}
 
 DX = 0.5
 DZ = 0.5
 LX_VAR = 200.0
 BC_WIDTH = 100.0
-LX_TOTAL = LX_VAR + 2 * BC_WIDTH
 
-DAMPING_ZETA_BASE = 0.025
-DAMPING_ZETA_DMIN_MULT = 2.0
+HALLAL_SEEDS_FULL = list(range(1, 201))
+HALLAL_SEEDS_SMOKE = list(range(1, 11))
+RF_SEEDS_FULL = list(range(1, 31))
+RF_SEEDS_SMOKE = list(range(1, 6))
 
-SEEDS_FULL = list(range(1, 201))
-SEEDS_SMOKE = list(range(1, 11))
+RH = RH_FIXED
+AHV = AHV_FIXED
+RV = RH_FIXED / AHV_FIXED
 
 
 def _smoke_mode() -> bool:
     return os.getenv("RV_SMOKE", "0") == "1"
+
+
+def active_sobol_count() -> int:
+    return DEFAULT_SOBOL_COUNT_SMOKE if _smoke_mode() else DEFAULT_SOBOL_COUNT_FULL
+
+
+def active_hallal_seeds() -> list[int]:
+    return HALLAL_SEEDS_SMOKE if _smoke_mode() else HALLAL_SEEDS_FULL
+
+
+def active_rf_seeds() -> list[int]:
+    return RF_SEEDS_SMOKE if _smoke_mode() else RF_SEEDS_FULL
 
 
 def active_lx_var() -> float:
@@ -81,79 +82,149 @@ def active_dz() -> float:
     return 1.0 if _smoke_mode() else DZ
 
 
+def active_motion_ids() -> list[str]:
+    return list(MOTION_IDS)
+
+
+def active_base_cases() -> list[SobolBaseCase]:
+    overwrite = os.getenv("RV_REGEN_SOBOL", "0") == "1"
+    return ensure_base_cases(count=active_sobol_count(), overwrite=overwrite)
+
+
+def _hallal_block_size(n_sobol: int) -> int:
+    return n_sobol * len(HALLAL_METHODS) * len(active_hallal_seeds())
+
+
+def _rf_block_size(n_sobol: int) -> int:
+    return n_sobol * len(RF_METHODS) * len(active_rf_seeds())
+
+
+def total_combinations() -> int:
+    n = active_sobol_count()
+    return _hallal_block_size(n) + _rf_block_size(n)
+
+
+def hallal_block_size() -> int:
+    return _hallal_block_size(active_sobol_count())
+
+
+def rf_block_size() -> int:
+    return _rf_block_size(active_sobol_count())
+
+
+def hallal_index_end() -> int:
+    """Exclusive upper bound for Hallal (1D) indices."""
+    return hallal_block_size()
+
+
+def rf_index_range() -> tuple[int, int]:
+    """Inclusive start, exclusive end for grf_2d / delatorre indices."""
+    start = hallal_block_size()
+    return start, start + rf_block_size()
+
+
+def phase1_array_tasks(*, chunk: int = 24, index_offset: int = 0, index_end: int | None = None) -> int:
+    """Number of Slurm array tasks to cover [index_offset, index_end)."""
+    end = index_end if index_end is not None else total_combinations()
+    count = max(0, end - index_offset)
+    return max(1, (count + chunk - 1) // chunk) if count else 0
+
+
+@dataclass(frozen=True)
+class CaseParams:
+    index: int
+    sobol_id: int
+    vs1: float
+    H: float
+    cov: float
+    vs2: float
+    method: MethodId
+    motion_id: str
+    seed: int
+    seed_kind: Literal["realization", "rf"]
+    rH: float = RH_FIXED
+    aHV: float = AHV_FIXED
+    bedrock_thickness: float = BEDROCK_DEPTH
+
+    @property
+    def rV(self) -> float:
+        return self.rH / self.aHV
+
+
+def index_to_params(index: int) -> CaseParams:
+    n_total = total_combinations()
+    if index < 0 or index >= n_total:
+        raise IndexError(f"Index {index} out of range 0..{n_total - 1}")
+
+    cases = active_base_cases()
+    hallal_block = _hallal_block_size(len(cases))
+    hallal_seeds = active_hallal_seeds()
+    rf_seeds = active_rf_seeds()
+
+    if index < hallal_block:
+        per_sobol = len(HALLAL_METHODS) * len(hallal_seeds)
+        sobol_idx = index // per_sobol
+        r = index % per_sobol
+        method_idx = r // len(hallal_seeds)
+        seed_idx = r % len(hallal_seeds)
+        base = cases[sobol_idx]
+        return CaseParams(
+            index=index,
+            sobol_id=base.sobol_id,
+            vs1=base.vs1,
+            H=base.H,
+            cov=base.cov,
+            vs2=base.vs2,
+            method=HALLAL_METHODS[method_idx],
+            motion_id=MOTION_IDS[0],
+            seed=hallal_seeds[seed_idx],
+            seed_kind="realization",
+        )
+
+    r = index - hallal_block
+    per_sobol_rf = len(RF_METHODS) * len(rf_seeds)
+    sobol_idx = r // per_sobol_rf
+    r2 = r % per_sobol_rf
+    method_idx = r2 // len(rf_seeds)
+    seed_idx = r2 % len(rf_seeds)
+    base = cases[sobol_idx]
+    return CaseParams(
+        index=index,
+        sobol_id=base.sobol_id,
+        vs1=base.vs1,
+        H=base.H,
+        cov=base.cov,
+        vs2=base.vs2,
+        method=RF_METHODS[method_idx],
+        motion_id=MOTION_IDS[0],
+        seed=rf_seeds[seed_idx],
+        seed_kind="rf",
+    )
+
+
 def active_duration(f0: float) -> float:
     if _smoke_mode():
         return 15.0
     return 50.0 if f0 < 1.0 else 30.0
 
 
-def active_vs1_list() -> list[float]:
-    return list(VS1_LIST)
-
-
-def active_motion_ids() -> list[str]:
-    return list(MOTION_IDS)
-
-
-def active_seeds() -> list[int]:
-    return SEEDS_SMOKE if _smoke_mode() else SEEDS_FULL
-
-
-def total_combinations() -> int:
-    return len(active_vs1_list()) * len(METHODS) * len(active_motion_ids()) * len(active_seeds())
-
-
-@dataclass(frozen=True)
-class CaseParams:
-    index: int
-    vs1: float
-    method: MethodId
-    motion_id: str
-    seed: int
-    thickness: float = THICKNESS
-    cov: float = COV
-    rH: float = RH
-    rV: float = RV
-    aHV: float = AHV
-
-
-def index_to_params(index: int) -> CaseParams:
-    n = total_combinations()
-    if index < 0 or index >= n:
-        raise IndexError(f"Index {index} out of range 0..{n - 1}")
-
-    seeds = active_seeds()
-    motions = active_motion_ids()
-    vs1s = active_vs1_list()
-
-    per_vs1 = len(METHODS) * len(motions) * len(seeds)
-    vs1_idx = index // per_vs1
-    r = index % per_vs1
-
-    per_method = len(motions) * len(seeds)
-    method_idx = r // per_method
-    r = r % per_method
-
-    motion_idx = r // len(seeds)
-    seed_idx = r % len(seeds)
-
-    return CaseParams(
-        index=index,
-        vs1=vs1s[vs1_idx],
-        method=METHODS[method_idx],
-        motion_id=motions[motion_idx],
-        seed=seeds[seed_idx],
-    )
-
-
-def motion_frequency(vs1: float, motion_id: str) -> float:
+def motion_frequency(vs1: float, motion_id: str, *, H: float) -> float:
     if motion_id == "M3":
-        return vs1 / (4.0 * THICKNESS)
-    freq = MOTION_FREQS[motion_id]
+        return vs1 / (4.0 * H)
+    freq = MOTION_FREQS.get(motion_id)
     if freq is None:
         raise ValueError(f"No fixed frequency for motion {motion_id}")
     return float(freq)
 
 
 def case_tag(p: CaseParams) -> str:
-    return f"{p.method}_Vs1{p.vs1:.0f}_{p.motion_id}_s{p.seed}_rH{p.rH:.0f}_rV{p.rV:.2f}"
+    return (
+        f"s{p.sobol_id:02d}_{p.method}_Vs1{p.vs1:.0f}_H{p.H:.0f}_"
+        f"CoV{p.cov:.2f}_Vs2{p.vs2:.0f}_{p.motion_id}_{p.seed_kind}{p.seed}"
+    )
+
+
+def damping_method_for(p: CaseParams) -> str:
+    if p.method == "hallal_dmin":
+        return "elemental_varying"
+    return "global_avg"

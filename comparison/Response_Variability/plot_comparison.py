@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from analyze_response import collect_rows, reference_curves
-from manifest import METHODS, THICKNESS, VS2, active_bc_width, active_dz, active_lx_var
+from manifest import BEDROCK_DEPTH, METHODS, active_bc_width, active_dz, active_lx_var
 
 from seiskit.intensity_measures import sigma_ln
 from seiskit.plot_config import apply_style, get_crameri_cmap
@@ -23,15 +23,27 @@ apply_style()
 
 METHOD_LABELS = {
     "grf_2d": "2D GRF (reference)",
-    "delatorre_2d": "de la Torre 2D",
+    "delatorre": "de la Torre (1D from GRF)",
     "hallal_vs": "Hallal VsRand",
     "hallal_tts": "Hallal ttsRand",
-    "hallal_dmin": "Hallal Dmin",
+    "hallal_dmin": "Hallal Dmin (elemental Q)",
+}
+
+METHOD_COLORS = {
+    "grf_2d": "0.2",
+    "delatorre": "C3",
+    "hallal_vs": "C0",
+    "hallal_tts": "C1",
+    "hallal_dmin": "C4",
 }
 
 
-def _method_curves(df: pd.DataFrame, method: str, vs1: float, motion_id: str) -> dict | None:
-    sub = df[(df["method"] == method) & (df["vs1"] == vs1) & (df["motion_id"] == motion_id)]
+def _method_curves(
+    df: pd.DataFrame, method: str, sobol_id: int, motion_id: str
+) -> dict | None:
+    sub = df[
+        (df["method"] == method) & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)
+    ]
     if sub.empty:
         return None
     sa_stack = np.vstack(sub["sa"].tolist())
@@ -77,11 +89,74 @@ def _method_curves(df: pd.DataFrame, method: str, vs1: float, motion_id: str) ->
     }
 
 
+def plot_tf_method_comparison(
+    df: pd.DataFrame,
+    out_dir: Path,
+    *,
+    sobol_id: int,
+    motion_id: str = "M1",
+) -> Path | None:
+    """All methods on one axis: median AF(f) with ±1σ_ln band per method."""
+    sub = df[(df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)]
+    if sub.empty:
+        return None
+
+    methods = [m for m in METHODS if m in set(sub["method"].unique())]
+    if not methods:
+        return None
+
+    meta = sub.iloc[0]
+    freq = sub[sub["method"] == methods[0]].iloc[0]["freq"]
+
+    fig, axes = plt.subplots(2, 1, figsize=(9, 7), sharex=True, gridspec_kw={"height_ratios": [2.2, 1.0]})
+    ax_af, ax_sig = axes
+
+    for method in methods:
+        msub = sub[sub["method"] == method]
+        if msub.empty:
+            continue
+        af_stack = np.vstack(msub["af"].tolist())
+        med = np.median(af_stack, axis=0)
+        sig = np.array([sigma_ln(af_stack[:, j]) for j in range(af_stack.shape[1])])
+        lo = med * np.exp(-sig)
+        hi = med * np.exp(sig)
+        color = METHOD_COLORS.get(method, "C0")
+        label = METHOD_LABELS.get(method, method)
+        lw = 2.4 if method == "grf_2d" else 1.8
+        ax_af.fill_between(freq, lo, hi, color=color, alpha=0.18, linewidth=0)
+        ax_af.plot(freq, med, color=color, lw=lw, label=f"{label} (n={len(msub)})")
+        ax_sig.plot(freq, sig, color=color, lw=lw, label=label)
+
+    ax_af.set_xscale("log")
+    ax_af.set_ylabel("|AF|")
+    ax_af.set_title(
+        f"Transfer functions — Sobol #{sobol_id}  "
+        f"Vs1={meta['vs1']:.0f} H={meta['H']:.0f} CoV={meta['cov']:.2f} Vs2={meta['vs2']:.0f}",
+        loc="left",
+        fontsize=10,
+    )
+    ax_af.legend(fontsize=8, loc="upper left")
+    ax_af.grid(True, alpha=0.25)
+
+    ax_sig.set_xscale("log")
+    ax_sig.set_xlabel("Frequency (Hz)")
+    ax_sig.set_ylabel(r"$\sigma_{\ln}$ AF")
+    ax_sig.legend(fontsize=7, loc="upper right", ncol=2)
+    ax_sig.grid(True, alpha=0.25)
+
+    fig.tight_layout()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"tf_methods_sobol{sobol_id:02d}_{motion_id}.png"
+    fig.savefig(out_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
+
+
 def plot_af_method_subplots(
-    df: pd.DataFrame, out_dir: Path, vs1: float = 230.0, motion_id: str = "M1"
+    df: pd.DataFrame, out_dir: Path, sobol_id: int = 0, motion_id: str = "M1"
 ) -> Path | None:
     """Primary comparison: one row per method — median AF(f) and σ_ln AF vs 2D GRF."""
-    ref = reference_curves(df, vs1, motion_id)
+    ref = reference_curves(df, sobol_id, motion_id)
     if not ref:
         return None
 
@@ -100,14 +175,14 @@ def plot_af_method_subplots(
     if ref_sig is None:
         # Older analyze_response caches; recompute from dataframe rows.
         ref_rows = df[
-            (df["method"] == "grf_2d") & (df["vs1"] == vs1) & (df["motion_id"] == motion_id)
+            (df["method"] == "grf_2d") & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)
         ]
         af_stack = np.vstack(ref_rows["af"].tolist())
         ref_sig = np.array([sigma_ln(af_stack[:, j]) for j in range(af_stack.shape[1])])
 
     for i, method in enumerate(methods):
         ax_af, ax_sig = axes[i]
-        curves = _method_curves(df, method, vs1, motion_id)
+        curves = _method_curves(df, method, sobol_id, motion_id)
         if curves is None:
             ax_af.set_visible(False)
             ax_sig.set_visible(False)
@@ -164,7 +239,7 @@ def plot_af_method_subplots(
                 ax_sig.plot(freq, curves["sigma_ln_af"], color="k", lw=2.0, label="grf_2d")
             else:
                 # Prefer matching metric: spatial if both have it
-                ref_curves = _method_curves(df, "grf_2d", vs1, motion_id)
+                ref_curves = _method_curves(df, "grf_2d", sobol_id, motion_id)
                 ref_line = (
                     ref_curves["sigma_ln_af"]
                     if ref_curves is not None and ref_curves["n_spatial_nodes"] >= 2
@@ -195,22 +270,22 @@ def plot_af_method_subplots(
     axes[-1, 0].set_xlabel("Frequency (Hz)")
     axes[-1, 1].set_xlabel("Frequency (Hz)")
     fig.suptitle(
-        f"Transfer-function comparison vs 2D GRF — Vs1={vs1:g}, drive={motion_id}",
+        f"TF subplots vs 2D GRF — Sobol #{sobol_id} Vs1={ref['vs1']:g} H={ref['H']:g} {motion_id}",
         fontsize=12,
         y=1.01,
     )
     fig.tight_layout()
-    out_path = out_dir / f"af_method_subplots_Vs1{vs1:.0f}_{motion_id}.png"
+    out_path = out_dir / f"af_method_subplots_sobol{sobol_id:02d}_{motion_id}.png"
     fig.savefig(out_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return out_path
 
 
 def plot_method_subplots(
-    df: pd.DataFrame, out_dir: Path, vs1: float = 230.0, motion_id: str = "M1"
+    df: pd.DataFrame, out_dir: Path, sobol_id: int = 0, motion_id: str = "M1"
 ) -> Path | None:
     """One subplot per method: Sa (with Δln) and σ_ln Sa vs 2D GRF reference."""
-    ref = reference_curves(df, vs1, motion_id)
+    ref = reference_curves(df, sobol_id, motion_id)
     if not ref:
         return None
 
@@ -229,7 +304,7 @@ def plot_method_subplots(
 
     for i, method in enumerate(methods):
         ax_sa, ax_sig = axes[i]
-        curves = _method_curves(df, method, vs1, motion_id)
+        curves = _method_curves(df, method, sobol_id, motion_id)
         if curves is None:
             ax_sa.set_visible(False)
             ax_sig.set_visible(False)
@@ -308,26 +383,32 @@ def plot_method_subplots(
     axes[-1, 0].set_xlabel("Period (s)")
     axes[-1, 1].set_xlabel("Period (s)")
     fig.suptitle(
-        f"Method comparison vs 2D GRF reference — Vs1={vs1:g}, {motion_id}",
+        f"Method comparison vs 2D GRF — Sobol #{sobol_id} Vs1={ref['vs1']:g} H={ref['H']:g} {motion_id}",
         fontsize=12,
         y=1.01,
     )
     fig.tight_layout()
-    out_path = out_dir / f"method_subplots_Vs1{vs1:.0f}_{motion_id}.png"
+    out_path = out_dir / f"method_subplots_sobol{sobol_id:02d}_{motion_id}.png"
     fig.savefig(out_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return out_path
 
 
-def _profile_config(vs1: float) -> ProfileRandomizationConfig:
+def _profile_config(
+    vs1: float,
+    *,
+    H: float,
+    cov: float,
+    vs2: float,
+) -> ProfileRandomizationConfig:
     dz = active_dz()
     return ProfileRandomizationConfig(
         vs_mean=vs1,
-        thickness=THICKNESS,
+        thickness=H,
         dz=dz,
-        vs_bedrock=VS2,
+        vs_bedrock=vs2,
         bedrock_thickness=BEDROCK_DEPTH,
-        cov=0.2,
+        cov=cov,
     )
 
 
@@ -335,28 +416,32 @@ def _depth_axis(n_layers: int, dz: float) -> np.ndarray:
     return (np.arange(n_layers) + 0.5) * dz
 
 
-def _base_soil_profile(vs1: float) -> tuple[np.ndarray, np.ndarray]:
-    dz = active_dz()
-    n_soil = max(1, int(round(THICKNESS / dz)))
-    return _depth_axis(n_soil, dz), np.full(n_soil, vs1, dtype=float)
+def _sobol_case(sobol_id: int):
+    from sobol_base_cases import ensure_base_cases
+
+    cases = ensure_base_cases()
+    for case in cases:
+        if case.sobol_id == sobol_id:
+            return case
+    raise ValueError(f"Unknown sobol_id={sobol_id}")
 
 
 def plot_hallal_profile_realizations(
     out_dir: Path,
     *,
-    vs1: float = 230.0,
+    sobol_id: int = 0,
     seeds: list[int] | None = None,
     n_show: int = 5,
 ) -> Path:
     """Vs vs depth: base case and full Toro / Passeri realizations (soil + bedrock)."""
     from seiskit.profile_randomization import build_base_case_profile
 
+    case = _sobol_case(sobol_id)
     seeds = seeds or list(range(1, n_show + 1))
-    cfg = _profile_config(vs1)
+    cfg = _profile_config(case.vs1, H=case.H, cov=case.cov, vs2=case.vs2)
     dz = active_dz()
     base_full = build_base_case_profile(cfg)
     depth = (np.arange(len(base_full)) + 0.5) * dz
-    int(round(THICKNESS / dz))
 
     fig, axes = plt.subplots(1, 2, figsize=(9, 5.5), sharey=True)
     panels = (
@@ -379,7 +464,7 @@ def plot_hallal_profile_realizations(
                 label=f"seed {seed}",
                 where="pre",
             )
-        ax.axhline(THICKNESS, color="0.5", ls=":", lw=1.0)
+        ax.axhline(case.H, color="0.5", ls=":", lw=1.0)
         ax.set_xlabel(r"$V_s$ (m/s)")
         ax.set_title(title)
         ax.set_ylim(depth[-1] + dz, 0)
@@ -388,13 +473,14 @@ def plot_hallal_profile_realizations(
 
     axes[0].set_ylabel("Depth (m)")
     fig.suptitle(
-        f"1D profile randomization — Vs1={vs1:g} m/s, H={THICKNESS:g} m (+ bedrock)",
+        f"1D profile randomization — Sobol #{sobol_id}  "
+        f"Vs1={case.vs1:g} m/s, H={case.H:g} m, CoV={case.cov:.2f} (+ bedrock)",
         fontsize=12,
         y=1.02,
     )
     fig.tight_layout()
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"hallal_profiles_Vs1{vs1:.0f}.png"
+    out_path = out_dir / f"hallal_profiles_sobol{sobol_id:02d}.png"
     fig.savefig(out_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return out_path
@@ -409,6 +495,8 @@ def _load_2d_from_h5(h5_path: Path) -> dict:
         dx = float(f["grid"].attrs["dx"])
         dz = float(f["grid"].attrs["dz"])
         vs1 = float(f["params"].attrs["Vs1"])
+        H = float(f["params"].attrs["H"])
+        vs2 = float(f["params"].attrs["Vs2"])
         seed = int(f["params"].attrs["seed"])
     return {
         "vs_field": vs_field,
@@ -416,6 +504,8 @@ def _load_2d_from_h5(h5_path: Path) -> dict:
         "dx": dx,
         "dz": dz,
         "vs1": vs1,
+        "H": H,
+        "vs2": vs2,
         "seed": seed,
     }
 
@@ -434,7 +524,6 @@ def plot_grf_2d_explainability(
     out_dir: Path,
     *,
     h5_path: Path | None = None,
-    vs1: float = 230.0,
 ) -> Path | None:
     """2D GRF field with center-column extraction vs base template."""
     h5_path = h5_path or Path("results/h5/run_0.h5")
@@ -442,6 +531,8 @@ def plot_grf_2d_explainability(
         return None
 
     data = _load_2d_from_h5(h5_path)
+    H = float(data["H"])
+    vs2 = float(data["vs2"])
     vs_var, i_center = _variable_domain_slice(data["vs_field"], data["dx"])
     nz, nx = vs_var.shape
     depth = (np.arange(nz) + 0.5) * data["dz"]
@@ -454,7 +545,7 @@ def plot_grf_2d_explainability(
     p16 = np.percentile(vs_var, 16, axis=1)
     p84 = np.percentile(vs_var, 84, axis=1)
 
-    soil_mask = vs_var < VS2 * 0.99
+    soil_mask = vs_var < vs2 * 0.99
     vmin = float(np.min(vs_var[soil_mask])) if np.any(soil_mask) else float(data["vs1"]) * 0.5
     vmax = float(np.max(vs_var[soil_mask])) if np.any(soil_mask) else float(data["vs1"]) * 1.5
 
@@ -471,13 +562,13 @@ def plot_grf_2d_explainability(
     )
     ax0.axvline(x_extract, color="white", lw=2.0, ls="-", label="Extracted 1D column")
     ax0.axvline(x_extract, color="crimson", lw=1.0, ls="--")
-    ax0.axhline(THICKNESS, color="white", lw=0.8, ls=":", alpha=0.8)
+    ax0.axhline(H, color="white", lw=0.8, ls=":", alpha=0.8)
     cbar = fig.colorbar(im, ax=ax0, fraction=0.046, pad=0.02)
     cbar.set_label(r"$V_s$ (m/s)")
     ax0.set_xlabel("Distance x (m)")
     ax0.set_ylabel("Depth (m)")
     ax0.set_title(
-        f"2D GRF realization (seed={data['seed']})\nsame field for grf_2d & de la Torre 2D",
+        f"2D GRF realization (seed={data['seed']})\nsame field for grf_2d & de la Torre 1D",
         fontsize=10,
     )
     ax0.legend(loc="upper right", fontsize=8)
@@ -486,7 +577,7 @@ def plot_grf_2d_explainability(
     ax1.fill_betweenx(depth, p16, p84, color="C0", alpha=0.2, label="16–84% across x")
     ax1.plot(base_profile, depth_base, color="k", lw=2.0, ls="--", label="Base 1D template")
     ax1.plot(center_col, depth, color="crimson", lw=2.2, label="Center column (extracted)")
-    ax1.axhline(THICKNESS, color="0.5", ls=":", lw=1.0)
+    ax1.axhline(H, color="0.5", ls=":", lw=1.0)
     ax1.set_xlabel(r"$V_s$ (m/s)")
     ax1.set_ylabel("Depth (m)")
     ax1.set_ylim(nz * data["dz"], 0)
@@ -495,7 +586,7 @@ def plot_grf_2d_explainability(
     ax1.grid(True, alpha=0.25)
 
     fig.suptitle(
-        f"2D GRF vs extracted 1D profile — Vs1={data['vs1']:g} m/s",
+        f"2D GRF vs extracted 1D profile — Vs1={data['vs1']:g} H={H:g} m/s",
         fontsize=12,
         y=1.02,
     )
@@ -511,7 +602,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--h5-dir", type=Path, default=Path("results/h5"))
     parser.add_argument("--out-dir", type=Path, default=Path("results/figures"))
-    parser.add_argument("--vs1", type=float, default=230.0)
+    parser.add_argument("--sobol-id", type=int, default=0)
     parser.add_argument("--motion", type=str, default="M1")
     args = parser.parse_args()
 
@@ -519,16 +610,32 @@ def main() -> None:
     if df.empty:
         print("No data to plot.")
         return
-    af_out = plot_af_method_subplots(df, args.out_dir, vs1=args.vs1, motion_id=args.motion)
+
+    tf_out = plot_tf_method_comparison(
+        df, args.out_dir, sobol_id=args.sobol_id, motion_id=args.motion
+    )
+    if tf_out is not None:
+        print(f"TF method comparison: {tf_out}")
+
+    af_out = plot_af_method_subplots(
+        df, args.out_dir, sobol_id=args.sobol_id, motion_id=args.motion
+    )
     if af_out is not None:
         print(f"TF subplot figure: {af_out}")
-    sa_out = plot_method_subplots(df, args.out_dir, vs1=args.vs1, motion_id=args.motion)
+
+    sa_out = plot_method_subplots(
+        df, args.out_dir, sobol_id=args.sobol_id, motion_id=args.motion
+    )
     if sa_out is not None:
         print(f"Sa subplot figure: {sa_out}")
-    hallal_fig = plot_hallal_profile_realizations(args.out_dir, vs1=args.vs1, seeds=[1, 2, 3, 4, 5])
+
+    hallal_fig = plot_hallal_profile_realizations(
+        args.out_dir, sobol_id=args.sobol_id, seeds=[1, 2, 3, 4, 5]
+    )
     print(f"Hallal profile figure: {hallal_fig}")
+
     h5_2d = args.h5_dir / "run_0.h5"
-    grf_fig = plot_grf_2d_explainability(args.out_dir, h5_path=h5_2d, vs1=args.vs1)
+    grf_fig = plot_grf_2d_explainability(args.out_dir, h5_path=h5_2d)
     if grf_fig is not None:
         print(f"2D GRF explainability figure: {grf_fig}")
     print(f"Figures written to {args.out_dir}")

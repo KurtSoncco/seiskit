@@ -10,6 +10,8 @@ import timeit
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
+
 try:
     import openseespy.opensees as ops  # type: ignore
 except Exception:  # pragma: no cover - OpenSees not available in test env
@@ -320,7 +322,7 @@ def _apply_damping(
         # Apply bedrock-specific damping to bedrock elements
         if bedrock_elements:
             # Use bedrock Vs (typically 1500 m/s) for consistent damping
-            bedrock_Vs = 1500.0
+            bedrock_Vs = float(np.median([elem.vs_value for elem in bedrock_elements]))
             Q_bedrock = compute_quality_factor(bedrock_Vs)
             xi_bedrock = compute_damping_from_Q(Q_bedrock)
             alphaM_bedrock, betaK_bedrock = compute_rayleigh_coefficients(
