@@ -32,9 +32,9 @@ from sobol import (  # noqa: E402
     bounds_H,
     bounds_rH,
     generate_rf_seed_matrix,
+    scale_aHV,
     scale_Vs1,
     scale_Vs2,
-    scale_aHV,
     sigma_Vs1,
     sigma_Vs2,
 )
@@ -165,8 +165,7 @@ def derive_dipping_execution_parameters(
     bedrock_layer_count = max(1, total_layer_count - soil_layer_count)
     Lz_discretized = (soil_layer_count + bedrock_layer_count) * dz_1D
     while (
-        min_bedrock_column_below_interface(H_discretized, dip_angle_deg, Lz_discretized)
-        + 1e-6
+        min_bedrock_column_below_interface(H_discretized, dip_angle_deg, Lz_discretized) + 1e-6
         < min_bedrock_below_interface
     ):
         bedrock_layer_count += 1

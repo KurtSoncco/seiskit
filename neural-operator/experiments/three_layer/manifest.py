@@ -133,9 +133,7 @@ def unit_to_topology(unit_samples: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     phys[:, 0] = lognorm.ppf(raw[:, 0], s=sigma_Vs_mid, scale=scale_Vs_mid)
     phys[:, 1] = bounds_H1[0] + raw[:, 1] * (bounds_H1[1] - bounds_H1[0])
     phys[:, 2] = bounds_H2[0] + raw[:, 2] * (bounds_H2[1] - bounds_H2[0])
-    phys[:, 3] = bounds_Vs_contrast[0] + raw[:, 3] * (
-        bounds_Vs_contrast[1] - bounds_Vs_contrast[0]
-    )
+    phys[:, 3] = bounds_Vs_contrast[0] + raw[:, 3] * (bounds_Vs_contrast[1] - bounds_Vs_contrast[0])
     return phys, raw
 
 
@@ -184,7 +182,9 @@ def build_manifest(
         seed=rf_seed_seed + 1,
     )
 
-    bedrock_layer_count, bedrock_thickness_discretized = _discretize_length(bedrock_thickness, dz_1D)
+    bedrock_layer_count, bedrock_thickness_discretized = _discretize_length(
+        bedrock_thickness, dz_1D
+    )
 
     manifest: list[ThreeLayerManifestEntry] = []
     global_index = 0

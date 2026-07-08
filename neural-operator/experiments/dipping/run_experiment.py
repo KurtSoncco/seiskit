@@ -31,8 +31,8 @@ if str(THIS_DIR) not in sys.path:
     sys.path.insert(0, str(THIS_DIR))
 
 from manifest import (  # noqa: E402
-    SHALLOW_RECORDER_DEPTH_M,
     DEFAULT_MANIFEST_PATH,
+    SHALLOW_RECORDER_DEPTH_M,
     DippingManifestEntry,
     ensure_manifest,
     load_manifest_csv,
@@ -118,7 +118,9 @@ def _write_h5(
         params.attrs["f0_effective"] = entry.f0_effective
         params.attrs["duration"] = entry.duration
 
-        handle.create_dataset("Vs_realization_2D", data=Vs_extended.astype(np.float32), **_kw(comp_grid))
+        handle.create_dataset(
+            "Vs_realization_2D", data=Vs_extended.astype(np.float32), **_kw(comp_grid)
+        )
         handle.create_dataset("Damping_zeta", data=zeta_grid.astype(np.float32), **_kw(comp_grid))
 
         grid = handle.create_group("grid")
@@ -202,7 +204,14 @@ def run_case(entry: DippingManifestEntry, manifest_path: Path) -> str:
     )
 
     zeta_grid = get_damping_zeta_grid(
-        Vs_extended, DAMPING_METHOD, LX, entry.Lz_discretized, DX, DZ, bedrock_mask=bedrock_mask, config=config
+        Vs_extended,
+        DAMPING_METHOD,
+        LX,
+        entry.Lz_discretized,
+        DX,
+        DZ,
+        bedrock_mask=bedrock_mask,
+        config=config,
     )
 
     solver_info = get_solver_info(config)
@@ -237,7 +246,9 @@ def run_case(entry: DippingManifestEntry, manifest_path: Path) -> str:
 
 
 def _parse_args():
-    parser = argparse.ArgumentParser(description="Run the dipping-interface generalization experiment.")
+    parser = argparse.ArgumentParser(
+        description="Run the dipping-interface generalization experiment."
+    )
     parser.add_argument("--index", type=int, default=None, help="Run only this case index.")
     parser.add_argument("--manifest-path", type=Path, default=None, help="Path to manifest CSV.")
     parser.add_argument(

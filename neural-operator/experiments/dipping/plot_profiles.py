@@ -18,9 +18,9 @@ if str(THIS_DIR) not in sys.path:
     sys.path.insert(0, str(THIS_DIR))
 
 from manifest import (  # noqa: E402
-    SHALLOW_RECORDER_DEPTH_M,
     DEFAULT_MANIFEST_PATH,
     MIN_BEDROCK_BELOW_INTERFACE_M,
+    SHALLOW_RECORDER_DEPTH_M,
     ensure_manifest,
     load_manifest_csv,
     min_bedrock_column_below_interface,

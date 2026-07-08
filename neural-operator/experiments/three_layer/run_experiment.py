@@ -116,7 +116,9 @@ def _write_h5(
         params.attrs["f0_effective"] = entry.f0_effective
         params.attrs["duration"] = entry.duration
 
-        handle.create_dataset("Vs_realization_2D", data=Vs_extended.astype(np.float32), **_kw(comp_grid))
+        handle.create_dataset(
+            "Vs_realization_2D", data=Vs_extended.astype(np.float32), **_kw(comp_grid)
+        )
         handle.create_dataset("Damping_zeta", data=zeta_grid.astype(np.float32), **_kw(comp_grid))
 
         grid = handle.create_group("grid")
@@ -202,7 +204,14 @@ def run_case(entry: ThreeLayerManifestEntry, manifest_path: Path) -> str:
     )
 
     zeta_grid = get_damping_zeta_grid(
-        Vs_extended, DAMPING_METHOD, LX, entry.Lz_discretized, DX, DZ, bedrock_mask=bedrock_mask, config=config
+        Vs_extended,
+        DAMPING_METHOD,
+        LX,
+        entry.Lz_discretized,
+        DX,
+        DZ,
+        bedrock_mask=bedrock_mask,
+        config=config,
     )
 
     solver_info = get_solver_info(config)
