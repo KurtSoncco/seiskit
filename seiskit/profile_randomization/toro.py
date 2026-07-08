@@ -94,7 +94,6 @@ def _toro_draw_layer_vs(
     *,
     randomize_bedrock: bool,
 ) -> np.ndarray:
-    n = len(layers)
     ln_median = np.log(np.clip([layer.vs_median for layer in layers], 1e-6, None))
     sigma = np.array(
         [
