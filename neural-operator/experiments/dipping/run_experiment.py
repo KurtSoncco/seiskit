@@ -1,18 +1,17 @@
-"""Runner for the dipping-interface capability-check experiment.
+"""Runner for the dipping-interface generalization experiment.
 
-See ``neural-operator/experiments/README.md``. Builds the two fixed-background
-2-layer cases (dip left-to-right / right-to-left at 5 degrees), runs the
-OpenSees analysis, and writes one HDF5 per case.
-
-Unlike ``neural-operator/data/run_experiment.py`` this is a small (2-case)
-exploratory batch, not an HPC production job: no SLURM/heartbeat/archiving/
-timing-db bookkeeping.
+See ``neural-operator/experiments/README.md``. Builds each manifest case (Sobol
+background + dip angle + RF seed), runs the OpenSees analysis, and writes one
+HDF5 per case. Supports local runs and Stampede3 pylauncher batches via
+``EXP_H5_DIR`` / ``EXP_OUTDIR`` environment overrides.
 """
 
 from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -32,19 +31,17 @@ if str(THIS_DIR) not in sys.path:
     sys.path.insert(0, str(THIS_DIR))
 
 from manifest import (  # noqa: E402
+    SHALLOW_RECORDER_DEPTH_M,
     DEFAULT_MANIFEST_PATH,
     DippingManifestEntry,
     ensure_manifest,
-    write_manifest_csv,
+    load_manifest_csv,
+    min_bedrock_column_below_interface,
 )
 
 
 def _load_module(name: str, path: Path):
-    """Load a module from an explicit file path under a unique name.
-
-    Avoids colliding with this file's own module name: both this file and
-    ``neural-operator/data/run_experiment.py`` are named ``run_experiment.py``.
-    """
+    """Load a module from an explicit file path under a unique name."""
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -68,8 +65,8 @@ DAMPING_FREQ_SECOND = 10.0
 DAMPING_METHOD = "global_avg"
 MAX_TIME_PER_BATCH_SEC = 8 * 3600.0
 
-RESULTS_DIR = THIS_DIR / "results"
-H5_DIR = THIS_DIR / "h5"
+RESULTS_DIR = Path(os.environ.get("EXP_OUTDIR", THIS_DIR / "results"))
+H5_DIR = Path(os.environ.get("EXP_H5_DIR", THIS_DIR / "h5"))
 
 
 def _write_h5(
@@ -99,18 +96,25 @@ def _write_h5(
         handle.attrs["task_id"] = task_id
         handle.attrs["case_type"] = CASE_TYPE
         handle.attrs["manifest_path"] = str(manifest_path.resolve())
+        handle.attrs["split"] = entry.split
 
         params = handle.create_group("params")
         params.attrs["Vs1"] = entry.Vs1
         params.attrs["Vs2"] = entry.Vs2
         params.attrs["H"] = entry.H_discretized
+        params.attrs["H_requested"] = entry.H_requested
         params.attrs["CoV"] = entry.CoV
         params.attrs["rH"] = entry.rH
         params.attrs["aHV"] = entry.aHV
-        params.attrs["seed"] = entry.seed
+        params.attrs["rf_seed"] = entry.rf_seed
+        params.attrs["seed"] = entry.rf_seed
+        params.attrs["angle_id"] = entry.angle_id
+        params.attrs["sobol_id"] = entry.sobol_id
+        params.attrs["replicate_id"] = entry.replicate_id
         params.attrs["dip_angle_deg"] = entry.dip_angle_deg
         params.attrs["dip_span"] = entry.dip_span
         params.attrs["dip_direction"] = entry.dip_direction
+        params.attrs["shallow_recorder_y"] = SHALLOW_RECORDER_DEPTH_M
         params.attrs["f0_effective"] = entry.f0_effective
         params.attrs["duration"] = entry.duration
 
@@ -139,13 +143,17 @@ def run_case(entry: DippingManifestEntry, manifest_path: Path) -> str:
     t0 = time.time()
     task_id = f"{CASE_TYPE}_case{entry.index}_{entry.dip_direction}"
     output_dir = RESULTS_DIR / f"case_{entry.index}"
+    shutil.rmtree(output_dir, ignore_errors=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"[{CASE_TYPE}] Starting {task_id}")
+    print(f"[{CASE_TYPE}] Starting {task_id} split={entry.split}")
     print(
         f"  Vs1={entry.Vs1:.1f} Vs2={entry.Vs2:.1f} H={entry.H_discretized:.1f} "
+        f"Lz={entry.Lz_discretized:.1f} bedrock_below_iface="
+        f"{min_bedrock_column_below_interface(entry.H_discretized, entry.dip_angle_deg, entry.Lz_discretized):.1f}m "
         f"CoV={entry.CoV:.3f} rH={entry.rH:.1f} aHV={entry.aHV:.1f} "
-        f"dip={entry.dip_angle_deg:+.1f} deg ({entry.dip_direction})"
+        f"dip={entry.dip_angle_deg:+.1f} deg ({entry.dip_direction}) "
+        f"rf_seed={entry.rf_seed}"
     )
 
     Vs_profile_1D = np.concatenate(
@@ -166,7 +174,8 @@ def run_case(entry: DippingManifestEntry, manifest_path: Path) -> str:
         aHV=entry.aHV,
         CV=entry.CoV,
         dip_angle_deg=entry.dip_angle_deg,
-        seed=entry.seed,
+        dip_span=entry.dip_span,
+        seed=entry.rf_seed,
         dz_1D=1.0,
     )
 
@@ -184,7 +193,7 @@ def run_case(entry: DippingManifestEntry, manifest_path: Path) -> str:
         damping_method=DAMPING_METHOD,
         boundary_condition_type="2D",
         record_center_nodes=False,
-        center_node_y_positions=[2.0, entry.Lz_discretized],
+        center_node_y_positions=[SHALLOW_RECORDER_DEPTH_M, entry.Lz_discretized],
         record_lateral_span_at_center_depths=(10, 15.0),
         record_all_surface_nodes=False,
         element_type=ELEMENT_TYPE,
@@ -228,19 +237,51 @@ def run_case(entry: DippingManifestEntry, manifest_path: Path) -> str:
 
 
 def _parse_args():
-    parser = argparse.ArgumentParser(description="Run the dipping-interface capability-check experiment.")
+    parser = argparse.ArgumentParser(description="Run the dipping-interface generalization experiment.")
     parser.add_argument("--index", type=int, default=None, help="Run only this case index.")
+    parser.add_argument("--manifest-path", type=Path, default=None, help="Path to manifest CSV.")
     parser.add_argument(
         "--force", action="store_true", help="Re-run even if an H5 output already exists."
+    )
+    parser.add_argument(
+        "--overwrite-manifest",
+        action="store_true",
+        help="Regenerate manifest.csv before running.",
+    )
+    parser.add_argument(
+        "--samples-per-angle",
+        type=int,
+        default=None,
+        help="Override manifest samples per dip angle.",
+    )
+    parser.add_argument(
+        "--seeds-per-angle",
+        type=int,
+        default=None,
+        help="Override manifest RF seeds per dip angle.",
     )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
-    manifest_entries = ensure_manifest(path=DEFAULT_MANIFEST_PATH)
-    write_manifest_csv(DEFAULT_MANIFEST_PATH, manifest_entries)
-    manifest_path = DEFAULT_MANIFEST_PATH.resolve()
+    manifest_path = Path(args.manifest_path or DEFAULT_MANIFEST_PATH)
+
+    samples_per_angle = args.samples_per_angle
+    seeds_per_angle = args.seeds_per_angle
+    if args.overwrite_manifest or not manifest_path.exists():
+        from manifest import DEFAULT_SAMPLES_PER_ANGLE, DEFAULT_SEEDS_PER_ANGLE
+
+        manifest_entries = ensure_manifest(
+            path=manifest_path,
+            samples_per_angle=samples_per_angle or DEFAULT_SAMPLES_PER_ANGLE,
+            seeds_per_angle=seeds_per_angle or DEFAULT_SEEDS_PER_ANGLE,
+            overwrite=True,
+        )
+    else:
+        manifest_entries = load_manifest_csv(manifest_path)
+
+    manifest_path = manifest_path.resolve()
     print(f"[manifest] Using {manifest_path} ({len(manifest_entries)} cases)")
 
     indices = [args.index] if args.index is not None else [e.index for e in manifest_entries]

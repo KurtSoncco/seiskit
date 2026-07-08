@@ -1,96 +1,169 @@
 # Experiments
 
-Small, hand-crafted OpenSees datasets that probe how the trained neural-operator
-surrogate (a 2-layer, random-field-Vs, 1D-soil-over-bedrock model) handles soil
-geometries it wasn't trained on. Both experiments below use the same
-random-field Vs generation approach as the main training pipeline
-(`neural-operator/data/`), just with a different underlying layer geometry.
+OpenSees datasets that probe how the trained neural-operator surrogate (a
+2-layer, random-field-Vs, 1D-soil-over-bedrock model) handles soil geometries
+it wasn't trained on. Both experiments below use the same random-field Vs
+generation approach as the main training pipeline (`neural-operator/data/`),
+just with a different underlying layer geometry.
 
 Each experiment directory is self-contained:
 
 ```
 <experiment>/
-  manifest.py          # parameter distributions + manifest generation
-  run_experiment.py     # builds the model, runs OpenSees, writes one H5 per case
-  plot_profiles.py      # visual QA: plots each case's Vs realization before running OpenSees
-  manifest.csv           # generated manifest (written on run)
-  plots/*.png            # Vs realization plots (written by plot_profiles.py)
-  results/case_*/        # raw OpenSees recorder output per case
-  h5/case_*.h5            # final packaged output per case
+  manifest.py              # parameter distributions + manifest generation
+  run_experiment.py         # builds the model, runs OpenSees, writes one H5 per case
+  plot_profiles.py          # visual QA: plots Vs realizations before running OpenSees
+  stampede3_full_run.slurm  # TACC Stampede3 pylauncher production job
+  stampede3_resume_run.slurm
+  stampede3_single_index.sh
+  submit_full.sh            # convenience wrapper (smoke | production)
+  manifest.csv              # generated manifest (written on run)
+  plots/*.png
+  results/case_*/           # raw OpenSees recorder output per case
+  h5/case_*.h5              # final packaged output per case
 ```
 
 ## 3-Vs-layer profile (`three_layer/`)
 
-A 3-material profile — two independently-variable soil layers over a fixed
+A 3-material profile — two independently-variable soil layers over fixed
 bedrock — instead of the usual single soil layer over bedrock. Each soil layer
-has its own random-field Vs variability (own CoV, correlation length `rH`,
-anisotropy ratio `aHV`, and RNG seed); both layer/bedrock interfaces are flat
-(no waviness — see "Design notes" below).
+has its own random-field Vs variability; both layer/bedrock interfaces are
+flat (no interlayer waviness).
 
-**3 cases**, each a Sobol-sampled draw from:
+**250 cases** (default): 10 Sobol topology points × 25 RF seed replicates.
 
 | Parameter | Distribution | Notes |
 |---|---|---|
-| `Vs1` (top layer) | lognormal, bounds [100, 230] m/s | |
-| `Vs_mid` (middle layer) | lognormal, bounds [450, 560] m/s | |
-| `Vs_bedrock` | fixed at 1500 m/s | not sampled, per spec |
-| `H1`, `H2` (layer thicknesses) | uniform, bounds [5, 15] m each | capped so `H1 + H2 <= 30 m` total — see "Design notes" |
-| `CoV1`, `CoV2` | uniform, bounds [0.1, 0.3] | same bounds as the main training pipeline, sampled independently per layer |
-| `rH1`, `rH2` | uniform, bounds [10, 100] m | same bounds as the main training pipeline, sampled independently per layer |
-| `aHV1`, `aHV2` | lognormal, bounds [10, 50] | same bounds as the main training pipeline, sampled independently per layer |
+| `Vs_mid` | lognormal, [450, 560] m/s | Sobol topology dim 0 |
+| `H1`, `H2` | uniform, [5, 15] m each | topology dims 1–2; `H1+H2` ≤ 30 m |
+| `Vs_contrast` | uniform log-ratio, [0.8, 1.6] | `log(Vs_mid/Vs1)`; topology dim 3 |
+| `Vs1` | derived | `Vs_mid / exp(Vs_contrast)` |
+| `Vs_bedrock` | fixed at 1500 m/s | |
+| `CoV1/2`, `rH1/2`, `aHV1/2` | fixed at training midpoints | not sampled |
 
-Run: `python three_layer/plot_profiles.py` to preview, then
-`python three_layer/run_experiment.py [--index N] [--force]`.
+**Split tags** (in manifest + HDF5):
+- `train` — in-distribution topology
+- `extrap_test` — corner holdout: high `Vs_mid`, thin `H1+H2` (bottom quartile
+  of [10, 30] m), high `Vs_contrast` (top quartile)
+
+Run locally:
+```bash
+python three_layer/plot_profiles.py --overwrite-manifest
+python three_layer/run_experiment.py [--index N] [--force]
+```
 
 ## 2-Vs-layer profile with a dipping interface (`dipping/`)
 
-The same background 2-layer profile used by the main training pipeline
-(`Vs1`, `Vs2`, `H`, `CoV`, `rH`, `aHV` pinned at representative/median values),
-but with a straight interface dipping at a fixed angle instead of the usual
-randomly wavy one.
+The same background 2-layer profile used by the main training pipeline, but with
+a straight interface dipping at a fixed angle instead of a randomly wavy one.
+Background `(Vs1, Vs2, H)` is Sobol-sampled from the main training marginals;
+dip angle is the generalization axis.
 
-**2 cases only** — dip left-to-right (+2°) and right-to-left (−2°) — an
-isolated comparison where the dip direction is the only thing that differs.
+**150 cases** (default): 10 signed angles × 15 independent (Sobol background,
+RF seed) pairs per angle.
 
-| Parameter | Value | Notes |
+| Parameter | Distribution | Notes |
 |---|---|---|
-| `Vs1`, `Vs2` | medians of the main pipeline's lognormal distributions | fixed, not sampled |
-| `H` | 15 m | fixed |
-| `CoV`, `rH`, `aHV` | midpoints of the main pipeline's bounds | fixed |
-| `dip_angle_deg` | ±2° | small angle — see "Design notes" |
-| `dip_span` | 500 m (the full `Lx_variability` width) | |
+| `dip_angle_deg` | fixed grid ±1…±5° | 10 signed angles |
+| `Vs1`, `Vs2`, `H` | 3D Sobol, main pipeline marginals | varies per case |
+| `CoV`, `rH`, `aHV` | fixed at training midpoints | |
+| `dip_span` | 500 m | full `Lx_variability` width |
+| `rf_seed` | 15 independent seeds per angle | |
 
-Run: `python dipping/plot_profiles.py` to preview, then
-`python dipping/run_experiment.py [--index N] [--force]`.
+**Split tags:**
+| `split` | Angles | Count |
+|---|---|---|
+| `train` | ±1, ±3, ±4 | 90 |
+| `interp_test` | ±2 | 30 |
+| `extrap_test` | ±5 | 30 |
 
-## Design notes (why these choices, not the literal first draft)
+**H constraint for steep dips:** domain depth `Lz` is set from the deepest
+interface over the 500 m dip span plus **≥20 m bedrock** below that interface at
+every column (BC extensions copy edge columns). Recorders: shallow row at **y=2 m**
+and surface at `y=Lz` (same as the main training pipeline).
 
-- **No interlayer waviness for the 3-layer case.** It makes no physical sense
-  for a soil layer's thickness to vary randomly meter-to-meter the way the
-  single-layer training data's wavy interface does; the 3-layer interfaces are
-  flat, with only intralayer (lognormal random-field) Vs variability.
-- **H1 + H2 capped at 30 m.** Letting each layer thickness range up to 100 m
-  (matching the main pipeline's `H` bounds) produced domains up to ~180 m deep.
-  At that size a single OpenSees run was projected to take **1-2 days**
-  (estimated from calibrating against the dipping case's measured ~2 s/step at
-  a 25 m domain). Capping total soil thickness at 30 m keeps runtime on the
-  order of the dipping case (~1.5-2 hours per case).
-- **Dip angle is small (2°), not 5°.** A dip angle is the true (vertical) angle
-  of the interface, not a horizontal drift rate. At 5° across the full 500 m
-  variability width the interface depth swings by about ±22 m — larger than
-  the 15 m soil layer itself, which isn't physically plausible for a soil
-  deposit (most of the domain degenerates to solid bedrock or solid soil,
-  outcropping at the surface). At 2° the swing is a much more reasonable
-  ~±8.7 m, comfortably inside the domain.
-- **The "10 examples at H=15 m" idea from the original draft is out of
-  scope.** The existing large-scale single-layer Sobol dataset
-  (`neural-operator/data/`) already has ample coverage at low `H`, including
-  the fastest-response regime — no new simulations are needed for that case.
+Run locally:
+```bash
+python dipping/plot_profiles.py --overwrite-manifest
+python dipping/run_experiment.py [--index N] [--force]
+```
+
+## TACC Stampede3 submission
+
+Both experiments use the same pylauncher pattern as
+`neural-operator/data/stampede3_full_run.slurm` (partition `skx`, account
+`ECS24003`). Outputs default to `$SCRATCH/opensees_dipping` or
+`$SCRATCH/opensees_three_layer`.
+
+### Environment variables
+
+| Variable | Dipping default | Three-layer default |
+|---|---|---|
+| `EXP_SAMPLES_PER_ANGLE` / `EXP_TOPOLOGY_COUNT` | 15 | 10 |
+| `EXP_SEEDS_PER_ANGLE` / `EXP_RF_SEEDS` | 15 | 25 |
+| `EXP_OVERWRITE_MANIFEST` | 0 | 0 |
+| `FORCE_RERUN` | 0 | 0 |
+| `RUN_BASE` | `$SCRATCH/opensees_dipping` | `$SCRATCH/opensees_three_layer` |
+| `EXP_H5_DIR` | `$RUN_BASE/h5` | `$RUN_BASE/h5` |
+| `EXP_OUTDIR` | `$RUN_BASE/raw_runs` | `$RUN_BASE/raw_runs` |
+
+### Smoke tests
+
+```bash
+# Dipping (4 tasks)
+EXP_SAMPLES_PER_ANGLE=1 EXP_SEEDS_PER_ANGLE=2 EXP_OVERWRITE_MANIFEST=1 FORCE_RERUN=1 \
+  sbatch -N 1 --ntasks-per-node=4 -t 4:00:00 \
+  neural-operator/experiments/dipping/stampede3_full_run.slurm
+
+# Three-layer (4 tasks)
+EXP_TOPOLOGY_COUNT=2 EXP_RF_SEEDS=2 EXP_OVERWRITE_MANIFEST=1 FORCE_RERUN=1 \
+  sbatch -N 1 --ntasks-per-node=4 -t 4:00:00 \
+  neural-operator/experiments/three_layer/stampede3_full_run.slurm
+```
+
+### Production runs
+
+```bash
+bash neural-operator/experiments/dipping/submit_full.sh production
+bash neural-operator/experiments/three_layer/submit_full.sh production
+```
+
+Or directly:
+```bash
+sbatch -N 4 --ntasks-per-node=48 -t 48:00:00 \
+  neural-operator/experiments/dipping/stampede3_full_run.slurm
+
+sbatch -N 6 --ntasks-per-node=48 -t 48:00:00 \
+  neural-operator/experiments/three_layer/stampede3_full_run.slurm
+```
+
+Resume incomplete indices:
+```bash
+sbatch neural-operator/experiments/dipping/stampede3_resume_run.slurm
+sbatch neural-operator/experiments/three_layer/stampede3_resume_run.slurm
+```
+
+Single-index debug:
+```bash
+INDEX=0 sbatch neural-operator/experiments/dipping/stampede3_single_index.sh
+```
+
+## Design notes
+
+- **No interlayer waviness for the 3-layer case.** Only intralayer random-field
+  Vs variability; interfaces are flat.
+- **H1 + H2 capped at 30 m** total to keep OpenSees runtime tractable (~1.5–2 h
+  per case at moderate depth).
+- **Steep dipping cases need deeper domains.** `Lz` grows with `H + 250·tan(|dip|)`
+  plus 20 m minimum bedrock below the deepest interface so bedrock is always
+  present in the variability window.
+- **Deeper domains run slower.** Budget 48 h jobs and use the resume scripts
+  for stragglers.
 
 ## Outputs
 
 Each case produces one `h5/case_N.h5` with:
-- `params` (group): the sampled/fixed physical parameters for that case.
-- `Vs_realization_2D`, `Damping_zeta` (datasets): the full 2D grids used in the analysis.
-- `grid` (group): domain/mesh metadata (`Lx`, `Lz`, `dx`, `dz`, `dt`, ...).
-- `recorders/accel/{time,data}`: recorded acceleration time histories.
+- `params` (group): physical parameters including `split` metadata.
+- `Vs_realization_2D`, `Damping_zeta` (datasets).
+- `grid` (group): domain/mesh metadata.
+- `recorders/accel/{time,data}`: acceleration time histories.
