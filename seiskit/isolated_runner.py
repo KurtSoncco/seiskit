@@ -346,9 +346,10 @@ def _apply_damping(
         # Model B: Elemental Varying Damping
         # Each element gets its own damping based on its Vs
         region_tag = 1
+        dmin_mult = float(config.dmin_multiplier)
         for elem in model_data.soil_elements:
             Q = compute_quality_factor(elem.vs_value)
-            xi = compute_damping_from_Q(Q)
+            xi = compute_damping_from_Q(Q) * dmin_mult
             alphaM, betaK = compute_rayleigh_coefficients(
                 xi, config.damping_freqs[0], config.damping_freqs[1]
             )

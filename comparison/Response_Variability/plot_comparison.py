@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -26,7 +27,7 @@ METHOD_LABELS = {
     "delatorre": "de la Torre (1D from GRF)",
     "hallal_vs": "Hallal VsRand",
     "hallal_tts": "Hallal ttsRand",
-    "hallal_dmin": "Hallal Dmin (elemental Q)",
+    "hallal_dmin": "Hallal Dmin ×3 (base Vs)",
 }
 
 METHOD_COLORS = {
@@ -38,9 +39,14 @@ METHOD_COLORS = {
 }
 
 
-def _method_curves(
-    df: pd.DataFrame, method: str, sobol_id: int, motion_id: str
-) -> dict | None:
+def _method_label(method: str) -> str:
+    if method == "hallal_dmin":
+        mult = os.getenv("RV_DMIN_MULT", "3")
+        return f"Hallal Dmin ×{mult} (base Vs)"
+    return METHOD_LABELS.get(method, method)
+
+
+def _method_curves(df: pd.DataFrame, method: str, sobol_id: int, motion_id: str) -> dict | None:
     sub = df[
         (df["method"] == method) & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)
     ]
@@ -108,7 +114,9 @@ def plot_tf_method_comparison(
     meta = sub.iloc[0]
     freq = sub[sub["method"] == methods[0]].iloc[0]["freq"]
 
-    fig, axes = plt.subplots(2, 1, figsize=(9, 7), sharex=True, gridspec_kw={"height_ratios": [2.2, 1.0]})
+    fig, axes = plt.subplots(
+        2, 1, figsize=(9, 7), sharex=True, gridspec_kw={"height_ratios": [2.2, 1.0]}
+    )
     ax_af, ax_sig = axes
 
     for method in methods:
@@ -121,7 +129,7 @@ def plot_tf_method_comparison(
         lo = med * np.exp(-sig)
         hi = med * np.exp(sig)
         color = METHOD_COLORS.get(method, "C0")
-        label = METHOD_LABELS.get(method, method)
+        label = _method_label(method)
         lw = 2.4 if method == "grf_2d" else 1.8
         ax_af.fill_between(freq, lo, hi, color=color, alpha=0.18, linewidth=0)
         ax_af.plot(freq, med, color=color, lw=lw, label=f"{label} (n={len(msub)})")
@@ -175,7 +183,9 @@ def plot_af_method_subplots(
     if ref_sig is None:
         # Older analyze_response caches; recompute from dataframe rows.
         ref_rows = df[
-            (df["method"] == "grf_2d") & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)
+            (df["method"] == "grf_2d")
+            & (df["sobol_id"] == sobol_id)
+            & (df["motion_id"] == motion_id)
         ]
         af_stack = np.vstack(ref_rows["af"].tolist())
         ref_sig = np.array([sigma_ln(af_stack[:, j]) for j in range(af_stack.shape[1])])
@@ -188,7 +198,7 @@ def plot_af_method_subplots(
             ax_sig.set_visible(False)
             continue
 
-        label = METHOD_LABELS.get(method, method)
+        label = _method_label(method)
         is_ref = method == "grf_2d"
 
         ax_af.plot(freq, ref["median_af"], color="0.35", lw=1.8, label="grf_2d ref")
@@ -310,7 +320,7 @@ def plot_method_subplots(
             ax_sig.set_visible(False)
             continue
 
-        label = METHOD_LABELS.get(method, method)
+        label = _method_label(method)
         is_ref = method == "grf_2d"
 
         # Left: median Sa (+ optional 16–84 band); reference always overlaid
@@ -623,9 +633,7 @@ def main() -> None:
     if af_out is not None:
         print(f"TF subplot figure: {af_out}")
 
-    sa_out = plot_method_subplots(
-        df, args.out_dir, sobol_id=args.sobol_id, motion_id=args.motion
-    )
+    sa_out = plot_method_subplots(df, args.out_dir, sobol_id=args.sobol_id, motion_id=args.motion)
     if sa_out is not None:
         print(f"Sa subplot figure: {sa_out}")
 

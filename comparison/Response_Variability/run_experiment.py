@@ -29,6 +29,7 @@ from manifest import (
     active_lx_var,
     case_tag,
     damping_method_for,
+    dmin_multiplier_for,
     index_to_params,
     motion_frequency,
     total_combinations,
@@ -52,7 +53,6 @@ from seiskit.profile_randomization import (
 )
 from seiskit.solver_utils import get_solver_info
 from seiskit.ttf.TTF import TTF, TTF_batch_fast
-
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -325,6 +325,7 @@ def _analysis_config(
         damping_freqs=(damping_freq_first, 10.0),
         damping_zeta=0.025,
         damping_method=damping_method_for(p),
+        dmin_multiplier=dmin_multiplier_for(p),
         boundary_condition_type="2D" if bc_2d else "1D",
         record_center_nodes=True,
         center_node_y_positions=[2.0, lz],
@@ -367,6 +368,8 @@ def _write_h5(
         f.attrs["method"] = p.method
         f.attrs["motion_id"] = p.motion_id
         f.attrs["damping_method"] = damp_method
+        if p.method == "hallal_dmin":
+            f.attrs["dmin_multiplier"] = dmin_multiplier_for(p)
         grp = f.create_group("params")
         grp.attrs["sobol_id"] = p.sobol_id
         grp.attrs["Vs1"] = p.vs1
@@ -461,7 +464,9 @@ def run_case(index: int, *, force: bool = False) -> str:
 
     model_data = build_model_data(config, vs_field, rho, nu, bedrock_mask=bedrock_mask)
     info = get_solver_info(config)
-    print(f"  solver={info['solver_type']} domain={config.Lx}x{lz} m damping={config.damping_method}")
+    print(
+        f"  solver={info['solver_type']} domain={config.Lx}x{lz} m damping={config.damping_method}"
+    )
 
     t0 = time.time()
     status = run_opensees_analysis(config, model_data, task_id, str(out_dir))

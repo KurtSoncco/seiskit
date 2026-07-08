@@ -54,6 +54,7 @@ class AnalysisConfig:
     damping_f_target: float = (
         0.75  # Target frequency for mass-only damping (default matches motion_freq)
     )
+    dmin_multiplier: float = 1.0  # Scale lab Q–Vs Dmin profile (Hallal Approach 5: 3 or 6)
 
     # Analysis Constants
     gravity_tolerance: float = 1.0e-4

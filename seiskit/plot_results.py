@@ -414,11 +414,14 @@ def get_damping_zeta_grid(
             zeta_grid[bedrock_mask] = xi_bedrock
 
     elif damping_method in ("elemental_varying", "elemental_mass_only"):
+        dmin_mult = float(config.dmin_multiplier) if config is not None else 1.0
         for i in range(nz):
             for j in range(nx):
                 vs = Vs_extended[i, j]
                 Q = compute_quality_factor(vs)
                 xi = compute_damping_from_Q(Q)
+                if damping_method == "elemental_varying":
+                    xi *= dmin_mult
                 zeta_grid[i, j] = xi
     elif damping_method == "uniform":
         zeta_grid.fill(damping_zeta)

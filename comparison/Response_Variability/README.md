@@ -6,7 +6,7 @@ Response-focused benchmark comparing five randomization / damping protocols on *
 |-----|--------|-------------|
 | `hallal_vs` | 1D Vs randomization | Toro (1995) full profile (Vs-only; fixed H) |
 | `hallal_tts` | 1D travel-time randomization | Passeri full profile (Vs-only; fixed H) |
-| `hallal_dmin` | Damping modification | Mean profile + **elemental** Q–Vs damping |
+| `hallal_dmin` | Damping modification (Approach 5) | Base-case Vs + lab Q–Vs **Dmin ×3** on entire profile |
 | `grf_2d` | Proposed 2D GRF (reference) | Full 2D field, `global_avg` Q–Vs |
 | `delatorre` | de la Torre protocol | **1D OpenSees** with center column extracted from same 2D GRF |
 
@@ -96,6 +96,8 @@ RV_INDEX_OFFSET=38400 RV_INDEX_MAX=42240 sbatch stampede3_full_run.slurm
 ```
 
 Scratch env vars: `RV_OUTDIR`, `RV_H5_DIR`.
+
+**Hallal Dmin arm:** fixed base-case Vs; damping from Campbell (2009) Q–Vs with a constant multiplier on the whole Dmin profile (default **×3**, Hallal/Tao & Rathje TIDA; set `RV_DMIN_MULT=6` for the higher-damping sensitivity case).
 
 ## Modules
 

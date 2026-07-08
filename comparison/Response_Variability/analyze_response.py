@@ -90,7 +90,9 @@ def reference_curves(
     sobol_id: int,
     motion_id: str,
 ) -> dict:
-    ref = df[(df["method"] == "grf_2d") & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)]
+    ref = df[
+        (df["method"] == "grf_2d") & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)
+    ]
     if ref.empty:
         return {}
     sa_stack = np.vstack(ref["sa"].tolist())

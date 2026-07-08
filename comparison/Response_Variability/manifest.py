@@ -123,7 +123,9 @@ def rf_index_range() -> tuple[int, int]:
     return start, start + rf_block_size()
 
 
-def phase1_array_tasks(*, chunk: int = 24, index_offset: int = 0, index_end: int | None = None) -> int:
+def phase1_array_tasks(
+    *, chunk: int = 24, index_offset: int = 0, index_end: int | None = None
+) -> int:
     """Number of Slurm array tasks to cover [index_offset, index_end)."""
     end = index_end if index_end is not None else total_combinations()
     count = max(0, end - index_offset)
@@ -228,3 +230,14 @@ def damping_method_for(p: CaseParams) -> str:
     if p.method == "hallal_dmin":
         return "elemental_varying"
     return "global_avg"
+
+
+def dmin_multiplier_for(p: CaseParams) -> float:
+    """Hallal Approach 5: scale lab Q–Vs Dmin profile (default ×3; override with RV_DMIN_MULT)."""
+    if p.method != "hallal_dmin":
+        return 1.0
+    raw = os.getenv("RV_DMIN_MULT", "3")
+    mult = float(raw)
+    if mult <= 0:
+        raise ValueError(f"RV_DMIN_MULT must be positive, got {raw!r}")
+    return mult
