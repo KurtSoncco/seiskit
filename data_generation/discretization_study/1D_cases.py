@@ -10,8 +10,8 @@ In this case, we will try:
 - Duration: 50.0 seconds if f0 < 1 Hz, else 30.0 seconds
 - Damping frequencies = (min(f0, 3.0), 10.0) Hz (uses f0 or 3Hz, whichever is smaller)
 - 1 value of Damping method: "global_avg"
-- Boundary condition type = "2D"
-- Record center nodes at surface and base after 2 meters of the bottom (2 m from the bottom)
+-         Boundary condition type = "1D"
+- Record center nodes at surface and soil–bedrock interface
 - Element type = "4node"
 - Solver type = "Mumps"
 
@@ -238,9 +238,9 @@ def run_case(index: int = 0):
         damping_freqs=damping_freqs,  # (min(f0, 3.0), 10.0) Hz
         damping_zeta=0.025,  # 2.5% damping for uniform_soil_only method
         damping_method=damping_method_idx,  # "global_avg" or "uniform_soil_only"
-        boundary_condition_type="2D",
+        boundary_condition_type="1D",
         record_center_nodes=True,
-        center_node_y_positions=[2.0, Lz],  # Record at 2m from bottom and at surface
+        center_node_y_positions=[bedrock_depth, Lz],  # soil–bedrock interface and surface
         record_all_surface_nodes=False,
         element_type=element_type,
         solver_type="Mumps",

@@ -1,7 +1,8 @@
-"""Configuration settings for OpenSees 2D site response analysis.
+"""Configuration for OpenSees site-response analyses.
 
-This module defines the AnalysisConfig dataclass which holds all configuration
-parameters for running seismic site response analyses.
+``AnalysisConfig`` holds geometry, motion, damping, boundary conditions,
+recorders, and solver settings used by ``build_model_data`` and
+``run_isolated_analysis``.
 """
 
 from dataclasses import dataclass, field
@@ -10,93 +11,82 @@ from typing import Optional, Tuple
 
 @dataclass(slots=False)
 class AnalysisConfig:
-    """Configuration settings for a 2D site response analysis.
+    """Parameters for a 1D or 2D linear site-response analysis.
 
-    This class holds all configuration parameters for running seismic site
-    response analyses, including domain geometry, analysis parameters, damping,
-    boundary conditions, recorders, and solver configuration.
+    Boundary conditions
+    -------------------
+    ``boundary_condition_type``:
 
-    Boundary Conditions:
-        The boundary_condition_type field controls the boundary condition type:
-        - "1D": 1D site response (simple shear deformation)
-        - "2D": 2D free field conditions
+    - ``"1D"`` — simple shear: fix uy, tie ux with ``equalDOF`` at each elevation;
+      absorbing boundaries on the **bottom only**. Use a single soil column
+      (``Lx = hx``) for classical 1D profiles.
+    - ``"2D"`` — free field: no kinematic ties; absorbing boundaries on left,
+      right, and bottom (for laterally heterogeneous domains).
 
-    Solver Configuration:
-        The solver_type field controls which linear solver is used:
-        - "UmfPack": Default solver, always available
-        - "Mumps": MUMPS solver (requires OpenSees built with MUMPS support)
-        - "MumpsParallel": Parallel MUMPS solver (requires MPI and MUMPS support)
+    Input motion
+    ------------
+    The Ricker wavelet is generated as acceleration and integrated to
+    **velocity** before being passed to ``ASDAbsorbingBoundary2D -fx``
+    (Lysmer–Kuhlemeyer injection requires velocity).
 
-        Note: MUMPS support is compile-time in OpenSees. If MUMPS is requested
-        but not available, the code will automatically fall back to UmfPack.
+    Damping
+    -------
+    ``damping_method``: ``"none"``, ``"global_avg"``, ``"elemental_varying"``,
+    ``"elemental_mass_only"``, ``"uniform"``, or ``"uniform_soil_only"``.
 
-        For MumpsParallel, set mumps_parallel_procs to the number of MPI processes.
-        MUMPS control parameters can be set via mumps_icntl dictionary.
+    Recorders
+    ---------
+    By default, center-line nodes at ``y = 0`` (base) and ``y = Ly`` (surface).
+    For layered 1D columns with a bedrock buffer, set
+    ``center_node_y_positions`` to the soil–bedrock interface and the surface.
     """
 
-    # Domain and Mesh
+    # Domain and mesh
     Ly: float = 140.0
     Lx: float = 260.0
     hx: float = 5.0
 
-    # Dynamic Analysis
+    # Dynamic analysis
     duration: float = 15.0
     dt: float = 0.001
 
-    # Input Motion (Ricker Wavelet)
+    # Input motion (Ricker wavelet → velocity for ASDA -fx)
     motion_freq: float = 0.75
     motion_t_shift: float = 1.4
 
-    # Damping Parameters
-    damping_zeta: float = 0.02  # Default value for uniform damping
+    # Damping
+    damping_zeta: float = 0.02
     damping_freqs: tuple[float, float] = field(default_factory=lambda: (1.0, 5.0))
-    damping_method: str = "global_avg"  # "none", "global_avg", "elemental_varying", "elemental_mass_only", "uniform", "uniform_soil_only"
-    damping_f_target: float = (
-        0.75  # Target frequency for mass-only damping (default matches motion_freq)
-    )
-    dmin_multiplier: float = 1.0  # Scale lab Q–Vs Dmin profile (Hallal Approach 5: 3 or 6)
+    damping_method: str = "global_avg"
+    damping_f_target: float = 0.75
+    dmin_multiplier: float = 1.0
 
-    # Analysis Constants
+    # Solver tolerances
     gravity_tolerance: float = 1.0e-4
     max_gravity_iter: int = 10
     dynamic_tolerance: float = 1.0e-4
     max_dynamic_iter: int = 10
 
-    # Boundary Condition Type
-    boundary_condition_type: str = "1D"  # "1D" for site response, "2D" for free field
+    # Boundary conditions: "1D" (simple shear) or "2D" (free field)
+    boundary_condition_type: str = "1D"
 
-    # Recorder Configuration
-    record_center_nodes: bool = True  # Enable/disable recording of center nodes (base and surface)
-    center_node_y_positions: Optional[list[float]] = field(
-        default_factory=lambda: None
-    )  # List of Y positions (depths) to record center nodes at. If None, records only base (y=0) and surface (y=Ly). If specified, records at these Y positions instead of default base/surface.
-    record_lateral_span_at_center_depths: Optional[Tuple[int, float]] = (
-        None  # (nodes_each_side, nominal_spacing_m): at each Y in center_node_y_positions,
-        # record 2*nodes_each_side+1 nodes with nominal spacing nominal_spacing_m [m].
-        # Nodes are subsampled from the mesh; actual spacing ≈ max(nominal_spacing_m, hx).
-    )
-    record_all_surface_nodes: bool = False  # Enable/disable recording of all surface nodes
-    recorder_dofs: list[int] = field(
-        default_factory=lambda: [1]
-    )  # List of DOFs to record (1=X, 2=Y)
-    recorder_quantity: str = "accel"  # What to record ("accel", "disp", "vel", etc.)
+    # Recorders
+    record_center_nodes: bool = True
+    center_node_y_positions: Optional[list[float]] = field(default_factory=lambda: None)
+    record_lateral_span_at_center_depths: Optional[Tuple[int, float]] = None
+    record_all_surface_nodes: bool = False
+    recorder_dofs: list[int] = field(default_factory=lambda: [1])
+    recorder_quantity: str = "accel"
 
-    # Element Type
-    element_type: str = "4node"  # "4node" for 4-node quads, "8node" for 8-node quads
+    # Elements / solver
+    element_type: str = "4node"  # "4node" | "8node"
+    solver_type: str = "UmfPack"  # "UmfPack" | "Mumps" | "MumpsParallel"
+    mumps_parallel_procs: int = 1
+    mumps_icntl: dict[int, int] = field(default_factory=dict)
 
-    # Solver Configuration
-    solver_type: str = "UmfPack"  # "UmfPack", "Mumps", or "MumpsParallel"
-    mumps_parallel_procs: int = (
-        1  # Number of MPI processes for MumpsParallel (ignored for other solvers)
-    )
-    mumps_icntl: dict[int, int] = field(
-        default_factory=lambda: {}
-    )  # Optional MUMPS control parameters (ICNTL array)
-
-    # Analysis Timeout Configuration
-    max_time_per_batch: float = 600.0  # Maximum time (seconds) per dynamic analysis batch before timeout (default: 600s = 10 min)
+    max_time_per_batch: float = 600.0
 
     @property
     def hy(self) -> float:
-        """Element size in the vertical direction (assumed equal to hx)."""
+        """Element size in the vertical direction (equal to ``hx``)."""
         return self.hx

@@ -28,7 +28,7 @@ from seiskit.damping import (
 )
 from seiskit.recorders import print_recorder_summary, setup_recorders
 from seiskit.solver_utils import setup_solver
-from seiskit.utils import compute_ricker
+from seiskit.utils import compute_ricker_velocity
 
 
 def run_isolated_analysis(
@@ -70,8 +70,9 @@ def run_isolated_analysis(
         # ---------------------------------------------------------
         # 1. TIME SERIES SETUP
         # ---------------------------------------------------------
-        # Compute Ricker values (acceleration input)
-        ts_vals = compute_ricker(
+        # ASDAbsorbingBoundary2D -fx expects a velocity Path series
+        # (Lysmer–Kuhlemeyer: F ∝ ρ Vs v).
+        ts_vals = compute_ricker_velocity(
             config.motion_freq, config.motion_t_shift, config.duration, config.dt
         )
 
@@ -637,7 +638,7 @@ def validate_analysis_setup(
 
 
 def _apply_1d_boundary_conditions(config: AnalysisConfig) -> None:
-    """Apply 1D site response boundary conditions."""
+    """1D simple-shear BCs: fix uy everywhere; equalDOF on ux at each elevation."""
     ndivx_total = int(config.Lx / config.hx) + 2
     ndivy_total = int(config.Ly / config.hy) + 1
 
@@ -661,39 +662,5 @@ def _apply_1d_boundary_conditions(config: AnalysisConfig) -> None:
 
 
 def _apply_2d_boundary_conditions(config: AnalysisConfig) -> None:
-    """Apply 2D free field boundary conditions.
-
-    For 2D analysis, NO kinematic constraints (equalDOF) are applied.
-    The ASDAbsorbingBoundary2D elements on left and right sides will handle boundary
-    conditions, allowing independent motion of nodes on each side. This enables true
-    2D wave propagation with heterogeneity and scattering effects.
-
-    The ASDA elements use the stage mechanism:
-    - Stage 0: Act as rigid supports during gravity analysis (fixed in X and Y)
-    - Stage 1: Switch to absorbing boundaries during dynamic analysis (compliant with viscous dashpots)
-    """
-    print("Applying 2D free field boundary conditions (no kinematic constraints).")
-
-
-def _apply_gravity_constraints_2d(config: AnalysisConfig) -> list[int]:
-    """Apply temporary constraints for gravity analysis in 2D case."""
-    ndivx_total = int(config.Lx / config.hx) + 2
-
-    bottom_nodes = []
-    for i in range(ndivx_total + 1):
-        bottom_nodes.append(i + 1)
-
-    ops.fix(bottom_nodes[0], 1, 1)
-    ops.fix(bottom_nodes[-1], 0, 1)
-    for node_id in bottom_nodes[1:-1]:
-        ops.fix(node_id, 0, 1)
-
-    print("Applying temporary fixes for gravity analysis...")
-
-    return bottom_nodes
-
-
-def _remove_gravity_constraints_2d(bottom_nodes: list) -> None:
-    """Remove temporary constraints after gravity analysis in 2D case."""
-    ops.remove("sp", *bottom_nodes)
-    print("Removed temporary gravity fixes.")
+    """2D free-field BCs: no kinematic ties (sides use ASDA absorbers)."""
+    print("Applying 2D free-field boundary conditions (no kinematic constraints).")

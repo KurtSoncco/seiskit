@@ -1,9 +1,14 @@
-"""seiskit package: lightweight tools for seismic processing and OpenSees utilities.
+"""seiskit: OpenSees site response with spatial Vs variability.
 
-This package consolidates ttf (time-to-frequency) helpers and OpenSees-related
-utilities to avoid copying code across example folders.
+Core flow
+---------
+1. ``AnalysisConfig`` — geometry, motion, damping, ``"1D"`` or ``"2D"`` BCs
+2. ``build_model_data`` — mesh + materials (no OpenSees calls)
+3. ``run_opensees_analysis`` / ``run_isolated_analysis`` — OpenSees solve
 
-Expose small, pure-Python utilities for testing without requiring OpenSees.
+- **1D**: simple-shear column (equalDOF, bottom ASDA only). Validated against
+  closed-form multilayer TFs in ``seiskit.theory``.
+- **2D**: free-field domain (side + bottom ASDA) for heterogeneous / GRF fields.
 """
 
 from . import (
@@ -16,10 +21,10 @@ from . import (
     plot_config,
     plot_results,
     solver_utils,
+    theory,
     utils,
 )
 
-# Core analysis functions
 from .analysis import (
     perform_analysis_spatial,
     run_analysis,
@@ -36,8 +41,6 @@ from .damping import (
 )
 from .gaussian_field import extend_profile, generate_vs_variability_field
 from .isolated_runner import run_isolated_analysis
-
-# Parallel execution functions
 from .parallel import (
     AnalysisResult,
     AnalysisTask,
@@ -49,14 +52,16 @@ from .parallel import (
 )
 from .plot_results import plot_damping_realization, plot_realization
 from .solver_utils import check_mumps_availability, get_solver_info, setup_solver
+from .theory import Layer, RockHalfspace, layered_transfer_function
 from .utils import (
+    acceleration_to_velocity,
     build_mesh_and_materials,
     compute_ricker,
+    compute_ricker_velocity,
     load_material_properties,
 )
 
 __all__ = [
-    # Main modules
     "analysis",
     "damping",
     "general_analysis",
@@ -66,27 +71,29 @@ __all__ = [
     "plot_config",
     "plot_results",
     "solver_utils",
+    "theory",
     "utils",
-    # Plotting functions
     "plot_damping_realization",
     "plot_realization",
-    # Core classes and functions
     "AnalysisConfig",
     "ModelData",
     "build_model_data",
     "build_mesh_and_materials",
     "compute_ricker",
+    "compute_ricker_velocity",
+    "acceleration_to_velocity",
     "load_material_properties",
     "perform_analysis_spatial",
     "run_analysis",
     "run_opensees_analysis",
-    # Damping functions
+    "Layer",
+    "RockHalfspace",
+    "layered_transfer_function",
     "compute_rayleigh_coefficients",
     "compute_rayleigh_mass_only",
     "compute_quality_factor",
     "compute_damping_from_Q",
     "compute_average_damping_harmonic",
-    # Parallel execution
     "AnalysisResult",
     "AnalysisTask",
     "collect_results",
@@ -97,7 +104,6 @@ __all__ = [
     "run_isolated_analysis",
     "generate_vs_variability_field",
     "extend_profile",
-    # Solver utilities
     "check_mumps_availability",
     "get_solver_info",
     "setup_solver",

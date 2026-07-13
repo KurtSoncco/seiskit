@@ -11,13 +11,11 @@
 
 ## Features
 
-- 🌊 **Seismic Analysis**: Comprehensive seismic wave propagation analysis using OpenSees
-- 🔄 **Parallel Processing**: True parallel execution with process isolation
-- 📊 **Spatial Variability**: Advanced modeling of spatially variable soil properties
-- 📈 **Parameter Studies**: Easy-to-use interfaces for running multiple parameter combinations
-- 📋 **Progress Tracking**: Real-time monitoring of analysis progress
-- 🎯 **Result Collection**: Automatic result aggregation and error handling
-- 📦 **Modern Python**: Built with modern Python practices and dependency management
+- **1D and 2D site response** via OpenSees (`boundary_condition_type="1D"` or `"2D"`)
+- **Closed-form 1D TFs** (`seiskit.theory`) for multilayer validation
+- **Spatial variability** (GRF / profile randomization) on 2D domains
+- **Parallel execution** with process-isolated OpenSees runs
+- **Parameter studies** and transfer-function post-processing
 
 ## Installation
 
@@ -138,12 +136,15 @@ rho_data = np.loadtxt("rho_data.txt")
 nu_data = np.loadtxt("nu_data.txt")
 
 # Create analysis configuration
+# 1D: single column, simple shear — use Lx=hx and boundary_condition_type="1D"
+# 2D: wide free-field domain — boundary_condition_type="2D" (default for GRF studies)
 config = AnalysisConfig(
     Ly=140.0,
     Lx=260.0,
     hx=5.0,
     duration=15.0,
-    motion_freq=0.75
+    motion_freq=0.75,
+    boundary_condition_type="2D",
 )
 
 # Build model data

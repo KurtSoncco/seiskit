@@ -35,22 +35,33 @@ def compute_ricker(
     duration: float,
     dt: float,
 ) -> np.ndarray:
-    """Generate a Ricker wavelet time series.
+    """Ricker wavelet **acceleration** ``(1 - 2 arg) exp(-arg)``.
 
-    Args:
-        freq: Central frequency of the Ricker wavelet
-        t_shift: Time shift parameter
-        duration: Total duration of the time series
-        dt: Time step
-
-    Returns:
-        Array of Ricker wavelet values
+    For OpenSees ASDA input use :func:`compute_ricker_velocity` instead.
     """
     time_points = np.arange(0.0, duration + dt, dt)
     arg = (math.pi * freq * (time_points - t_shift)) ** 2
-    ricker_values = (1.0 - 2.0 * arg) * np.exp(-arg)
+    return (1.0 - 2.0 * arg) * np.exp(-arg)
 
-    return ricker_values
+
+def acceleration_to_velocity(accel: np.ndarray, dt: float) -> np.ndarray:
+    """Trapezoidal integral of acceleration → velocity (v[0] = 0)."""
+    accel = np.asarray(accel, dtype=float)
+    if accel.size <= 1:
+        return np.zeros_like(accel)
+    vel = np.zeros_like(accel)
+    vel[1:] = np.cumsum((accel[1:] + accel[:-1]) * 0.5 * dt)
+    return vel
+
+
+def compute_ricker_velocity(
+    freq: float,
+    t_shift: float,
+    duration: float,
+    dt: float,
+) -> np.ndarray:
+    """Incident velocity for ``ASDAbsorbingBoundary2D -fx`` (F ∝ ρ Vs v)."""
+    return acceleration_to_velocity(compute_ricker(freq, t_shift, duration, dt), dt)
 
 
 def build_mesh_and_materials(

@@ -1,7 +1,12 @@
-"""Model builder for OpenSees 2D site response analysis.
+"""Model builder for OpenSees 1D / 2D site-response meshes.
 
-This module provides functions to build model data structures (nodes, elements, materials)
-without making OpenSees calls, making the code testable and parallelization-safe.
+Builds nodes, soil quads, and ASDAbsorbingBoundary2D elements **without**
+calling OpenSees (safe for tests and parallel workers).
+
+Boundary layout follows ``AnalysisConfig.boundary_condition_type``:
+
+- ``"1D"`` — absorbers on the **bottom only** (use with equalDOF simple shear)
+- ``"2D"`` — absorbers on left, right, and bottom (free-field sides)
 """
 
 from dataclasses import dataclass, field
@@ -208,28 +213,22 @@ def build_model_data(
     N4 = (j_flat + 1) * (ndivx_total + 1) + i_flat + 1
     N3 = (j_flat + 1) * (ndivx_total + 1) + i_flat + 2
 
-    # Determine boundary flags (vectorized)
-    # Note: Top surface (y=Ly) is a FREE SURFACE - no absorbing boundary elements
-    # Only bottom, left, and right boundaries use ASDAbsorbingBoundary2D elements
+    # Absorbing-boundary layout
+    # Top (y=Ly) is always a free surface (no ASDA elements).
     is_bottom = j_flat == 0
-    is_top = j_flat == ndivy_total - 1  # Top surface (free surface - NO boundary elements)
+    is_top = j_flat == ndivy_total - 1
     is_left = i_flat == 0
     is_right = i_flat == ndivx_total - 1
 
-    # Determine boundary types based on boundary condition type
     if config.boundary_condition_type == "1D":
-        # 1D Site Response: Only bottom boundary is absorbing
+        # 1D column: bottom absorbers only (sides are tied by equalDOF)
         is_boundary = is_bottom
-        # For 1D: only bottom elements are boundaries
         btype_array = np.where(
             is_bottom, np.where(is_left, "LB", np.where(is_right, "RB", "B")), ""
         )
-    else:  # 2D Free Field
-        # 2D Free Field: Left, Right, and Bottom boundaries are absorbing
-        # Top surface is FREE SURFACE (no absorbing boundaries) - exclude top row
-        # Surface nodes at y=Ly are completely free to move (no constraints)
+    else:
+        # 2D free field: left, right, and bottom absorbers
         is_boundary = (is_left | is_right | is_bottom) & ~is_top
-        # Build boundary type strings (excluding top surface)
         btype_array = np.empty(n_elements, dtype=object)
         btype_array[is_left & is_bottom & ~is_top] = "LB"
         btype_array[is_right & is_bottom & ~is_top] = "RB"

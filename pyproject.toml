@@ -59,10 +59,13 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["seiskit", "seiskit.plot_config"]
+packages = ["seiskit", "seiskit.plot_config", "seiskit.theory", "seiskit.ttf", "seiskit.profile_randomization"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = [
+    "opensees: tests that require OpenSeesPy and a working OpenSees build",
+]
 
 [tool.ruff]
 line-length = 100
