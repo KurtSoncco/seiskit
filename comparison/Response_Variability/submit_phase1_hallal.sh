@@ -3,7 +3,7 @@
 # Run this before submit_phase1_rf.sh for the 2D GRF / Pretell arms.
 #
 # Usage:
-#   ./submit_phase1_hallal.sh              # full: 38,400 indices → array 0-1599
+#   ./submit_phase1_hallal.sh              # full: 26,240 indices (array from manifest)
 #   ./submit_phase1_hallal.sh --smoke      # smoke: 120 indices → array 0-4
 #   ./submit_phase1_hallal.sh --array=0-10 # extra sbatch args
 set -euo pipefail

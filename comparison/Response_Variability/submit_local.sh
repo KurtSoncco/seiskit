@@ -4,10 +4,12 @@
 # Full smoke (120 indices): ./submit_local.sh --all
 # Include 2D: ./submit_local.sh --2d   or   ./submit_local.sh --all --2d
 # Seed counts: ./submit_local.sh --all --2d --n-seeds 20 --hallal-seeds 50
+# Local GIFNO only (Stampede does Hallal+Pretell): ./submit_local.sh --all --2d --grf-only --n-seeds 40
 # Usage:
 #   ./submit_local.sh
 #   ./submit_local.sh --analyze-only
 #   ./submit_local.sh --all --2d --n-seeds 20 --hallal-seeds 50
+#   ./submit_local.sh --all --2d --grf-only --n-seeds 40
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -34,6 +36,7 @@ mkdir -p results/h5 logs
 ANALYZE_ONLY=0
 RUN_ALL=0
 INCLUDE_2D=0
+GRF_ONLY=0
 N_SEEDS=""
 HALLAL_SEEDS=""
 
@@ -42,6 +45,7 @@ while [ $# -gt 0 ]; do
     --analyze-only) ANALYZE_ONLY=1 ;;
     --all) RUN_ALL=1 ;;
     --2d) INCLUDE_2D=1 ;;
+    --grf-only) GRF_ONLY=1; INCLUDE_2D=1 ;;
     --n-seeds)
       shift
       N_SEEDS="${1:?--n-seeds requires a positive integer}"
@@ -52,7 +56,7 @@ while [ $# -gt 0 ]; do
       ;;
     *)
       echo "Unknown argument: $1" >&2
-      echo "Usage: $0 [--all] [--2d] [--n-seeds N] [--hallal-seeds N] [--analyze-only]" >&2
+      echo "Usage: $0 [--all] [--2d] [--grf-only] [--n-seeds N] [--hallal-seeds N] [--analyze-only]" >&2
       exit 1
       ;;
   esac
@@ -126,7 +130,13 @@ print(' '.join(str(hb + n + s) for s in range(n)))
 }
 
 if [ "$ANALYZE_ONLY" = "0" ]; then
-  if [ "$RUN_ALL" = "1" ]; then
+  if [ "$GRF_ONLY" = "1" ]; then
+    mapfile -t INDICES < <("$PYTHON" -c "from manifest import indices_for_methods; print('\n'.join(map(str, indices_for_methods(['grf_2d']))))")
+    echo "Local GIFNO-only: ${#INDICES[@]} grf_2d indices (rf_seeds=${RV_RF_N_SEEDS:-default})."
+    for idx in "${INDICES[@]}"; do
+      run_idx "$idx"
+    done
+  elif [ "$RUN_ALL" = "1" ]; then
     TOTAL=$("$PYTHON" -c "from manifest import total_combinations; print(total_combinations())")
     echo "Full smoke run: ${TOTAL} indices (RV_SMOKE=1, 2D=${INCLUDE_2D}, hallal_seeds=${RV_HALLAL_N_SEEDS:-default}, rf_seeds=${RV_RF_N_SEEDS:-default})."
     for idx in $(seq 0 $((TOTAL - 1))); do

@@ -44,23 +44,35 @@ NO_NX_FULL = int(NO_LX_TOTAL / NO_DX)  # 1500 columns
 NO_NZ_MAX = 128
 
 # Pretell et al. (2022): 1D profiles from central 100 m of the 2D field.
-# Minimum 10 samples; 50 sufficient for production (Table recommendations).
 PRETELL_CENTRAL_WIDTH_M = 100.0
 PRETELL_SAMPLES_SMOKE = 10
-PRETELL_SAMPLES_FULL = 50
+PRETELL_SAMPLES_FULL = 50  # production
 
 MOTION_IDS = ["M1"]
 MOTION_FREQS = {"M1": 3.0}
 
+# Hallal 1D grid (finer than NO training grid)
 DX = 0.5
 DZ = 0.5
 LX_VAR = 200.0
 BC_WIDTH = 100.0
 
-HALLAL_SEEDS_FULL = list(range(1, 201))
-HALLAL_SEEDS_SMOKE = list(range(1, 11))
-RF_SEEDS_FULL = list(range(1, 31))
-RF_SEEDS_SMOKE = list(range(1, 6))
+# ---------------------------------------------------------------------------
+# Production seed / sample counts (per Sobol base case)
+# ---------------------------------------------------------------------------
+# hallal_vs / hallal_tts: 200 realizations each
+# hallal_dmin: 10 Dmin multipliers (not seeds)
+# grf_2d / pretell: 40 paired RF seeds each
+# pretell: 50 1D column samples per RF realization
+N_HALLAL_SEEDS_FULL = 200
+N_HALLAL_SEEDS_SMOKE = 10
+N_RF_SEEDS_FULL = 40
+N_RF_SEEDS_SMOKE = 5
+
+HALLAL_SEEDS_FULL = list(range(1, N_HALLAL_SEEDS_FULL + 1))
+HALLAL_SEEDS_SMOKE = list(range(1, N_HALLAL_SEEDS_SMOKE + 1))
+RF_SEEDS_FULL = list(range(1, N_RF_SEEDS_FULL + 1))
+RF_SEEDS_SMOKE = list(range(1, N_RF_SEEDS_SMOKE + 1))
 
 # Hallal Approach 5: Dmin multiplier sweep (10 values, linspace 3–6).
 DMIN_MULTIPLIERS: tuple[float, ...] = tuple(float(x) for x in np.linspace(3.0, 6.0, 10))
@@ -90,25 +102,19 @@ def active_sobol_count() -> int:
 
 
 def active_hallal_seeds() -> list[int]:
-    base = HALLAL_SEEDS_SMOKE if _smoke_mode() else HALLAL_SEEDS_FULL
+    """Seeds 1..N for hallal_vs / hallal_tts (override with RV_HALLAL_N_SEEDS)."""
+    default_n = N_HALLAL_SEEDS_SMOKE if _smoke_mode() else N_HALLAL_SEEDS_FULL
     raw = os.getenv("RV_HALLAL_N_SEEDS")
-    if raw:
-        n = max(1, int(raw))
-        # Allow counts beyond the smoke default list (e.g. RV_HALLAL_N_SEEDS=50).
-        pool = HALLAL_SEEDS_FULL if n > len(base) else base
-        return pool[: min(n, len(pool))]
-    return base
+    n = max(1, int(raw)) if raw else default_n
+    return list(range(1, n + 1))
 
 
 def active_rf_seeds() -> list[int]:
-    base = RF_SEEDS_SMOKE if _smoke_mode() else RF_SEEDS_FULL
+    """Seeds 1..N for grf_2d / pretell (override with RV_RF_N_SEEDS)."""
+    default_n = N_RF_SEEDS_SMOKE if _smoke_mode() else N_RF_SEEDS_FULL
     raw = os.getenv("RV_RF_N_SEEDS")
-    if raw:
-        n = max(1, int(raw))
-        # Allow RV_RF_N_SEEDS beyond the smoke default list (e.g. --n-seeds 10).
-        pool = RF_SEEDS_FULL if n > len(base) else base
-        return pool[: min(n, len(pool))]
-    return base
+    n = max(1, int(raw)) if raw else default_n
+    return list(range(1, n + 1))
 
 
 def active_dmin_multipliers() -> tuple[float, ...]:
@@ -228,6 +234,19 @@ def rf_index_range() -> tuple[int, int]:
     """Inclusive start, exclusive end for grf_2d / pretell indices."""
     start = hallal_block_size()
     return start, start + rf_block_size()
+
+
+def indices_for_methods(methods: set[str] | list[str] | tuple[str, ...]) -> list[int]:
+    """All campaign indices whose method is in ``methods`` (current smoke/seed mode)."""
+    wanted = set(methods)
+    return [i for i in range(total_combinations()) if index_to_params(i).method in wanted]
+
+
+def parse_method_list(raw: str | None) -> set[str] | None:
+    """Parse comma-separated method names from env (empty / unset → None)."""
+    if raw is None or not str(raw).strip():
+        return None
+    return {m.strip() for m in str(raw).split(",") if m.strip()}
 
 
 def phase1_array_tasks(

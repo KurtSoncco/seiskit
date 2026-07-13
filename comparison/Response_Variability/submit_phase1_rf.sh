@@ -3,7 +3,7 @@
 # Run after submit_phase1_hallal.sh completes.
 #
 # Usage:
-#   ./submit_phase1_rf.sh              # full: 3,840 indices → array 0-159
+#   ./submit_phase1_rf.sh              # full: 5,120 indices (40 RF × 2 methods × 64)
 #   RV_SMOKE=1 RV_SMOKE_2D=1 ./submit_phase1_rf.sh --smoke   # smoke: 40 indices → array 0-1
 set -euo pipefail
 cd "$(dirname "$0")"

@@ -212,9 +212,7 @@ def run_case(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if not skip_opensees:
-        model = build_model_data(
-            config, vs, rho, nu, bedrock_mask=(vs >= case.rock.Vs * 0.99)
-        )
+        model = build_model_data(config, vs, rho, nu, bedrock_mask=(vs >= case.rock.Vs * 0.99))
         print(run_opensees_analysis(config, model, run_id=run_id, output_dir=str(OUT)))
     elif not any(out_dir.glob("center_node_y*_dof1_accel.txt")):
         raise FileNotFoundError(f"No recorder output for {run_id}")
@@ -225,9 +223,7 @@ def run_case(
 
     freq_os, af_within_os = _fas_tf(surf, base, dt_rec, vs_min, hx)
 
-    a_inc = compute_ricker(
-        config.motion_freq, config.motion_t_shift, duration_eff, config.dt
-    )
+    a_inc = compute_ricker(config.motion_freq, config.motion_t_shift, duration_eff, config.dt)
     n = min(len(surf), len(a_inc))
     freq_o, af_outcrop_os = _fas_tf(surf[:n], 2.0 * a_inc[:n], dt_rec, vs_min, hx)
 
@@ -249,9 +245,7 @@ def run_case(
     f_peak_th = _peak_freq(freq_o, af_outcrop_th, f_lo, f_mode_hi)
     peak_rel = abs(f_peak_os - f_peak_th) / max(f_peak_th, 1e-12)
     i_th = int(np.argmin(np.abs(freq_o - f_peak_th)))
-    peak_amp_rel = abs(af_outcrop_os[i_th] - af_outcrop_th[i_th]) / max(
-        af_outcrop_th[i_th], 1e-12
-    )
+    peak_amp_rel = abs(af_outcrop_os[i_th] - af_outcrop_th[i_th]) / max(af_outcrop_th[i_th], 1e-12)
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
     axes[0].semilogx(freq_os, af_within_th, "k-", lw=2, label="Theory within")
@@ -343,8 +337,10 @@ def main(argv: list[str] | None = None) -> int:
     results: list[dict] = []
 
     for case in CASES + CASES_XI:
-        if case_filter and case.name != case_filter and not (
-            case_filter.endswith("*") and case.name.startswith(case_filter[:-1])
+        if (
+            case_filter
+            and case.name != case_filter
+            and not (case_filter.endswith("*") and case.name.startswith(case_filter[:-1]))
         ):
             continue
         print(f"\n=== {case.name} ===")

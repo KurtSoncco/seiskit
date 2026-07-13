@@ -58,11 +58,16 @@ One broadband drive (`M1`, 3 Hz) is sufficient for TF comparison.
 
 ## Campaign size
 
+Per Sobol point (production): **200** Hallal Vs seeds + **200** Hallal Tts seeds + **10** Dmin multipliers + **40** RF seeds × (`grf_2d` + `pretell`) = **490** runs. Pretell draws **50** 1D profiles per RF realization.
+
 | Mode | Sobol cases | Hallal Vs/Tts seeds | Dmin mults | RF seeds | Total runs |
 |------|-------------|---------------------|------------|----------|------------|
-| Full (`RV_SMOKE=0`) | 64 | 200 each | 10 | 30 | **30,080** |
+| Full (`RV_SMOKE=0`) | 64 | 200 each | 10 | 40 | **31,360** |
+| Stampede OpenSees (skip `grf_2d`) | 64 | 200 each | 10 | 40 pretell | **28,800** |
 | Smoke (`RV_SMOKE=1`, 1D only) | 4 | 10 each | 10 | — | **120** |
 | Smoke + 2D (`RV_SMOKE_2D=1`) | 4 | 10 each | 10 | 5 | **160** |
+
+Overrides: `RV_HALLAL_N_SEEDS`, `RV_RF_N_SEEDS`, `RV_PRETELL_N_SAMPLES`.
 
 Index layout: Hallal block (`hallal_vs` + `hallal_tts` seeds, then `hallal_dmin` ×10 multipliers) → GRF block (`grf_2d`, `pretell` × RF seeds).
 
@@ -126,23 +131,41 @@ Explainability:
 
 ## HPC
 
-**Recommended order:** submit 1D Hallal block first, then 2D GRF / Pretell.
+**Recommended split:** Stampede3 runs **Hallal + Pretell** (OpenSees only). Run **`grf_2d` locally** with the GIFNO surrogate (no weights in git).
+
+### Stampede3 — Hallal + Pretell
 
 ```bash
-chmod +x submit_phase1_hallal.sh submit_phase1_rf.sh clean_results.sh
+chmod +x submit_stampede3_opensees.sh
+# Full production (skips grf_2d by default)
+FORCE_RERUN=1 ./submit_stampede3_opensees.sh -N 8 --ntasks-per-node=48 -t 48:00:00
 
-./submit_phase1_hallal.sh --smoke  # 120 indices
-./submit_phase1_hallal.sh          # 26,240 indices
-
-RV_SMOKE=1 RV_SMOKE_2D=1 ./submit_phase1_rf.sh --smoke   # 40 RF indices
-./submit_phase1_rf.sh              # 3,840 RF indices
+# Smoke OpenSees arms
+RV_SMOKE=1 RV_SMOKE_2D=1 FORCE_RERUN=1 ./submit_stampede3_opensees.sh \
+  -N 2 --ntasks-per-node=16 -t 12:00:00
 ```
 
-**Stampede3 (TACC):**
+Defaults on Stampede: `RV_SKIP_METHODS=grf_2d`, `RV_USE_SURROGATE_2D=0`.  
+Hallal-only: `RV_SKIP_METHODS=grf_2d,pretell ./submit_stampede3_opensees.sh …`  
+Include everything (needs torch + checkpoint on machine): `RV_SKIP_METHODS= ./submit_stampede3_opensees.sh …`
+
+### Local — `grf_2d` surrogate
 
 ```bash
-RV_INDEX_OFFSET=0 RV_INDEX_MAX=26240 sbatch stampede3_full_run.slurm
-RV_INDEX_OFFSET=26240 RV_INDEX_MAX=30080 sbatch stampede3_full_run.slurm
+# After Stampede H5s are synced (or alongside), run GIFNO only (40 RF seeds):
+./submit_local.sh --all --2d --grf-only --n-seeds 40
+
+# Or full local smoke (Hallal + grf_2d + pretell):
+./submit_local.sh --all --2d --hallal-seeds 20 --n-seeds 10
+```
+
+Checkpoint (not in seiskit git): `~/surrogate-seismic-waves/checkpoints/xt_lat128_d128/best_model.pt`
+
+### Savio (optional phased submit)
+
+```bash
+./submit_phase1_hallal.sh          # Hallal 1D
+./submit_phase1_rf.sh              # grf_2d + pretell (needs surrogate for grf_2d)
 ```
 
 **Hallal Dmin arm:** fixed base-case Vs; damping from Campbell (2009) Q–Vs with **10 Dmin multipliers** `linspace(3, 6)`.
@@ -153,4 +176,5 @@ RV_INDEX_OFFSET=26240 RV_INDEX_MAX=30080 sbatch stampede3_full_run.slurm
 - `manifest.py` — index → case mapping, NO grid constants, Pretell sampling
 - `run_experiment.py` — OpenSees driver (+ GIFNO surrogate for `grf_2d`)
 - `surrogate_2d.py` — GIFNO inference (native grid or legacy resample)
+- `submit_stampede3_opensees.sh` — Stampede Hallal+Pretell launcher
 - `seiskit/profile_randomization.py` — Toro / Passeri

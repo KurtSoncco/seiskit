@@ -414,9 +414,7 @@ def summarize_surrogate_vs_pretell_rigorous(
                         "abs_df_peak_hz": abs(f_g - f_p),
                         "A_peak_surrogate": a_g,
                         "A_peak_pretell": a_p,
-                        "delta_ln_A_peak": float(
-                            np.log(max(a_g, 1e-12) / max(a_p, 1e-12))
-                        ),
+                        "delta_ln_A_peak": float(np.log(max(a_g, 1e-12) / max(a_p, 1e-12))),
                         "checkpoint_note": "grf_2d=GIFNO xt_lat128_d128; pretell=OpenSees 1D",
                     }
                 )

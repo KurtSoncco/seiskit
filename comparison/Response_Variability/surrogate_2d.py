@@ -111,9 +111,7 @@ def _extract_variability_strip(
         return field.astype(np.float32)
     if bc_cols + n_var <= nx:
         return field[:, bc_cols : bc_cols + n_var].astype(np.float32)
-    raise ValueError(
-        f"Cannot extract {cfg.NX}-column variability strip from field width nx={nx}"
-    )
+    raise ValueError(f"Cannot extract {cfg.NX}-column variability strip from field width nx={nx}")
 
 
 def _resample_variability_strip(
@@ -163,12 +161,8 @@ def prepare_variability_strip(
     strip if already 500 m wide; resample legacy RV grids when needed.
     """
     cfg = _ensure_surrogate_imports()
-    vs_strip = _extract_variability_strip(
-        vs_field, dx=dx, bc_width=bc_width, lx_var=lx_var
-    )
-    zeta_strip = _extract_variability_strip(
-        zeta_field, dx=dx, bc_width=bc_width, lx_var=lx_var
-    )
+    vs_strip = _extract_variability_strip(vs_field, dx=dx, bc_width=bc_width, lx_var=lx_var)
+    zeta_strip = _extract_variability_strip(zeta_field, dx=dx, bc_width=bc_width, lx_var=lx_var)
 
     if vs_strip.shape[1] != cfg.NX or abs(dx - cfg.DX) > 1e-6 or abs(dz - cfg.DZ) > 1e-6:
         vs_strip = _resample_variability_strip(
@@ -215,9 +209,7 @@ def build_model_input(
 
     cfg = _ensure_surrogate_imports()
     if vs_strip.shape[1] != cfg.NX:
-        raise ValueError(
-            f"Expected variability strip width NX={cfg.NX}, got {vs_strip.shape[1]}"
-        )
+        raise ValueError(f"Expected variability strip width NX={cfg.NX}, got {vs_strip.shape[1]}")
 
     vs = _pad_depth(vs_strip, cfg.NZ_MAX)
     zeta = _pad_depth(zeta_strip, cfg.NZ_MAX)
@@ -272,9 +264,7 @@ def _load_model_cached() -> tuple[Any, Any]:
             f"Use {_DEFAULT_MODEL_DIR}"
         )
     device = torch.device(os.getenv("GIFNO_DEVICE", str(cfg.DEVICE)))
-    model = create_model(in_channels=4, dual_path=False, output_activation="none").to(
-        device
-    )
+    model = create_model(in_channels=4, dual_path=False, output_activation="none").to(device)
     state = torch.load(checkpoint, map_location=device, weights_only=True)
     missing, unexpected = model.load_state_dict(state, strict=False)
     if missing or unexpected:
@@ -308,6 +298,7 @@ def predict_transfer_functions(
       central AF is af_spatial[central_idx].
     """
     import torch
+
     from seiskit.intensity_measures import sigma_ln
 
     cfg = _ensure_surrogate_imports()
@@ -328,9 +319,7 @@ def predict_transfer_functions(
     af_spatial = grid[rec, :].astype(np.float32)
     freq = surrogate_freq()
     if af_spatial.shape[1] != len(freq):
-        raise RuntimeError(
-            f"Surrogate n_freq={af_spatial.shape[1]} != freq axis {len(freq)}"
-        )
+        raise RuntimeError(f"Surrogate n_freq={af_spatial.shape[1]} != freq axis {len(freq)}")
 
     stats = {
         "median": np.median(af_spatial, axis=0).astype(np.float32),

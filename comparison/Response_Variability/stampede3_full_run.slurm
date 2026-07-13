@@ -1,20 +1,28 @@
 #!/bin/bash
 # Full Response_Variability campaign on TACC Stampede3 (pylauncher).
 #
-# Submit from repo root or this directory:
+# Default split (recommended): Hallal 1D + Pretell OpenSees only — skips grf_2d
+# (run the GIFNO surrogate locally). Clear skip with RV_SKIP_METHODS= for all indices.
+#
+# Submit:
+#   ./submit_stampede3_opensees.sh
+#   # or:
 #   sbatch comparison/Response_Variability/stampede3_full_run.slurm
 #
-# Full production (42,240 indices, 8 SKX nodes × 48 tasks):
+# Full OpenSees production (Hallal + Pretell):
 #   FORCE_RERUN=1 sbatch -N 8 --ntasks-per-node=48 -t 48:00:00 \
 #     comparison/Response_Variability/stampede3_full_run.slurm
 #
-# Smoke (120 indices, 1D; add RV_SMOKE_2D=1 for 160 with 2D):
-#   RV_SMOKE=1 FORCE_RERUN=1 sbatch -N 2 --ntasks-per-node=16 -t 12:00:00 \
+# Include grf_2d too (needs torch + GIFNO checkpoint on Stampede):
+#   RV_SKIP_METHODS= FORCE_RERUN=1 sbatch ... stampede3_full_run.slurm
+#
+# Smoke Hallal+Pretell:
+#   RV_SMOKE=1 RV_SMOKE_2D=1 FORCE_RERUN=1 sbatch -N 2 --ntasks-per-node=16 -t 12:00:00 \
 #     comparison/Response_Variability/stampede3_full_run.slurm
 #
-# Hallal 1D only (full):
-#   RV_INDEX_OFFSET=0 RV_INDEX_MAX=38400 sbatch ... stampede3_full_run.slurm
-#SBATCH -J rv_full
+# Hallal 1D only:
+#   RV_SKIP_METHODS=grf_2d,pretell sbatch ... stampede3_full_run.slurm
+#SBATCH -J rv_opensees
 #SBATCH -o rv_stampede3_full.o%j
 #SBATCH -e rv_stampede3_full.e%j
 #SBATCH -p skx
@@ -39,7 +47,12 @@ VENV_PATH="${VENV_PATH:-${PROJECT_ROOT}/.venv}"
 PYTHON_BIN="${PYTHON_BIN:-${VENV_PATH}/bin/python}"
 
 export RV_SMOKE="${RV_SMOKE:-0}"
+export RV_SMOKE_2D="${RV_SMOKE_2D:-1}"
 export RV_REGEN_SOBOL="${RV_REGEN_SOBOL:-0}"
+# No surrogate on Stampede by default (grf_2d skipped; Pretell uses OpenSees).
+export RV_USE_SURROGATE_2D="${RV_USE_SURROGATE_2D:-0}"
+# Skip GIFNO arm unless explicitly cleared: RV_SKIP_METHODS=
+export RV_SKIP_METHODS="${RV_SKIP_METHODS-grf_2d}"
 FORCE_RERUN="${FORCE_RERUN:-0}"
 
 RUN_BASE="${RUN_BASE:-${SCRATCH:-${REPO_ROOT}}/rv_comparison}"
@@ -103,14 +116,16 @@ cd "${SCRIPT_DIR}"
 TOTAL_TASKS="$("${PYTHON_BIN}" -c "from manifest import total_combinations; print(total_combinations())")"
 INDEX_OFFSET="${RV_INDEX_OFFSET:-0}"
 INDEX_MAX="${RV_INDEX_MAX:-${TOTAL_TASKS}}"
-echo "$(date -Is) | CONFIG | RV_SMOKE=${RV_SMOKE} OFFSET=${INDEX_OFFSET} MAX=${INDEX_MAX} TOTAL=${TOTAL_TASKS}" >&2
+echo "$(date -Is) | CONFIG | RV_SMOKE=${RV_SMOKE} SMOKE_2D=${RV_SMOKE_2D} SKIP=${RV_SKIP_METHODS:-<none>} OFFSET=${INDEX_OFFSET} MAX=${INDEX_MAX} TOTAL=${TOTAL_TASKS}" >&2
 
 export COMMAND_FILE LAUNCHER_WORKDIR PER_TASK_LOG_DIR TMP_ROOT
 export RUNNER_PY PYTHON_BIN FORCE_RERUN INDEX_OFFSET INDEX_MAX SCRIPT_DIR
+export RV_SKIP_METHODS
 
-"${PYTHON_BIN}" - <<'PY'
+N_CMDS="$("${PYTHON_BIN}" - <<'PY'
 import os
 from pathlib import Path
+from manifest import index_to_params, parse_method_list
 
 command_file = Path(os.environ["COMMAND_FILE"])
 command_file.parent.mkdir(parents=True, exist_ok=True)
@@ -125,9 +140,14 @@ script_dir = os.environ["SCRIPT_DIR"]
 index_offset = int(os.environ["INDEX_OFFSET"])
 index_max = int(os.environ["INDEX_MAX"])
 force = os.environ["FORCE_RERUN"] == "1"
+skip = parse_method_list(os.environ.get("RV_SKIP_METHODS")) or set()
 
+n_written = 0
 with command_file.open("w", encoding="utf-8") as handle:
     for idx in range(index_offset, index_max):
+        method = index_to_params(idx).method
+        if method in skip:
+            continue
         idx_label = f"{idx:05d}"
         tmpdir = tmp_root / f"idx_{idx_label}"
         stdout_path = log_dir / f"idx_{idx_label}.out"
@@ -137,15 +157,25 @@ with command_file.open("w", encoding="utf-8") as handle:
             f'cd "{script_dir}" && '
             f'mkdir -p "{tmpdir}" && '
             f'export TMPDIR="{tmpdir}" && '
+            f'export RV_USE_SURROGATE_2D=0 && '
             f'"{python_bin}" -u "{runner_py}" --index {idx}'
         )
         if force:
             command += " --force"
         command += f' > "{stdout_path}" 2> "{stderr_path}"'
         handle.write(command + "\n")
-PY
+        n_written += 1
 
-echo "$(date -Is) | COMMANDS | Wrote ${COMMAND_FILE}" >&2
+print(n_written)
+PY
+)"
+
+echo "$(date -Is) | COMMANDS | Wrote ${N_CMDS} tasks → ${COMMAND_FILE} (skipped methods: ${RV_SKIP_METHODS:-none})" >&2
+if [ "${N_CMDS}" = "0" ]; then
+  echo "ERROR: no launcher commands generated" >&2
+  exit 3
+fi
+
 NODES="${SLURM_JOB_NUM_NODES:-${SLURM_NNODES:-1}}"
 TASKS_PER_NODE="${SLURM_NTASKS_PER_NODE:-${SLURM_TASKS_PER_NODE:-48}}"
 echo "$(date -Is) | LAUNCH | ${NODES} node(s) × ${TASKS_PER_NODE} tasks/node" >&2

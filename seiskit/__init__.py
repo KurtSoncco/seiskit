@@ -24,7 +24,6 @@ from . import (
     theory,
     utils,
 )
-
 from .analysis import (
     perform_analysis_spatial,
     run_analysis,

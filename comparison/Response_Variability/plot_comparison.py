@@ -284,7 +284,10 @@ def plot_tf_method_comparison(
         af_stack = _align_af_stack(af_list, freqs, freq)
         med = np.nanmedian(af_stack, axis=0)
         sig = np.array(
-            [sigma_ln(af_stack[:, j][np.isfinite(af_stack[:, j])]) for j in range(af_stack.shape[1])]
+            [
+                sigma_ln(af_stack[:, j][np.isfinite(af_stack[:, j])])
+                for j in range(af_stack.shape[1])
+            ]
         )
         lo = med * np.exp(-sig)
         hi = med * np.exp(sig)

@@ -10,7 +10,7 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=48G
 #SBATCH --time=10:00:00
-#SBATCH --array=0-1759%50
+#SBATCH --array=0-1306%50
 #SBATCH --output=logs/array_job_%A_task_%a.out
 #SBATCH --error=logs/array_job_%A_task_%a.err
 #SBATCH --exclude=n0087.savio2,n0141.savio2,n0149.savio2,n0029.savio2
@@ -18,9 +18,9 @@
 #
 # Phase 1: Response_Variability (TF-first). Savio2 whole-node; GNU Parallel runs
 # 24 sims per array element.
-# Full (RV_SMOKE=0): 64 Sobol × (3×200 Hallal + 2×30 RF) = 42,240 → array 0-1759.
+# Full (RV_SMOKE=0): 64 Sobol × (200+200+10 Hallal + 2×40 RF) = 31,360 → array 0-1306.
 # Smoke (RV_SMOKE=1): 120 indices (1D) → array 0-4; with RV_SMOKE_2D=1: 160 → array 0-6.
-# Submit: ./submit_phase1.sh   or   ./submit_phase1.sh --smoke
+# Prefer ./submit_phase1.sh (computes --array from manifest).
 #
 # Hardening: per-index logs, joblog, retries, timeout, scratch TMPDIR, pre-flight
 # writes, post-run failure summary, consolidated summary log (logs/array_job_<JOB_ID>_summary.txt).

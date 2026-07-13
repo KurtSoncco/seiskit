@@ -1,7 +1,7 @@
 #!/bin/bash
 # Submit phase1 (Savio2 + GNU Parallel). Creates logs/ before Slurm opens -o/-e.
 # Usage:
-#   ./submit_phase1.sh              # full campaign (42,240 indices, array 0-1759)
+#   ./submit_phase1.sh              # full campaign (31,360 indices; array size from manifest)
 #   ./submit_phase1.sh --smoke       # smoke 1D only (120 indices)
 #   ./submit_phase1.sh --smoke --2d  # smoke with 2D (160 indices)
 #   ./submit_phase1.sh --array=0-10  # pass extra sbatch args
@@ -36,4 +36,8 @@ if [ "$SMOKE" = "1" ]; then
   exec sbatch --export=ALL,"${EXPORT}" --array=0-"${LAST}" "${EXTRA[@]}" phase1_savio2.sh
 fi
 
-exec sbatch --export=ALL,RV_SMOKE=0 --array=0-1759 "${EXTRA[@]}" phase1_savio2.sh
+TOTAL=$("$PYTHON" -c "import os; os.environ['RV_SMOKE']='0'; from manifest import phase1_array_tasks, total_combinations; print(f'{phase1_array_tasks()-1} {total_combinations()}')")
+LAST=${TOTAL%% *}
+N_IDX=${TOTAL##* }
+echo "Full submit: ${N_IDX} indices, array 0-${LAST}" >&2
+exec sbatch --export=ALL,RV_SMOKE=0 --array=0-"${LAST}" "${EXTRA[@]}" phase1_savio2.sh
