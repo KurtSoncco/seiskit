@@ -7,8 +7,6 @@ if __name__ == "__main__" and __package__ is None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     __package__ = "seiskit.profile_randomization"
 
-from dataclasses import replace
-
 import numpy as np
 
 from .common import _total_column_depth
@@ -120,18 +118,17 @@ def generate_passeri_profile(
     config: ProfileRandomizationConfig,
     rng: np.random.Generator,
 ) -> RandomizedProfile:
-    """Full Passeri: NHPP + tts (soil) -> joint bedrock depth/Vs -> merge."""
-    cfg = replace(config, vary_bedrock_vs=True) if not config.vary_bedrock_vs else config
-    interface, bed_vs = _passeri_joint_bedrock_draw(cfg, rng)
-    soil_layers = _build_soil_layers_nhpp(cfg, interface, rng)
-    soil_vs = _passeri_tts_layer_vs(soil_layers, cfg, rng)
+    """Full Passeri: NHPP + tts (soil) -> bedrock depth/Vs -> merge."""
+    interface, bed_vs = _passeri_joint_bedrock_draw(config, rng)
+    soil_layers = _build_soil_layers_nhpp(config, interface, rng)
+    soil_vs = _passeri_tts_layer_vs(soil_layers, config, rng)
     layers = [
         _GeoLayer(layer.thickness, layer.depth_mid, layer.depth_bottom, float(vs), is_bedrock=False)
         for layer, vs in zip(soil_layers, soil_vs)
     ]
-    layers = _append_bedrock_layer(layers, interface, bed_vs, cfg)
+    layers = _append_bedrock_layer(layers, interface, bed_vs, config)
     layer_vs = np.concatenate([soil_vs, np.array([bed_vs])])
-    return _finalize_profile(layers, layer_vs, interface, cfg)
+    return _finalize_profile(layers, layer_vs, interface, config)
 
 
 if __name__ == "__main__":

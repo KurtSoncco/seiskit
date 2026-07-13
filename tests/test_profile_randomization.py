@@ -64,10 +64,17 @@ def test_full_toro_returns_profile_metadata():
 
 
 def test_full_passeri_varies_bedrock_vs():
-    cfg = _cfg(use_full_model=True, randomize_bedrock_depth=False)
+    cfg = _cfg(use_full_model=True, randomize_bedrock_depth=False, vary_bedrock_vs=True)
     rng = np.random.default_rng(2)
     beds = [generate_passeri_profile(cfg, rng).vs_depth[-1] for _ in range(100)]
     assert np.std(beds) > 1.0
+
+
+def test_full_passeri_fixed_bedrock_when_disabled():
+    cfg = _cfg(use_full_model=True, randomize_bedrock_depth=False, vary_bedrock_vs=False)
+    rng = np.random.default_rng(2)
+    beds = [generate_passeri_profile(cfg, rng).vs_depth[-1] for _ in range(50)]
+    assert np.allclose(beds, 1500.0)
 
 
 def test_full_toro_varies_bedrock_vs():

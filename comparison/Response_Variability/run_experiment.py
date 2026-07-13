@@ -2,7 +2,7 @@
 Response_Variability comparison campaign runner.
 
 Sobol base cases (Vs1, H, CoV, Vs2) with fixed rH=10, aHV=50.
-Methods: grf_2d (2D), delatorre (1D from GRF center column), Hallal 1D arms.
+Methods: grf_2d (2D surrogate), pretell (1D from central 100 m), Hallal 1D arms.
 
 Usage:
   python run_experiment.py --index 0
@@ -20,18 +20,24 @@ from pathlib import Path
 
 import numpy as np
 from manifest import (
+    RF_METHODS,
     CaseParams,
-    active_bc_width,
     active_duration,
     active_dx,
     active_dz,
     active_lx_total,
-    active_lx_var,
+    active_pretell_n_samples,
+    active_rf_bc_width,
+    active_rf_dx,
+    active_rf_dz,
+    active_rf_lx_total,
+    active_rf_lx_var,
     case_tag,
     damping_method_for,
     dmin_multiplier_for,
     index_to_params,
     motion_frequency,
+    pretell_column_indices,
     total_combinations,
 )
 
@@ -199,6 +205,7 @@ def _load_recorder_txt(
 
 
 def _profile_config(p: CaseParams) -> ProfileRandomizationConfig:
+    # Hallal arms: fixed H and bedrock; only σ_ln(Vs) or σ_ln(tts) on the base profile.
     return ProfileRandomizationConfig(
         vs_mean=p.vs1,
         thickness=p.H,
@@ -206,38 +213,46 @@ def _profile_config(p: CaseParams) -> ProfileRandomizationConfig:
         vs_bedrock=p.vs2,
         bedrock_thickness=p.bedrock_thickness,
         cov=p.cov,
+        use_full_model=False,
         randomize_layer_thickness=False,
         randomize_bedrock_depth=False,
         vary_bedrock_vs=False,
     )
 
 
+def _is_rf_method(p: CaseParams) -> bool:
+    return p.method in RF_METHODS
+
+
+def _grid_spacing(p: CaseParams) -> tuple[float, float]:
+    if _is_rf_method(p):
+        return active_rf_dx(), active_rf_dz()
+    return active_dx(), active_dz()
+
+
 def _discretized_profile(p: CaseParams) -> tuple[np.ndarray, int, int]:
-    dz = active_dz()
+    _, dz = _grid_spacing(p)
     n_soil = max(1, int(round(p.H / dz)))
     n_bed = max(1, int(round(p.bedrock_thickness / dz)))
     vs_profile_1d = np.array([p.vs1] * n_soil + [p.vs2] * n_bed)
     return vs_profile_1d, n_soil, n_bed
 
 
-def _center_column_index(nx: int, dx: float) -> int:
-    bc_cols = int(round(active_bc_width() / dx))
-    var_cols = int(round(active_lx_var() / dx))
-    return bc_cols + var_cols // 2
-
-
 def _build_2d_grf(
     p: CaseParams,
     rf_seed: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return (Vs_extended nz×nx, bedrock_mask_extended, template Vs_profile_1D)."""
-    dx, dz = active_dx(), active_dz()
+    """Return (Vs_extended nz×nx, bedrock_mask_extended, template Vs_profile_1D).
+
+    Built on the neural-operator grid: 1500 m × nz (dx=dz=1 m).
+    """
+    dx, dz = active_rf_dx(), active_rf_dz()
     vs_profile_1d, _, _ = _discretized_profile(p)
     lz = len(vs_profile_1d) * dz
 
     vs_var, _, _, _, bedrock_mask_var = _generate_vs_variability_field(
         vs_profile_1d,
-        active_lx_var(),
+        active_rf_lx_var(),
         lz,
         dx,
         dz,
@@ -249,23 +264,86 @@ def _build_2d_grf(
         interlayer_seed=14,
         interlayer_amplitude=0.0,
     )
-    vs_ext, _ = _extend_profile(vs_var, Lx=active_lx_total(), dx=dx)
-    bedrock_ext, _ = _extend_profile(bedrock_mask_var.astype(float), Lx=active_lx_total(), dx=dx)
+    vs_ext, _ = _extend_profile(vs_var, Lx=active_rf_lx_total(), dx=dx)
+    bedrock_ext, _ = _extend_profile(bedrock_mask_var.astype(float), Lx=active_rf_lx_total(), dx=dx)
     return vs_ext, bedrock_ext.astype(bool), vs_profile_1d
 
 
-def _build_delatorre_1d(
+def _geomean_af(af_stack: np.ndarray) -> np.ndarray:
+    clipped = np.clip(af_stack, 1e-12, None)
+    return np.exp(np.nanmean(np.log(clipped), axis=0)).astype(np.float32)
+
+
+def _interp_af(freq_src: np.ndarray, af: np.ndarray, freq_dst: np.ndarray) -> np.ndarray:
+    from scipy.interpolate import interp1d
+
+    fn = interp1d(freq_src, af, kind="linear", bounds_error=False, fill_value=np.nan)
+    return fn(freq_dst).astype(np.float32)
+
+
+def _run_pretell_profiles(
     p: CaseParams,
-    rf_seed: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """1D column from center of 2D GRF (de la Torre protocol)."""
-    vs_field_2d, bedrock_mask_2d, template = _build_2d_grf(p, rf_seed)
-    dx = active_dx()
-    ic = _center_column_index(vs_field_2d.shape[1], dx)
-    vs_col = vs_field_2d[:, ic : ic + 1]
-    mask_col = bedrock_mask_2d[:, ic : ic + 1]
-    vs_profile_1d = vs_col.ravel()
-    return vs_col, mask_col, vs_profile_1d
+    *,
+    vs_field_2d: np.ndarray,
+    bedrock_mask_2d: np.ndarray,
+    vs_profile_1d: np.ndarray,
+    out_dir: Path,
+    task_id: str,
+    motion_freq: float,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Run 1D OpenSees on Pretell central-region columns; return geomean AF."""
+    _dx, dz = active_rf_dx(), active_rf_dz()
+    lz = vs_field_2d.shape[0] * dz
+    cols = pretell_column_indices()
+    n_samples = len(cols)
+    af_rows: list[np.ndarray] = []
+    freq_ref: np.ndarray | None = None
+
+    for col in cols:
+        vs_col = vs_field_2d[:, col : col + 1]
+        mask_col = bedrock_mask_2d[:, col : col + 1]
+        sub_id = f"{task_id}_x{col}"
+        config = _analysis_config(p, lz, motion_freq, bc_2d=False, grid_dx=dz, grid_dz=dz)
+        get_damping_zeta_grid(
+            vs_col,
+            config.damping_method,
+            config.Lx,
+            lz,
+            config.hx,
+            dz,
+            bedrock_mask=mask_col,
+            config=config,
+        )
+        rho = np.ones_like(vs_col, dtype=float) * 2000.0
+        nu = np.ones_like(vs_col, dtype=float) * 0.3
+        model_data = build_model_data(config, vs_col, rho, nu, bedrock_mask=mask_col)
+        status = run_opensees_analysis(config, model_data, sub_id, str(out_dir))
+        if status.startswith("Failed"):
+            raise RuntimeError(f"Pretell column {col}: {status}")
+
+        recorder_dir = out_dir / sub_id
+        time_arr, surface, base = _load_surface_base(recorder_dir)
+        if len(time_arr) == 0:
+            raise RuntimeError(f"No recorder output for Pretell column {col} in {recorder_dir}")
+        dt = config.dt
+        if len(time_arr) > 1:
+            dt = float(time_arr[1] - time_arr[0])
+        vs_min = float(np.min(vs_col[~mask_col])) if np.any(~mask_col) else float(p.vs1)
+        freq, af = TTF(surface, base, dt=dt, Vsmin=vs_min, dz=dz)
+        if freq_ref is None:
+            freq_ref = freq
+        else:
+            af = _interp_af(freq, af, freq_ref)
+        af_rows.append(af)
+
+    assert freq_ref is not None
+    af_geo = _geomean_af(np.vstack(af_rows))
+    return freq_ref.astype(np.float32), af_geo, n_samples
+
+
+def theoretical_f0(vs1: float, H: float) -> float:
+    """Quarter-wave fundamental frequency f₀ = Vs1 / (4 H)."""
+    return float(vs1) / (4.0 * float(H))
 
 
 def _build_1d_hallal(
@@ -294,6 +372,79 @@ def _build_1d_hallal(
     return vs_col, mask, prof.vs_depth
 
 
+def compute_base_1d_tf(
+    p: CaseParams,
+    *,
+    out_dir: Path | None = None,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """
+    Deterministic 1D OpenSees TF on the base Vs profile (no randomization).
+
+    Uses the same damping as hallal_vs/tts (``global_avg``, Dmin×1).
+    Returns ``(freq, af, f0)`` with ``f0 = Vs1/(4H)``.
+    """
+    from seiskit.profile_randomization import build_base_case_profile
+
+    f0 = theoretical_f0(p.vs1, p.H)
+    cfg = _profile_config(p)
+    vs_profile = build_base_case_profile(cfg)
+    n_soil = max(1, int(round(p.H / active_dz())))
+    vs_col, mask = profile_to_opensees_column(vs_profile, n_soil)
+    dz = active_dz()
+    lz = float(vs_col.shape[0] * dz)
+    motion_freq = motion_frequency(p.vs1, p.motion_id, H=p.H)
+
+    # Force base-case damping regardless of p.method (e.g. if called with hallal_dmin).
+    base_p = CaseParams(
+        index=p.index,
+        sobol_id=p.sobol_id,
+        vs1=p.vs1,
+        H=p.H,
+        cov=p.cov,
+        vs2=p.vs2,
+        method="hallal_vs",
+        motion_id=p.motion_id,
+        seed=0,
+        seed_kind="realization",
+        rH=p.rH,
+        aHV=p.aHV,
+        bedrock_thickness=p.bedrock_thickness,
+        dmin_multiplier=1.0,
+    )
+    config = _analysis_config(base_p, lz, motion_freq, bc_2d=False, grid_dx=dz, grid_dz=dz)
+    get_damping_zeta_grid(
+        vs_col,
+        config.damping_method,
+        config.Lx,
+        lz,
+        config.hx,
+        dz,
+        bedrock_mask=mask,
+        config=config,
+    )
+    rho = np.ones_like(vs_col, dtype=float) * 2000.0
+    nu = np.ones_like(vs_col, dtype=float) * 0.3
+    model_data = build_model_data(config, vs_col, rho, nu, bedrock_mask=mask)
+
+    work = Path(out_dir) if out_dir is not None else Path("results") / "base_1d_tf"
+    work.mkdir(parents=True, exist_ok=True)
+    task_id = f"base1d_s{p.sobol_id:02d}_{p.motion_id}"
+    status = run_opensees_analysis(config, model_data, task_id, str(work))
+    if status.startswith("Failed"):
+        raise RuntimeError(f"Base 1D TF failed: {status}")
+
+    recorder_dir = work / task_id
+    time_arr, surface, base = _load_surface_base(recorder_dir)
+    if len(time_arr) == 0:
+        raise RuntimeError(f"No recorder output for base 1D TF in {recorder_dir}")
+    dt = config.dt
+    if len(time_arr) > 1:
+        dt = float(time_arr[1] - time_arr[0])
+    vs_min = float(np.min(vs_col[~mask])) if np.any(~mask) else float(p.vs1)
+    freq, af = TTF(surface, base, dt=dt, Vsmin=vs_min, dz=dz)
+    return freq.astype(np.float32), af.astype(np.float32), f0
+
+
 # ---------------------------------------------------------------------------
 # Analysis config / HDF5
 # ---------------------------------------------------------------------------
@@ -305,19 +456,36 @@ def _analysis_config(
     motion_freq: float,
     *,
     bc_2d: bool,
+    grid_dx: float | None = None,
+    grid_dz: float | None = None,
 ) -> AnalysisConfig:
-    dx, dz = active_dx(), active_dz()
+    if grid_dx is None or grid_dz is None:
+        grid_dx, grid_dz = _grid_spacing(p)
     f0 = p.vs1 / (4.0 * p.H)
     duration = active_duration(f0)
     damping_freq_first = min(f0, motion_freq)
 
-    lx = active_lx_total() if bc_2d else dz
+    lx = (
+        active_rf_lx_total()
+        if bc_2d and _is_rf_method(p)
+        else (active_lx_total() if bc_2d else grid_dz)
+    )
     record_lateral = (10, 2.0) if bc_2d else None
+
+    # Large 2D NO-grid meshes (~1500×nz) need hours per 100-step batch; override via env.
+    max_batch = float(os.getenv("RV_MAX_TIME_PER_BATCH", "28800"))  # 8 h default
+
+    # 1D: soil–bedrock interface + surface (1D_theory_validation / 1D_cases).
+    # 2D: 2 m above model base + surface (neural-operator training convention).
+    if bc_2d:
+        center_y = [2.0, lz]
+    else:
+        center_y = [float(p.bedrock_thickness), lz]
 
     return AnalysisConfig(
         Ly=lz,
         Lx=lx,
-        hx=dx if bc_2d else dz,
+        hx=grid_dx if bc_2d else grid_dz,
         dt=0.01,
         duration=duration,
         motion_freq=motion_freq,
@@ -328,11 +496,12 @@ def _analysis_config(
         dmin_multiplier=dmin_multiplier_for(p),
         boundary_condition_type="2D" if bc_2d else "1D",
         record_center_nodes=True,
-        center_node_y_positions=[2.0, lz],
+        center_node_y_positions=center_y,
         record_lateral_span_at_center_depths=record_lateral,
         record_all_surface_nodes=False,
         element_type="4node",
         solver_type="Mumps",
+        max_time_per_batch=max_batch,
     )
 
 
@@ -351,15 +520,24 @@ def _write_h5(
     af: np.ndarray,
     af_spatial: np.ndarray | None = None,
     af_spatial_stats: dict[str, np.ndarray] | None = None,
+    tf_only: bool = False,
+    analysis_backend: str = "opensees",
+    pretell_n_samples: int = 0,
 ) -> None:
     import h5py
 
     path.parent.mkdir(parents=True, exist_ok=True)
     periods = default_periods(p.vs1, p.H)
-    if len(time_arr) == 0:
+    if not tf_only and len(time_arr) == 0:
         raise ValueError("Cannot write HDF5 without time series")
-    surface = accel[:, 0] if accel.ndim == 2 and accel.shape[1] > 0 else accel.ravel()
-    sa_surf = compute_sa(surface, dt, periods)
+    if tf_only:
+        surface = np.array([], dtype=np.float32)
+        sa_surf = np.zeros(len(periods), dtype=np.float32)
+        pga_val = float("nan")
+    else:
+        surface = accel[:, 0] if accel.ndim == 2 and accel.shape[1] > 0 else accel.ravel()
+        sa_surf = compute_sa(surface, dt, periods)
+        pga_val = pga(surface)
     damp_method = damping_method_for(p)
 
     with h5py.File(path, "w") as f:
@@ -368,6 +546,10 @@ def _write_h5(
         f.attrs["method"] = p.method
         f.attrs["motion_id"] = p.motion_id
         f.attrs["damping_method"] = damp_method
+        f.attrs["analysis_backend"] = analysis_backend
+        if pretell_n_samples > 0:
+            f.attrs["pretell_n_samples"] = pretell_n_samples
+            f.attrs["pretell_central_width_m"] = 100.0
         if p.method == "hallal_dmin":
             f.attrs["dmin_multiplier"] = dmin_multiplier_for(p)
         grp = f.create_group("params")
@@ -386,7 +568,7 @@ def _write_h5(
         f.create_dataset("Vs_field", data=vs_field.astype(np.float32))
         f.create_dataset("Damping_zeta", data=zeta_grid.astype(np.float32))
         g = f.create_group("grid")
-        adx, adz = active_dx(), active_dz()
+        adx, adz = _grid_spacing(p) if _is_rf_method(p) else (active_dx(), active_dz())
         g.attrs["Lx"] = vs_field.shape[1] * adx if vs_field.ndim == 2 else adz
         g.attrs["Lz"] = vs_field.shape[0] * adz
         g.attrs["dx"] = adx
@@ -397,7 +579,7 @@ def _write_h5(
             rec.create_dataset("time", data=time_arr.astype(np.float32))
             rec.create_dataset("data", data=accel.astype(np.float32))
         ims = f.create_group("ims")
-        ims.attrs["PGA_surface"] = pga(surface)
+        ims.attrs["PGA_surface"] = pga_val
         ims.create_dataset("Sa_periods", data=periods.astype(np.float32))
         ims.create_dataset("Sa_surface", data=sa_surf.astype(np.float32))
         tf = f.create_group("transfer_function")
@@ -410,7 +592,8 @@ def _write_h5(
             tf.create_dataset("AF_spatial_p84", data=af_spatial_stats["p84"])
             tf.create_dataset("AF_spatial_sigma_ln", data=af_spatial_stats["sigma_ln"])
             tf.attrs["n_spatial_nodes"] = int(af_spatial.shape[0])
-            tf.attrs["spatial_source"] = "row_recorders"
+            src = "gifno_surrogate" if analysis_backend == "gifno_surrogate" else "row_recorders"
+            tf.attrs["spatial_source"] = src
 
 
 # ---------------------------------------------------------------------------
@@ -432,16 +615,16 @@ def run_case(index: int, *, force: bool = False) -> str:
     rng = np.random.default_rng(p.seed)
 
     is_2d = p.method == "grf_2d"
-    if is_2d:
+    is_pretell = p.method == "pretell"
+    dx, dz = _grid_spacing(p)
+
+    if is_2d or is_pretell:
         vs_field, bedrock_mask, vs_profile_1d = _build_2d_grf(p, p.seed)
-    elif p.method == "delatorre":
-        vs_field, bedrock_mask, vs_profile_1d = _build_delatorre_1d(p, p.seed)
     else:
         vs_field, bedrock_mask, vs_profile_1d = _build_1d_hallal(p, rng)
 
-    lz = vs_field.shape[0] * active_dz()
+    lz = vs_field.shape[0] * dz
     config = _analysis_config(p, lz, motion_freq, bc_2d=is_2d)
-    _dx, dz = active_dx(), active_dz()
     zeta_grid = get_damping_zeta_grid(
         vs_field,
         config.damping_method,
@@ -461,6 +644,85 @@ def run_case(index: int, *, force: bool = False) -> str:
         f"  sobol={p.sobol_id} method={p.method} H={p.H:.1f} "
         f"f={motion_freq:.3f} Hz seed={p.seed} ({p.seed_kind})"
     )
+    if _is_rf_method(p):
+        print(
+            f"  NO grid: Lx={vs_field.shape[1] * dx:.0f} m × Lz={lz:.0f} m "
+            f"(dx=dz={dx} m, var={active_rf_lx_var():.0f} m)"
+        )
+
+    if is_pretell:
+        t0 = time.time()
+        n_pretell = active_pretell_n_samples()
+        print(f"  backend=opensees_pretell ({n_pretell} profiles in central 100 m)")
+        freq, af, n_done = _run_pretell_profiles(
+            p,
+            vs_field_2d=vs_field,
+            bedrock_mask_2d=bedrock_mask,
+            vs_profile_1d=vs_profile_1d,
+            out_dir=out_dir,
+            task_id=task_id,
+            motion_freq=motion_freq,
+        )
+        _write_h5(
+            h5_path,
+            p,
+            vs_profile_1d=vs_profile_1d,
+            vs_field=vs_field,
+            zeta_grid=zeta_grid,
+            time_arr=np.array([]),
+            accel=np.array([]).reshape(0, 0),
+            dt=config.dt,
+            task_id=task_id,
+            freq=freq,
+            af=af,
+            tf_only=True,
+            analysis_backend="opensees_pretell",
+            pretell_n_samples=n_done,
+        )
+        print(f"  pretell geomean AF from {n_done} profiles in {time.time() - t0:.1f}s")
+        print(f"  wrote {h5_path}")
+        return "ok"
+
+    if is_2d:
+        from surrogate_2d import (
+            central_af_index,
+            predict_transfer_functions,
+            use_surrogate_2d,
+        )
+
+        if use_surrogate_2d():
+            t0 = time.time()
+            print("  backend=gifno_surrogate (grf_2d)")
+            freq, af_spatial, af_spatial_stats = predict_transfer_functions(
+                vs_field,
+                zeta_grid,
+                dx=dx,
+                dz=dz,
+                bc_width=active_rf_bc_width(),
+                lx_var=active_rf_lx_var(),
+            )
+            af = af_spatial[central_af_index()]
+            _write_h5(
+                h5_path,
+                p,
+                vs_profile_1d=vs_profile_1d,
+                vs_field=vs_field,
+                zeta_grid=zeta_grid,
+                time_arr=np.array([]),
+                accel=np.array([]).reshape(0, 0),
+                dt=config.dt,
+                task_id=task_id,
+                freq=freq,
+                af=af,
+                af_spatial=af_spatial,
+                af_spatial_stats=af_spatial_stats,
+                tf_only=True,
+                analysis_backend="gifno_surrogate",
+            )
+            print(f"  surrogate done in {time.time() - t0:.1f}s")
+            print(f"  spatial AF from {af_spatial.shape[0]} surrogate recorders")
+            print(f"  wrote {h5_path}")
+            return "ok"
 
     model_data = build_model_data(config, vs_field, rho, nu, bedrock_mask=bedrock_mask)
     info = get_solver_info(config)
@@ -528,7 +790,10 @@ def main() -> None:
     args = parser.parse_args()
 
     n = total_combinations()
-    print(f"Total combinations: {n} (smoke={os.getenv('RV_SMOKE', '0')})")
+    print(
+        f"Total combinations: {n} "
+        f"(smoke={os.getenv('RV_SMOKE', '0')}, smoke_2d={os.getenv('RV_SMOKE_2D', '0')})"
+    )
 
     if args.index_start is not None:
         start = args.index_start

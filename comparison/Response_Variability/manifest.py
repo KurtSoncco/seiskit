@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import Literal
 
+import numpy as np
 from sobol_base_cases import (
     AHV_FIXED,
     BEDROCK_DEPTH,
@@ -18,15 +19,35 @@ from sobol_base_cases import (
 
 MethodId = Literal[
     "grf_2d",
-    "delatorre",
+    "pretell",
     "hallal_vs",
     "hallal_tts",
     "hallal_dmin",
 ]
 
 HALLAL_METHODS: list[MethodId] = ["hallal_vs", "hallal_tts", "hallal_dmin"]
-RF_METHODS: list[MethodId] = ["grf_2d", "delatorre"]
+RF_METHODS: list[MethodId] = ["grf_2d", "pretell"]
 METHODS: list[MethodId] = [*HALLAL_METHODS, *RF_METHODS]
+
+# ---------------------------------------------------------------------------
+# GIFNO / neural-operator 2D training grid (Pretell & grf_2d use this domain)
+# ---------------------------------------------------------------------------
+# Lateral: 1500 m total = 500 m BC + 500 m variability + 500 m BC  (dx = 1 m)
+# Depth:   nz ≤ 128 rows at dz = 1 m (padded in surrogate input)
+# TF:      21 lateral recorders, 1000 log-spaced freqs 0.1–10 Hz
+NO_DX = 1.0
+NO_DZ = 1.0
+NO_LX_VAR = 500.0
+NO_BC_WIDTH = 500.0
+NO_LX_TOTAL = NO_BC_WIDTH + NO_LX_VAR + NO_BC_WIDTH  # 1500 m
+NO_NX_FULL = int(NO_LX_TOTAL / NO_DX)  # 1500 columns
+NO_NZ_MAX = 128
+
+# Pretell et al. (2022): 1D profiles from central 100 m of the 2D field.
+# Minimum 10 samples; 50 sufficient for production (Table recommendations).
+PRETELL_CENTRAL_WIDTH_M = 100.0
+PRETELL_SAMPLES_SMOKE = 10
+PRETELL_SAMPLES_FULL = 50
 
 MOTION_IDS = ["M1"]
 MOTION_FREQS = {"M1": 3.0}
@@ -41,6 +62,9 @@ HALLAL_SEEDS_SMOKE = list(range(1, 11))
 RF_SEEDS_FULL = list(range(1, 31))
 RF_SEEDS_SMOKE = list(range(1, 6))
 
+# Hallal Approach 5: Dmin multiplier sweep (10 values, linspace 3–6).
+DMIN_MULTIPLIERS: tuple[float, ...] = tuple(float(x) for x in np.linspace(3.0, 6.0, 10))
+
 RH = RH_FIXED
 AHV = AHV_FIXED
 RV = RH_FIXED / AHV_FIXED
@@ -50,16 +74,49 @@ def _smoke_mode() -> bool:
     return os.getenv("RV_SMOKE", "0") == "1"
 
 
+def smoke_includes_2d() -> bool:
+    """In smoke mode, 2D arms (grf_2d, pretell) are opt-in via RV_SMOKE_2D=1."""
+    if not _smoke_mode():
+        return True
+    return os.getenv("RV_SMOKE_2D", "0") == "1"
+
+
+def _include_rf_block() -> bool:
+    return smoke_includes_2d() if _smoke_mode() else True
+
+
 def active_sobol_count() -> int:
     return DEFAULT_SOBOL_COUNT_SMOKE if _smoke_mode() else DEFAULT_SOBOL_COUNT_FULL
 
 
 def active_hallal_seeds() -> list[int]:
-    return HALLAL_SEEDS_SMOKE if _smoke_mode() else HALLAL_SEEDS_FULL
+    base = HALLAL_SEEDS_SMOKE if _smoke_mode() else HALLAL_SEEDS_FULL
+    raw = os.getenv("RV_HALLAL_N_SEEDS")
+    if raw:
+        n = max(1, int(raw))
+        # Allow counts beyond the smoke default list (e.g. RV_HALLAL_N_SEEDS=50).
+        pool = HALLAL_SEEDS_FULL if n > len(base) else base
+        return pool[: min(n, len(pool))]
+    return base
 
 
 def active_rf_seeds() -> list[int]:
-    return RF_SEEDS_SMOKE if _smoke_mode() else RF_SEEDS_FULL
+    base = RF_SEEDS_SMOKE if _smoke_mode() else RF_SEEDS_FULL
+    raw = os.getenv("RV_RF_N_SEEDS")
+    if raw:
+        n = max(1, int(raw))
+        # Allow RV_RF_N_SEEDS beyond the smoke default list (e.g. --n-seeds 10).
+        pool = RF_SEEDS_FULL if n > len(base) else base
+        return pool[: min(n, len(pool))]
+    return base
+
+
+def active_dmin_multipliers() -> tuple[float, ...]:
+    return DMIN_MULTIPLIERS
+
+
+def _hallal_entries_per_sobol() -> int:
+    return 2 * len(active_hallal_seeds()) + len(active_dmin_multipliers())
 
 
 def active_lx_var() -> float:
@@ -75,11 +132,56 @@ def active_lx_total() -> float:
 
 
 def active_dx() -> float:
-    return 1.0 if _smoke_mode() else DX
+    return DX
 
 
 def active_dz() -> float:
-    return 1.0 if _smoke_mode() else DZ
+    return DZ
+
+
+def active_rf_dx() -> float:
+    return NO_DX
+
+
+def active_rf_dz() -> float:
+    return NO_DZ
+
+
+def active_rf_lx_var() -> float:
+    return NO_LX_VAR
+
+
+def active_rf_bc_width() -> float:
+    return NO_BC_WIDTH
+
+
+def active_rf_lx_total() -> float:
+    return NO_LX_TOTAL
+
+
+def active_pretell_n_samples() -> int:
+    raw = os.getenv("RV_PRETELL_N_SAMPLES")
+    if raw:
+        return max(1, int(raw))
+    return PRETELL_SAMPLES_SMOKE if _smoke_mode() else PRETELL_SAMPLES_FULL
+
+
+def pretell_column_indices(n_samples: int | None = None) -> np.ndarray:
+    """
+    Column indices (full 1500 m grid) for evenly spaced 1D extractions.
+
+    Samples lie in the central ``PRETELL_CENTRAL_WIDTH_M`` of the 500 m
+    variability strip (Pretell et al. 2022).
+    """
+    n = n_samples if n_samples is not None else active_pretell_n_samples()
+    dx = active_rf_dx()
+    bc_cols = int(round(active_rf_bc_width() / dx))
+    strip_cols = int(round(active_rf_lx_var() / dx))
+    central_cols = int(round(PRETELL_CENTRAL_WIDTH_M / dx))
+    i0_strip = (strip_cols - central_cols) // 2
+    i1_strip = i0_strip + central_cols - 1
+    cols_strip = np.linspace(i0_strip, i1_strip, n, dtype=int)
+    return bc_cols + cols_strip
 
 
 def active_motion_ids() -> list[str]:
@@ -92,7 +194,7 @@ def active_base_cases() -> list[SobolBaseCase]:
 
 
 def _hallal_block_size(n_sobol: int) -> int:
-    return n_sobol * len(HALLAL_METHODS) * len(active_hallal_seeds())
+    return n_sobol * _hallal_entries_per_sobol()
 
 
 def _rf_block_size(n_sobol: int) -> int:
@@ -101,7 +203,10 @@ def _rf_block_size(n_sobol: int) -> int:
 
 def total_combinations() -> int:
     n = active_sobol_count()
-    return _hallal_block_size(n) + _rf_block_size(n)
+    total = _hallal_block_size(n)
+    if _include_rf_block():
+        total += _rf_block_size(n)
+    return total
 
 
 def hallal_block_size() -> int:
@@ -109,6 +214,8 @@ def hallal_block_size() -> int:
 
 
 def rf_block_size() -> int:
+    if not _include_rf_block():
+        return 0
     return _rf_block_size(active_sobol_count())
 
 
@@ -118,7 +225,7 @@ def hallal_index_end() -> int:
 
 
 def rf_index_range() -> tuple[int, int]:
-    """Inclusive start, exclusive end for grf_2d / delatorre indices."""
+    """Inclusive start, exclusive end for grf_2d / pretell indices."""
     start = hallal_block_size()
     return start, start + rf_block_size()
 
@@ -143,10 +250,11 @@ class CaseParams:
     method: MethodId
     motion_id: str
     seed: int
-    seed_kind: Literal["realization", "rf"]
+    seed_kind: Literal["realization", "rf", "dmin_mult"]
     rH: float = RH_FIXED
     aHV: float = AHV_FIXED
     bedrock_thickness: float = BEDROCK_DEPTH
+    dmin_multiplier: float = 1.0
 
     @property
     def rV(self) -> float:
@@ -164,12 +272,40 @@ def index_to_params(index: int) -> CaseParams:
     rf_seeds = active_rf_seeds()
 
     if index < hallal_block:
-        per_sobol = len(HALLAL_METHODS) * len(hallal_seeds)
+        per_sobol = _hallal_entries_per_sobol()
         sobol_idx = index // per_sobol
         r = index % per_sobol
-        method_idx = r // len(hallal_seeds)
-        seed_idx = r % len(hallal_seeds)
         base = cases[sobol_idx]
+        n_vs = len(hallal_seeds)
+        n_tts = len(hallal_seeds)
+        if r < n_vs:
+            return CaseParams(
+                index=index,
+                sobol_id=base.sobol_id,
+                vs1=base.vs1,
+                H=base.H,
+                cov=base.cov,
+                vs2=base.vs2,
+                method="hallal_vs",
+                motion_id=MOTION_IDS[0],
+                seed=hallal_seeds[r],
+                seed_kind="realization",
+            )
+        if r < n_vs + n_tts:
+            return CaseParams(
+                index=index,
+                sobol_id=base.sobol_id,
+                vs1=base.vs1,
+                H=base.H,
+                cov=base.cov,
+                vs2=base.vs2,
+                method="hallal_tts",
+                motion_id=MOTION_IDS[0],
+                seed=hallal_seeds[r - n_vs],
+                seed_kind="realization",
+            )
+        dmin_idx = r - n_vs - n_tts
+        mults = active_dmin_multipliers()
         return CaseParams(
             index=index,
             sobol_id=base.sobol_id,
@@ -177,10 +313,11 @@ def index_to_params(index: int) -> CaseParams:
             H=base.H,
             cov=base.cov,
             vs2=base.vs2,
-            method=HALLAL_METHODS[method_idx],
+            method="hallal_dmin",
             motion_id=MOTION_IDS[0],
-            seed=hallal_seeds[seed_idx],
-            seed_kind="realization",
+            seed=dmin_idx + 1,
+            seed_kind="dmin_mult",
+            dmin_multiplier=mults[dmin_idx],
         )
 
     r = index - hallal_block
@@ -220,10 +357,13 @@ def motion_frequency(vs1: float, motion_id: str, *, H: float) -> float:
 
 
 def case_tag(p: CaseParams) -> str:
-    return (
+    tag = (
         f"s{p.sobol_id:02d}_{p.method}_Vs1{p.vs1:.0f}_H{p.H:.0f}_"
         f"CoV{p.cov:.2f}_Vs2{p.vs2:.0f}_{p.motion_id}_{p.seed_kind}{p.seed}"
     )
+    if p.method == "hallal_dmin":
+        tag += f"_dmin{p.dmin_multiplier:.2f}"
+    return tag
 
 
 def damping_method_for(p: CaseParams) -> str:
@@ -233,11 +373,7 @@ def damping_method_for(p: CaseParams) -> str:
 
 
 def dmin_multiplier_for(p: CaseParams) -> float:
-    """Hallal Approach 5: scale lab Q–Vs Dmin profile (default ×3; override with RV_DMIN_MULT)."""
+    """Hallal Approach 5: Dmin multiplier from the 3–6 linspace sweep."""
     if p.method != "hallal_dmin":
         return 1.0
-    raw = os.getenv("RV_DMIN_MULT", "3")
-    mult = float(raw)
-    if mult <= 0:
-        raise ValueError(f"RV_DMIN_MULT must be positive, got {raw!r}")
-    return mult
+    return float(p.dmin_multiplier)

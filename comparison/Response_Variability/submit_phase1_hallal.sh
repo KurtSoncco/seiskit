@@ -1,6 +1,6 @@
 #!/bin/bash
 # Submit Hallal 1D block only (indices 0 .. hallal_block_size-1).
-# Run this before submit_phase1_rf.sh for the 2D GRF / de la Torre arms.
+# Run this before submit_phase1_rf.sh for the 2D GRF / Pretell arms.
 #
 # Usage:
 #   ./submit_phase1_hallal.sh              # full: 38,400 indices → array 0-1599

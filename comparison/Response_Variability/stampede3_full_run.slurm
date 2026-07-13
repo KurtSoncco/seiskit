@@ -8,7 +8,7 @@
 #   FORCE_RERUN=1 sbatch -N 8 --ntasks-per-node=48 -t 48:00:00 \
 #     comparison/Response_Variability/stampede3_full_run.slurm
 #
-# Smoke (160 indices):
+# Smoke (120 indices, 1D; add RV_SMOKE_2D=1 for 160 with 2D):
 #   RV_SMOKE=1 FORCE_RERUN=1 sbatch -N 2 --ntasks-per-node=16 -t 12:00:00 \
 #     comparison/Response_Variability/stampede3_full_run.slurm
 #

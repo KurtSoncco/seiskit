@@ -19,7 +19,7 @@
 # Phase 1: Response_Variability (TF-first). Savio2 whole-node; GNU Parallel runs
 # 24 sims per array element.
 # Full (RV_SMOKE=0): 64 Sobol × (3×200 Hallal + 2×30 RF) = 42,240 → array 0-1759.
-# Smoke (RV_SMOKE=1): 160 indices → array 0-6 via submit_phase1.sh --smoke.
+# Smoke (RV_SMOKE=1): 120 indices (1D) → array 0-4; with RV_SMOKE_2D=1: 160 → array 0-6.
 # Submit: ./submit_phase1.sh   or   ./submit_phase1.sh --smoke
 #
 # Hardening: per-index logs, joblog, retries, timeout, scratch TMPDIR, pre-flight
