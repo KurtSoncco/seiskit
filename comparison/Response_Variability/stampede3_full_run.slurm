@@ -1,27 +1,27 @@
 #!/bin/bash
 # Full Response_Variability campaign on TACC Stampede3 (pylauncher).
 #
-# Default split (recommended): Hallal 1D + Pretell OpenSees only — skips grf_2d
-# (run the GIFNO surrogate locally). Clear skip with RV_SKIP_METHODS= for all indices.
+# Default split: Hallal 1D + Pretell + OpenSees 2D baseline — skips GIFNO grf_2d
+# (run the surrogate locally). Clear skip with RV_SKIP_METHODS= for all indices.
 #
 # Submit:
 #   ./submit_stampede3_opensees.sh
 #   # or:
 #   sbatch comparison/Response_Variability/stampede3_full_run.slurm
 #
-# Full OpenSees production (Hallal + Pretell):
+# Full OpenSees production (Hallal + Pretell200 + opensees_2d):
 #   FORCE_RERUN=1 sbatch -N 8 --ntasks-per-node=48 -t 48:00:00 \
 #     comparison/Response_Variability/stampede3_full_run.slurm
 #
 # Include grf_2d too (needs torch + GIFNO checkpoint on Stampede):
 #   RV_SKIP_METHODS= FORCE_RERUN=1 sbatch ... stampede3_full_run.slurm
 #
-# Smoke Hallal+Pretell:
+# Smoke Hallal+Pretell+OPS2D:
 #   RV_SMOKE=1 RV_SMOKE_2D=1 FORCE_RERUN=1 sbatch -N 2 --ntasks-per-node=16 -t 12:00:00 \
 #     comparison/Response_Variability/stampede3_full_run.slurm
 #
 # Hallal 1D only:
-#   RV_SKIP_METHODS=grf_2d,pretell sbatch ... stampede3_full_run.slurm
+#   RV_SKIP_METHODS=grf_2d,pretell,opensees_2d sbatch ... stampede3_full_run.slurm
 #SBATCH -J rv_opensees
 #SBATCH -o rv_stampede3_full.o%j
 #SBATCH -e rv_stampede3_full.e%j
@@ -49,7 +49,7 @@ PYTHON_BIN="${PYTHON_BIN:-${VENV_PATH}/bin/python}"
 export RV_SMOKE="${RV_SMOKE:-0}"
 export RV_SMOKE_2D="${RV_SMOKE_2D:-1}"
 export RV_REGEN_SOBOL="${RV_REGEN_SOBOL:-0}"
-# No surrogate on Stampede by default (grf_2d skipped; Pretell uses OpenSees).
+# No surrogate on Stampede by default (grf_2d skipped; Pretell + opensees_2d use OpenSees).
 export RV_USE_SURROGATE_2D="${RV_USE_SURROGATE_2D:-0}"
 # Skip GIFNO arm unless explicitly cleared: RV_SKIP_METHODS=
 export RV_SKIP_METHODS="${RV_SKIP_METHODS-grf_2d}"

@@ -126,7 +126,7 @@ def _geomean_band(geo: np.ndarray, sig: np.ndarray) -> tuple[np.ndarray, np.ndar
     return geo * np.exp(-sig), geo * np.exp(sig)
 
 
-REF_METHOD_PRIORITY = ("grf_2d", "hallal_vs")
+REF_METHOD_PRIORITY = ("opensees_2d", "grf_2d", "hallal_vs")
 
 
 def pick_reference_method(
@@ -134,7 +134,7 @@ def pick_reference_method(
     sobol_id: int,
     motion_id: str,
 ) -> str | None:
-    """Prefer 2D GRF reference; fall back to hallal_vs for 1D-only smoke."""
+    """Prefer OpenSees 2D baseline; then GIFNO; then hallal_vs for 1D-only smoke."""
     for method in REF_METHOD_PRIORITY:
         sub = df[
             (df["method"] == method) & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)
@@ -258,15 +258,16 @@ def summarize_methods(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
 
 
 def summarize_geomean_grf2d_vs_pretell(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
-    """Center-recorder TF: geomean ± 1σ_ln across RF seeds for grf_2d vs pretell."""
+    """Center-recorder TF: geomean ± 1σ_ln across RF seeds for 2D/Pretell arms."""
     out_dir.mkdir(parents=True, exist_ok=True)
     records: list[dict] = []
+    compare_methods = ("opensees_2d", "grf_2d", "pretell")
 
     for sobol_id in sorted(df["sobol_id"].unique()):
         for motion in sorted(df["motion_id"].unique()):
             method_rows: dict[str, dict] = {}
             freq_ref: np.ndarray | None = None
-            for method in ("grf_2d", "pretell"):
+            for method in compare_methods:
                 sub = df[
                     (df["method"] == method)
                     & (df["sobol_id"] == sobol_id)
@@ -296,37 +297,99 @@ def summarize_geomean_grf2d_vs_pretell(df: pd.DataFrame, out_dir: Path) -> pd.Da
                 method_rows[method] = {"row": row, "geo": geo, "sig": sig, "freq": freq_ref}
                 records.append(row)
 
-            if "grf_2d" not in method_rows or "pretell" not in method_rows:
-                continue
+            if "grf_2d" in method_rows and "pretell" in method_rows:
+                geo_grf = method_rows["grf_2d"]["geo"]
+                geo_del = method_rows["pretell"]["geo"]
+                freq = method_rows["grf_2d"]["freq"]
+                records.append(
+                    {
+                        "sobol_id": sobol_id,
+                        "motion_id": motion,
+                        "method": "grf_2d_vs_pretell",
+                        "n_seeds": min(
+                            method_rows["grf_2d"]["row"]["n_seeds"],
+                            method_rows["pretell"]["row"]["n_seeds"],
+                        ),
+                        "vs1": method_rows["grf_2d"]["row"]["vs1"],
+                        "H": method_rows["grf_2d"]["row"]["H"],
+                        "delta_mu_ln_af_geomean": log_residual_bias(geo_del, geo_grf),
+                        "gof_af_geomean": anderson_frequency_domain(
+                            freq,
+                            geo_del,
+                            geo_grf,
+                            f_weight_center=float(method_rows["pretell"]["row"]["f_peak"]),
+                            f_weight_width=1.5,
+                        ),
+                        "delta_ln_A_peak_geomean": float(
+                            np.log(max(method_rows["grf_2d"]["row"]["A_peak_geomean"], 1e-12))
+                            - np.log(max(method_rows["pretell"]["row"]["A_peak_geomean"], 1e-12))
+                        ),
+                    }
+                )
 
-            geo_grf = method_rows["grf_2d"]["geo"]
-            geo_del = method_rows["pretell"]["geo"]
-            freq = method_rows["grf_2d"]["freq"]
-            records.append(
-                {
-                    "sobol_id": sobol_id,
-                    "motion_id": motion,
-                    "method": "grf_2d_vs_pretell",
-                    "n_seeds": min(
-                        method_rows["grf_2d"]["row"]["n_seeds"],
-                        method_rows["pretell"]["row"]["n_seeds"],
-                    ),
-                    "vs1": method_rows["grf_2d"]["row"]["vs1"],
-                    "H": method_rows["grf_2d"]["row"]["H"],
-                    "delta_mu_ln_af_geomean": log_residual_bias(geo_del, geo_grf),
-                    "gof_af_geomean": anderson_frequency_domain(
-                        freq,
-                        geo_del,
-                        geo_grf,
-                        f_weight_center=float(method_rows["pretell"]["row"]["f_peak"]),
-                        f_weight_width=1.5,
-                    ),
-                    "delta_ln_A_peak_geomean": float(
-                        np.log(max(method_rows["grf_2d"]["row"]["A_peak_geomean"], 1e-12))
-                        - np.log(max(method_rows["pretell"]["row"]["A_peak_geomean"], 1e-12))
-                    ),
-                }
-            )
+            if "opensees_2d" in method_rows and "grf_2d" in method_rows:
+                geo_ops = method_rows["opensees_2d"]["geo"]
+                geo_grf = method_rows["grf_2d"]["geo"]
+                freq = method_rows["opensees_2d"]["freq"]
+                records.append(
+                    {
+                        "sobol_id": sobol_id,
+                        "motion_id": motion,
+                        "method": "grf_2d_vs_opensees_2d",
+                        "n_seeds": min(
+                            method_rows["opensees_2d"]["row"]["n_seeds"],
+                            method_rows["grf_2d"]["row"]["n_seeds"],
+                        ),
+                        "vs1": method_rows["opensees_2d"]["row"]["vs1"],
+                        "H": method_rows["opensees_2d"]["row"]["H"],
+                        "delta_mu_ln_af_geomean": log_residual_bias(geo_ops, geo_grf),
+                        "gof_af_geomean": anderson_frequency_domain(
+                            freq,
+                            geo_ops,
+                            geo_grf,
+                            f_weight_center=float(method_rows["opensees_2d"]["row"]["f_peak"]),
+                            f_weight_width=1.5,
+                        ),
+                        "delta_ln_A_peak_geomean": float(
+                            np.log(max(method_rows["grf_2d"]["row"]["A_peak_geomean"], 1e-12))
+                            - np.log(
+                                max(method_rows["opensees_2d"]["row"]["A_peak_geomean"], 1e-12)
+                            )
+                        ),
+                    }
+                )
+
+            if "opensees_2d" in method_rows and "pretell" in method_rows:
+                geo_ops = method_rows["opensees_2d"]["geo"]
+                geo_del = method_rows["pretell"]["geo"]
+                freq = method_rows["opensees_2d"]["freq"]
+                records.append(
+                    {
+                        "sobol_id": sobol_id,
+                        "motion_id": motion,
+                        "method": "pretell_vs_opensees_2d",
+                        "n_seeds": min(
+                            method_rows["opensees_2d"]["row"]["n_seeds"],
+                            method_rows["pretell"]["row"]["n_seeds"],
+                        ),
+                        "vs1": method_rows["opensees_2d"]["row"]["vs1"],
+                        "H": method_rows["opensees_2d"]["row"]["H"],
+                        "delta_mu_ln_af_geomean": log_residual_bias(geo_ops, geo_del),
+                        "gof_af_geomean": anderson_frequency_domain(
+                            freq,
+                            geo_ops,
+                            geo_del,
+                            f_weight_center=float(method_rows["opensees_2d"]["row"]["f_peak"]),
+                            f_weight_width=1.5,
+                        ),
+                        "delta_ln_A_peak_geomean": float(
+                            np.log(max(method_rows["pretell"]["row"]["A_peak_geomean"], 1e-12))
+                            - np.log(
+                                max(method_rows["opensees_2d"]["row"]["A_peak_geomean"], 1e-12)
+                            )
+                        ),
+                    }
+                )
 
     summary = pd.DataFrame(records)
     summary.to_csv(out_dir / "method_comparison_geomean_summary.csv", index=False)

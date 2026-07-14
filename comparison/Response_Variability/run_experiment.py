@@ -2,7 +2,8 @@
 Response_Variability comparison campaign runner.
 
 Sobol base cases (Vs1, H, CoV, Vs2) with fixed rH=10, aHV=50.
-Methods: grf_2d (2D surrogate), pretell (1D from central 100 m), Hallal 1D arms.
+Methods: grf_2d (GIFNO), opensees_2d (OpenSees baseline), pretell (1D, full strip),
+Hallal 1D arms.
 
 Usage:
   python run_experiment.py --index 0
@@ -20,6 +21,7 @@ from pathlib import Path
 
 import numpy as np
 from manifest import (
+    PRETELL_SAMPLE_WIDTH_M,
     RF_METHODS,
     CaseParams,
     active_duration,
@@ -291,7 +293,7 @@ def _run_pretell_profiles(
     task_id: str,
     motion_freq: float,
 ) -> tuple[np.ndarray, np.ndarray, int]:
-    """Run 1D OpenSees on Pretell central-region columns; return geomean AF."""
+    """Run 1D OpenSees on Pretell strip columns; return geomean AF."""
     _dx, dz = active_rf_dx(), active_rf_dz()
     lz = vs_field_2d.shape[0] * dz
     cols = pretell_column_indices()
@@ -549,7 +551,9 @@ def _write_h5(
         f.attrs["analysis_backend"] = analysis_backend
         if pretell_n_samples > 0:
             f.attrs["pretell_n_samples"] = pretell_n_samples
-            f.attrs["pretell_central_width_m"] = 100.0
+            f.attrs["pretell_sample_width_m"] = float(PRETELL_SAMPLE_WIDTH_M)
+            # Legacy attr name retained for older analyze scripts.
+            f.attrs["pretell_central_width_m"] = float(PRETELL_SAMPLE_WIDTH_M)
         if p.method == "hallal_dmin":
             f.attrs["dmin_multiplier"] = dmin_multiplier_for(p)
         grp = f.create_group("params")
@@ -614,7 +618,9 @@ def run_case(index: int, *, force: bool = False) -> str:
     task_id = case_tag(p)
     rng = np.random.default_rng(p.seed)
 
-    is_2d = p.method == "grf_2d"
+    is_gifno = p.method == "grf_2d"
+    is_ops_2d = p.method == "opensees_2d"
+    is_2d = is_gifno or is_ops_2d
     is_pretell = p.method == "pretell"
     dx, dz = _grid_spacing(p)
 
@@ -653,7 +659,10 @@ def run_case(index: int, *, force: bool = False) -> str:
     if is_pretell:
         t0 = time.time()
         n_pretell = active_pretell_n_samples()
-        print(f"  backend=opensees_pretell ({n_pretell} profiles in central 100 m)")
+        print(
+            f"  backend=opensees_pretell ({n_pretell} profiles across "
+            f"{PRETELL_SAMPLE_WIDTH_M:.0f} m variability strip)"
+        )
         freq, af, n_done = _run_pretell_profiles(
             p,
             vs_field_2d=vs_field,
@@ -683,7 +692,8 @@ def run_case(index: int, *, force: bool = False) -> str:
         print(f"  wrote {h5_path}")
         return "ok"
 
-    if is_2d:
+    # GIFNO surrogate is only for grf_2d — never for opensees_2d baseline.
+    if is_gifno:
         from surrogate_2d import (
             central_af_index,
             predict_transfer_functions,
@@ -723,6 +733,9 @@ def run_case(index: int, *, force: bool = False) -> str:
             print(f"  spatial AF from {af_spatial.shape[0]} surrogate recorders")
             print(f"  wrote {h5_path}")
             return "ok"
+
+    if is_ops_2d:
+        print("  backend=opensees_2d (baseline)")
 
     model_data = build_model_data(config, vs_field, rho, nu, bedrock_mask=bedrock_mask)
     info = get_solver_info(config)
@@ -776,6 +789,7 @@ def run_case(index: int, *, force: bool = False) -> str:
         af=af,
         af_spatial=af_spatial,
         af_spatial_stats=af_spatial_stats,
+        analysis_backend="opensees_2d" if is_ops_2d else "opensees",
     )
     print(f"  wrote {h5_path}")
     return "ok"

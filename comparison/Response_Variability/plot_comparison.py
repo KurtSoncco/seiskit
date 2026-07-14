@@ -21,7 +21,7 @@ from manifest import (
     BEDROCK_DEPTH,
     METHODS,
     NO_NX_FULL,
-    PRETELL_CENTRAL_WIDTH_M,
+    PRETELL_SAMPLE_WIDTH_M,
     active_bc_width,
     active_dz,
     active_lx_var,
@@ -57,8 +57,9 @@ theoretical_f0 = _rv_run.theoretical_f0
 apply_style()
 
 METHOD_LABELS = {
-    "grf_2d": "2D GRF (reference)",
-    "pretell": "Pretell (1D geomean, central 100 m)",
+    "grf_2d": "2D GRF (GIFNO)",
+    "opensees_2d": "2D GRF (OpenSees baseline)",
+    "pretell": "Pretell (1D geomean, full 500 m)",
     "hallal_vs": "Hallal VsRand",
     "hallal_tts": "Hallal ttsRand",
     "hallal_dmin": "Hallal Dmin sweep (base Vs)",
@@ -66,6 +67,7 @@ METHOD_LABELS = {
 
 METHOD_COLORS = {
     "grf_2d": "0.2",
+    "opensees_2d": "C2",
     "pretell": "C3",
     "hallal_vs": "C0",
     "hallal_tts": "C1",
@@ -82,8 +84,8 @@ def _method_label(method: str) -> str:
 
 
 def _common_plot_freq(df: pd.DataFrame, sobol_id: int, motion_id: str) -> np.ndarray:
-    """Shared 0.1–10 Hz axis (prefer grf_2d / surrogate grid)."""
-    for method in ("grf_2d", "pretell"):
+    """Shared 0.1–10 Hz axis (prefer OpenSees 2D / GIFNO / pretell grid)."""
+    for method in ("opensees_2d", "grf_2d", "pretell"):
         sub = df[
             (df["method"] == method) & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)
         ]
@@ -293,7 +295,7 @@ def plot_tf_method_comparison(
         hi = med * np.exp(sig)
         color = METHOD_COLORS.get(method, "C0")
         label = _method_label(method)
-        lw = 2.4 if method == "grf_2d" else 1.8
+        lw = 2.4 if method in ("opensees_2d", "grf_2d") else 1.8
         ax_af.fill_between(freq, lo, hi, color=color, alpha=0.18, linewidth=0)
         ax_af.plot(freq, med, color=color, lw=lw, label=f"{label} (n={len(msub)})")
         ax_sig.plot(freq, sig, color=color, lw=lw, label=label)
@@ -774,7 +776,7 @@ def plot_grf_2d_explainability(
         x_pretell_hi,
         color="white",
         alpha=0.12,
-        label=f"Pretell {PRETELL_CENTRAL_WIDTH_M:.0f} m",
+        label=f"Pretell {PRETELL_SAMPLE_WIDTH_M:.0f} m",
     )
     for j in pretell_cols[:: max(1, len(pretell_cols) // 8)]:
         ax0.axvline(x[j], color="crimson", lw=0.6, alpha=0.5)
@@ -800,7 +802,8 @@ def plot_grf_2d_explainability(
     ax1.set_ylabel("Depth (m)")
     ax1.set_ylim(nz * data["dz"], 0)
     ax1.set_title(
-        f"Pretell 1D diagnostic\n(geomean of {len(pretell_cols)} profiles in central 100 m)",
+        f"Pretell 1D diagnostic\n(geomean of {len(pretell_cols)} profiles over full "
+        f"{PRETELL_SAMPLE_WIDTH_M:.0f} m strip)",
         fontsize=10,
     )
     ax1.legend(fontsize=8, loc="lower right")
@@ -826,16 +829,22 @@ def plot_grf2d_vs_pretell_geomean(
     sobol_id: int,
     motion_id: str = "M1",
 ) -> Path | None:
-    """Center-recorder AF: geomean ± 1σ_ln across RF seeds — surrogate vs OpenSees pretell."""
-    methods = ("grf_2d", "pretell")
+    """Center-recorder AF geomean ± 1σ_ln — OpenSees 2D / GIFNO / Pretell."""
+    methods = tuple(
+        m
+        for m in ("opensees_2d", "grf_2d", "pretell")
+        if not df[
+            (df["method"] == m) & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)
+        ].empty
+    )
+    if len(methods) < 2:
+        return None
     curves: dict[str, dict] = {}
     freq_ref: np.ndarray | None = None
     for method in methods:
         sub = df[
             (df["method"] == method) & (df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)
         ]
-        if sub.empty:
-            return None
         if freq_ref is None:
             freq_ref = np.asarray(sub.iloc[0]["freq"], dtype=float)
         freqs = [np.asarray(row["freq"], dtype=float) for _, row in sub.iterrows()]
@@ -854,7 +863,7 @@ def plot_grf2d_vs_pretell_geomean(
 
     freq = freq_ref
     meta = df[(df["sobol_id"] == sobol_id) & (df["motion_id"] == motion_id)].iloc[0]
-    n_seeds = curves["grf_2d"]["n"]
+    n_seeds = min(c["n"] for c in curves.values())
 
     fig, axes = plt.subplots(
         2, 1, figsize=(9, 7), sharex=True, gridspec_kw={"height_ratios": [2.2, 1.0]}
@@ -862,7 +871,13 @@ def plot_grf2d_vs_pretell_geomean(
     ax_af, ax_ratio = axes
 
     styles = {
-        "grf_2d": {"color": "k", "ls": "-", "lw": 2.4, "label": "grf_2d surrogate (geomean)"},
+        "opensees_2d": {
+            "color": "C2",
+            "ls": "-",
+            "lw": 2.4,
+            "label": "opensees_2d baseline (geomean)",
+        },
+        "grf_2d": {"color": "k", "ls": "-", "lw": 2.2, "label": "grf_2d GIFNO (geomean)"},
         "pretell": {"color": "C3", "ls": "--", "lw": 2.0, "label": "pretell OpenSees (geomean)"},
     }
     for method in methods:
@@ -891,9 +906,19 @@ def plot_grf2d_vs_pretell_geomean(
     ax_af.legend(fontsize=8, loc="upper left")
     ax_af.grid(True, alpha=0.25)
 
-    ratio = curves["grf_2d"]["geo"] / np.clip(curves["pretell"]["geo"], 1e-12, None)
+    ref_key = "opensees_2d" if "opensees_2d" in curves else methods[0]
     ax_ratio.axhline(1.0, color="0.35", lw=1.2)
-    ax_ratio.plot(freq, ratio, color="C0", lw=2.0, label="surrogate / pretell")
+    for method in methods:
+        if method == ref_key:
+            continue
+        ratio = curves[method]["geo"] / np.clip(curves[ref_key]["geo"], 1e-12, None)
+        ax_ratio.plot(
+            freq,
+            ratio,
+            color=styles[method]["color"],
+            lw=2.0,
+            label=f"{method} / {ref_key}",
+        )
     ax_ratio.set_xscale("log")
     ax_ratio.set_xlabel("Frequency (Hz)")
     ax_ratio.set_ylabel("AF ratio")

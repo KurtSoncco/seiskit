@@ -1,5 +1,5 @@
 #!/bin/bash
-# Stampede3: Hallal 1D + Pretell OpenSees only (skips grf_2d / GIFNO).
+# Stampede3: Hallal 1D + Pretell + OpenSees 2D baseline (skips GIFNO grf_2d).
 # Run grf_2d locally with the surrogate — see README.
 #
 # Usage (from this directory or repo root):
@@ -36,7 +36,7 @@ print(len(idxs), dict(c))
 ")"
 echo "Stampede3 OpenSees split: ${COUNTS}" >&2
 echo "  RV_SKIP_METHODS=${RV_SKIP_METHODS}" >&2
-echo "  Run grf_2d locally: ./submit_local.sh --all --2d --grf-only --n-seeds N" >&2
+echo "  Runs: Hallal + pretell(200@500m) + opensees_2d; GIFNO local via --grf-only" >&2
 
 exec sbatch \
   --export=ALL,RV_SMOKE,RV_SMOKE_2D,RV_USE_SURROGATE_2D,RV_SKIP_METHODS,FORCE_RERUN \

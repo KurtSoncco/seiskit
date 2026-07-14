@@ -20,17 +20,19 @@ from sobol_base_cases import (
 MethodId = Literal[
     "grf_2d",
     "pretell",
+    "opensees_2d",
     "hallal_vs",
     "hallal_tts",
     "hallal_dmin",
 ]
 
 HALLAL_METHODS: list[MethodId] = ["hallal_vs", "hallal_tts", "hallal_dmin"]
-RF_METHODS: list[MethodId] = ["grf_2d", "pretell"]
+# Append-only order: keeps existing grf_2d / pretell index slots stable.
+RF_METHODS: list[MethodId] = ["grf_2d", "pretell", "opensees_2d"]
 METHODS: list[MethodId] = [*HALLAL_METHODS, *RF_METHODS]
 
 # ---------------------------------------------------------------------------
-# GIFNO / neural-operator 2D training grid (Pretell & grf_2d use this domain)
+# GIFNO / neural-operator 2D training grid (RF arms use this domain)
 # ---------------------------------------------------------------------------
 # Lateral: 1500 m total = 500 m BC + 500 m variability + 500 m BC  (dx = 1 m)
 # Depth:   nz ≤ 128 rows at dz = 1 m (padded in surrogate input)
@@ -43,10 +45,12 @@ NO_LX_TOTAL = NO_BC_WIDTH + NO_LX_VAR + NO_BC_WIDTH  # 1500 m
 NO_NX_FULL = int(NO_LX_TOTAL / NO_DX)  # 1500 columns
 NO_NZ_MAX = 128
 
-# Pretell et al. (2022): 1D profiles from central 100 m of the 2D field.
-PRETELL_CENTRAL_WIDTH_M = 100.0
+# Pretell: evenly spaced 1D profiles across the full variability strip.
+PRETELL_SAMPLE_WIDTH_M = NO_LX_VAR  # 500 m
 PRETELL_SAMPLES_SMOKE = 10
-PRETELL_SAMPLES_FULL = 50  # production
+PRETELL_SAMPLES_FULL = 200  # production
+# Back-compat alias used by older plot helpers.
+PRETELL_CENTRAL_WIDTH_M = PRETELL_SAMPLE_WIDTH_M
 
 MOTION_IDS = ["M1"]
 MOTION_FREQS = {"M1": 3.0}
@@ -62,8 +66,8 @@ BC_WIDTH = 100.0
 # ---------------------------------------------------------------------------
 # hallal_vs / hallal_tts: 200 realizations each
 # hallal_dmin: 10 Dmin multipliers (not seeds)
-# grf_2d / pretell: 40 paired RF seeds each
-# pretell: 50 1D column samples per RF realization
+# grf_2d / pretell / opensees_2d: 40 paired RF seeds each
+# pretell: 200 1D column samples per RF realization (full 500 m strip)
 N_HALLAL_SEEDS_FULL = 200
 N_HALLAL_SEEDS_SMOKE = 10
 N_RF_SEEDS_FULL = 40
@@ -110,7 +114,7 @@ def active_hallal_seeds() -> list[int]:
 
 
 def active_rf_seeds() -> list[int]:
-    """Seeds 1..N for grf_2d / pretell (override with RV_RF_N_SEEDS)."""
+    """Seeds 1..N for RF arms (override with RV_RF_N_SEEDS)."""
     default_n = N_RF_SEEDS_SMOKE if _smoke_mode() else N_RF_SEEDS_FULL
     raw = os.getenv("RV_RF_N_SEEDS")
     n = max(1, int(raw)) if raw else default_n
@@ -176,16 +180,16 @@ def pretell_column_indices(n_samples: int | None = None) -> np.ndarray:
     """
     Column indices (full 1500 m grid) for evenly spaced 1D extractions.
 
-    Samples lie in the central ``PRETELL_CENTRAL_WIDTH_M`` of the 500 m
-    variability strip (Pretell et al. 2022).
+    Samples span the full ``PRETELL_SAMPLE_WIDTH_M`` variability strip
+    (500 m @ 1 m), not only a central sub-window.
     """
     n = n_samples if n_samples is not None else active_pretell_n_samples()
     dx = active_rf_dx()
     bc_cols = int(round(active_rf_bc_width() / dx))
+    sample_cols = int(round(PRETELL_SAMPLE_WIDTH_M / dx))
     strip_cols = int(round(active_rf_lx_var() / dx))
-    central_cols = int(round(PRETELL_CENTRAL_WIDTH_M / dx))
-    i0_strip = (strip_cols - central_cols) // 2
-    i1_strip = i0_strip + central_cols - 1
+    i0_strip = (strip_cols - sample_cols) // 2
+    i1_strip = i0_strip + sample_cols - 1
     cols_strip = np.linspace(i0_strip, i1_strip, n, dtype=int)
     return bc_cols + cols_strip
 
@@ -231,7 +235,7 @@ def hallal_index_end() -> int:
 
 
 def rf_index_range() -> tuple[int, int]:
-    """Inclusive start, exclusive end for grf_2d / pretell indices."""
+    """Inclusive start, exclusive end for RF-block indices."""
     start = hallal_block_size()
     return start, start + rf_block_size()
 
