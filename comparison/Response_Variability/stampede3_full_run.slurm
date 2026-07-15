@@ -22,6 +22,10 @@
 #
 # Hallal 1D only:
 #   RV_SKIP_METHODS=grf_2d,pretell,opensees_2d sbatch ... stampede3_full_run.slurm
+#
+# Resume / leftovers only (after canceling previous job; do not combine with FORCE_RERUN=1):
+#   RV_ONLY_MISSING=1 sbatch -N 8 --ntasks-per-node=48 -t 48:00:00 \
+#     comparison/Response_Variability/stampede3_full_run.slurm
 #SBATCH -J rv_opensees
 #SBATCH -o rv_stampede3_full.o%j
 #SBATCH -e rv_stampede3_full.e%j
@@ -53,6 +57,8 @@ export RV_REGEN_SOBOL="${RV_REGEN_SOBOL:-0}"
 export RV_USE_SURROGATE_2D="${RV_USE_SURROGATE_2D:-0}"
 # Skip GIFNO arm unless explicitly cleared: RV_SKIP_METHODS=
 export RV_SKIP_METHODS="${RV_SKIP_METHODS-grf_2d}"
+# Resubmit leftovers only: RV_ONLY_MISSING=1 (skip indices whose H5 already exists).
+export RV_ONLY_MISSING="${RV_ONLY_MISSING:-0}"
 FORCE_RERUN="${FORCE_RERUN:-0}"
 
 RUN_BASE="${RUN_BASE:-${SCRATCH:-${REPO_ROOT}}/rv_comparison}"
@@ -120,11 +126,13 @@ echo "$(date -Is) | CONFIG | RV_SMOKE=${RV_SMOKE} SMOKE_2D=${RV_SMOKE_2D} SKIP=$
 
 export COMMAND_FILE LAUNCHER_WORKDIR PER_TASK_LOG_DIR TMP_ROOT
 export RUNNER_PY PYTHON_BIN FORCE_RERUN INDEX_OFFSET INDEX_MAX SCRIPT_DIR
-export RV_SKIP_METHODS
+export RV_SKIP_METHODS RV_ONLY_MISSING RV_H5_DIR
 
 N_CMDS="$("${PYTHON_BIN}" - <<'PY'
 import os
+import sys
 from pathlib import Path
+from collections import Counter
 from manifest import index_to_params, parse_method_list
 
 command_file = Path(os.environ["COMMAND_FILE"])
@@ -140,13 +148,18 @@ script_dir = os.environ["SCRIPT_DIR"]
 index_offset = int(os.environ["INDEX_OFFSET"])
 index_max = int(os.environ["INDEX_MAX"])
 force = os.environ["FORCE_RERUN"] == "1"
+only_missing = os.environ.get("RV_ONLY_MISSING", "0") == "1"
 skip = parse_method_list(os.environ.get("RV_SKIP_METHODS")) or set()
+h5_dir = Path(os.environ.get("RV_H5_DIR", ""))
 
 n_written = 0
+by_method = Counter()
 with command_file.open("w", encoding="utf-8") as handle:
     for idx in range(index_offset, index_max):
         method = index_to_params(idx).method
         if method in skip:
+            continue
+        if only_missing and h5_dir and (h5_dir / f"run_{idx}.h5").exists():
             continue
         idx_label = f"{idx:05d}"
         tmpdir = tmp_root / f"idx_{idx_label}"
@@ -165,12 +178,16 @@ with command_file.open("w", encoding="utf-8") as handle:
         command += f' > "{stdout_path}" 2> "{stderr_path}"'
         handle.write(command + "\n")
         n_written += 1
+        by_method[method] += 1
 
+if only_missing:
+    summary = ", ".join(f"{m}={c}" for m, c in sorted(by_method.items())) or "none"
+    print(f"missing_only | {summary}", file=sys.stderr)
 print(n_written)
 PY
 )"
 
-echo "$(date -Is) | COMMANDS | Wrote ${N_CMDS} tasks → ${COMMAND_FILE} (skipped methods: ${RV_SKIP_METHODS:-none})" >&2
+echo "$(date -Is) | COMMANDS | Wrote ${N_CMDS} tasks → ${COMMAND_FILE} (skipped methods: ${RV_SKIP_METHODS:-none}; only_missing=${RV_ONLY_MISSING:-0})" >&2
 if [ "${N_CMDS}" = "0" ]; then
   echo "ERROR: no launcher commands generated" >&2
   exit 3

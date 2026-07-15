@@ -6,6 +6,8 @@
 #   ./submit_stampede3_opensees.sh
 #   FORCE_RERUN=1 ./submit_stampede3_opensees.sh -N 8 --ntasks-per-node=48 -t 48:00:00
 #   RV_SMOKE=1 RV_SMOKE_2D=1 ./submit_stampede3_opensees.sh -N 2 --ntasks-per-node=16 -t 12:00:00
+#   # After canceling a long job — only missing H5s (do NOT set FORCE_RERUN):
+#   RV_ONLY_MISSING=1 ./submit_stampede3_opensees.sh -N 8 --ntasks-per-node=48 -t 48:00:00
 #
 # Extra args are forwarded to sbatch.
 set -euo pipefail
@@ -16,6 +18,7 @@ export RV_SMOKE_2D="${RV_SMOKE_2D:-1}"
 export RV_USE_SURROGATE_2D=0
 export RV_SKIP_METHODS="${RV_SKIP_METHODS:-grf_2d}"
 export FORCE_RERUN="${FORCE_RERUN:-0}"
+export RV_ONLY_MISSING="${RV_ONLY_MISSING:-0}"
 
 ROOT="$(cd ../.. && pwd)"
 PYTHON="${ROOT}/.venv/bin/python"
@@ -36,9 +39,10 @@ print(len(idxs), dict(c))
 ")"
 echo "Stampede3 OpenSees split: ${COUNTS}" >&2
 echo "  RV_SKIP_METHODS=${RV_SKIP_METHODS}" >&2
+echo "  RV_ONLY_MISSING=${RV_ONLY_MISSING}" >&2
 echo "  Runs: Hallal + pretell(200@500m) + opensees_2d; GIFNO local via --grf-only" >&2
 
 exec sbatch \
-  --export=ALL,RV_SMOKE,RV_SMOKE_2D,RV_USE_SURROGATE_2D,RV_SKIP_METHODS,FORCE_RERUN \
+  --export=ALL,RV_SMOKE,RV_SMOKE_2D,RV_USE_SURROGATE_2D,RV_SKIP_METHODS,FORCE_RERUN,RV_ONLY_MISSING \
   "$@" \
   stampede3_full_run.slurm
