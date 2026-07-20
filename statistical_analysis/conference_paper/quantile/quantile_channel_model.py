@@ -35,8 +35,8 @@ from config import (  # noqa: E402
     DEFAULT_TAUS,
     FACTORS,
     FIG_DPI,
-    MODELS_DIR,
     MODEL_TARGETS,
+    MODELS_DIR,
     REF_COLOR,
     load_channel50,
     mean_model_stem,
@@ -198,7 +198,9 @@ def main() -> None:
 
     # Focus figure on primary comparison: ln amplitude vs frequency (+ raw row)
     apply_style(auto_format=True, font_size=9, frame="open")
-    fig, axes = plt.subplots(len(TARGETS), 4, figsize=(14, 3.2 * len(TARGETS)), layout="constrained")
+    fig, axes = plt.subplots(
+        len(TARGETS), 4, figsize=(14, 3.2 * len(TARGETS)), layout="constrained"
+    )
     if len(TARGETS) == 1:
         axes = np.array([axes])
 

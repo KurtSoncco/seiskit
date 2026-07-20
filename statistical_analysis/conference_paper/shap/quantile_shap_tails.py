@@ -78,9 +78,7 @@ def dep(ax, tgt, tau, feat, letter, title):
     yv = sv[:, fi]
     partner = {"CoV": "aHV", "aHV": "CoV", "Vs1": "Height", "Height": "Vs1"}[feat]
     cvar = Xte_df[partner].values
-    sc = ax.scatter(
-        xv, yv, c=cvar, cmap=get_crameri_cmap("vik"), s=12, alpha=0.7, edgecolor="none"
-    )
+    sc = ax.scatter(xv, yv, c=cvar, cmap=get_crameri_cmap("vik"), s=12, alpha=0.7, edgecolor="none")
     ax.axhline(0, color="0.6", lw=0.7)
     ax.set_xlabel(feat)
     ax.set_ylabel(f"SHAP({feat}) @ τ={tau:g}")

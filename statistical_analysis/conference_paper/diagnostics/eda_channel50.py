@@ -16,9 +16,9 @@ from seiskit.plot_config import apply_style, get_crameri_cmap, panel_letter, res
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import (  # noqa: E402
+    COMPARE_COLOR,
     FACTORS,
     FIG_DPI,
-    COMPARE_COLOR,
     REF_COLOR,
     load_channel50,
     target_color,
@@ -44,9 +44,7 @@ def main() -> None:
 
     # b) raw amplitude
     ax = fig.add_subplot(gs[0, 1])
-    ax.hist(
-        d50["abs_TF_ratio"], bins=80, color=target_color("abs_TF_ratio"), edgecolor="none"
-    )
+    ax.hist(d50["abs_TF_ratio"], bins=80, color=target_color("abs_TF_ratio"), edgecolor="none")
     ax.axvline(1.0, color=REF_COLOR, ls="--", lw=1)
     ax.set_xlabel(target_label("abs_TF_ratio"))
     ax.set_ylabel("count")
@@ -102,11 +100,7 @@ def main() -> None:
 
     ax = fig.add_subplot(gs[2, 0])
     cell = d50[
-        (d50.Vs1 == 230)
-        & (d50.Height == 50)
-        & (d50.CoV == 0.2)
-        & (d50.rH == 30)
-        & (d50.aHV == 10)
+        (d50.Vs1 == 230) & (d50.Height == 50) & (d50.CoV == 0.2) & (d50.rH == 30) & (d50.aHV == 10)
     ]
     ax.plot(
         cell["seed"],

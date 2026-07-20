@@ -21,7 +21,14 @@ from seiskit.plot_config import apply_style, panel_letter, result_path
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50, target_color, COMPARE_COLOR, FACTOR_COLORS, FIG_DPI  # noqa: E402
+from config import (  # noqa: E402
+    COMPARE_COLOR,
+    FACTOR_COLORS,
+    FACTORS,
+    FIG_DPI,
+    load_channel50,
+    target_color,
+)
 
 apply_style(auto_format=True, font_size=10, frame="open")
 

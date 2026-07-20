@@ -15,7 +15,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50, target_color, COMPARE_COLOR, FIG_DPI
+from config import COMPARE_COLOR, FACTORS, FIG_DPI, load_channel50, target_color
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 

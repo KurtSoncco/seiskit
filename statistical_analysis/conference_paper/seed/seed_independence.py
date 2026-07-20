@@ -13,7 +13,7 @@ import numpy as np
 from seiskit.plot_config import apply_style, get_crameri_cmap, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50, target_color, REF_COLOR, FIG_DPI
+from config import FACTORS, FIG_DPI, REF_COLOR, load_channel50, target_color
 
 # ---------------------------------------------------------------------------
 # Data

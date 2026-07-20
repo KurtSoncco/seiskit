@@ -16,7 +16,7 @@ from scipy.stats import boxcox, boxcox_normmax
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50, target_color, FIG_DPI
+from config import FACTORS, FIG_DPI, load_channel50, target_color
 
 # Load data
 d50 = load_channel50()

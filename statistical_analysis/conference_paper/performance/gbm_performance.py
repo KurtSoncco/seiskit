@@ -17,13 +17,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_pinball_loss,
-    mean_squared_error,
-    r2_score,
-)
-
 from config import (  # noqa: E402
     FACTORS,
     FIG_DPI,
@@ -36,6 +29,13 @@ from config import (  # noqa: E402
     target_color,
     target_label,
 )
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_pinball_loss,
+    mean_squared_error,
+    r2_score,
+)
+
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 warnings.filterwarnings("ignore")
@@ -48,9 +48,7 @@ def main() -> None:
     taus = [0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95]
 
     mean_models = load_mean_models(targets=list(MODEL_TARGETS), split_by="seed")
-    quant_models = load_quantile_models(
-        taus=taus, targets=list(MODEL_TARGETS), split_by="seed"
-    )
+    quant_models = load_quantile_models(taus=taus, targets=list(MODEL_TARGETS), split_by="seed")
     missing_targets = [t for t in MODEL_TARGETS if t not in mean_models]
     if missing_targets:
         raise FileNotFoundError(
@@ -149,9 +147,7 @@ def main() -> None:
         mae = mean_absolute_error(yte, pred)
         ax.set_xlabel("predicted")
         ax.set_ylabel("actual")
-        ax.set_title(
-            f"{target_label(tgt)}: R²={r2:.2f}, MSE={mse:.3g}, MAE={mae:.3g}"
-        )
+        ax.set_title(f"{target_label(tgt)}: R²={r2:.2f}, MSE={mse:.3g}, MAE={mae:.3g}")
 
     # Fair raw-amplitude comparison of raw-fit vs log-fit mean GBMs.
     ax = axes[0, 2]

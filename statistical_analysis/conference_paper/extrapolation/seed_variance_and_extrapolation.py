@@ -22,7 +22,15 @@ from seiskit.plot_config import apply_style, panel_letter, result_path
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50, target_color, COMPARE_COLOR, REF_COLOR, FACTOR_COLORS, FIG_DPI  # noqa: E402
+from config import (  # noqa: E402
+    COMPARE_COLOR,
+    FACTOR_COLORS,
+    FACTORS,
+    FIG_DPI,
+    REF_COLOR,
+    load_channel50,
+    target_color,
+)
 
 apply_style(auto_format=True, font_size=10, frame="open")
 
@@ -255,9 +263,23 @@ def plot_ie(ax, tgt, factor, letter):
     r = extrap_df[
         (extrap_df.target == tgt) & (extrap_df.factor == factor) & (extrap_df["mode"] == "extrap")
     ].iloc[0]
-    ax.scatter([2], [r["mean_gb"]], marker="s", s=90, color=target_color("log_abs"), label="GBM extrap", zorder=6)
     ax.scatter(
-        [2], [r["mean_ols"]], marker="^", s=90, color=target_color("f_ratio"), label="OLS extrap", zorder=6
+        [2],
+        [r["mean_gb"]],
+        marker="s",
+        s=90,
+        color=target_color("log_abs"),
+        label="GBM extrap",
+        zorder=6,
+    )
+    ax.scatter(
+        [2],
+        [r["mean_ols"]],
+        marker="^",
+        s=90,
+        color=target_color("f_ratio"),
+        label="OLS extrap",
+        zorder=6,
     )
     ax.axvspan(-0.3, 1.3, color="0.9", zorder=0)
     ax.text(0.5, ax.get_ylim()[1], "train", ha="center", va="top", fontsize=7, color="0.4")

@@ -19,8 +19,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import shap
 
+import shap
 from seiskit.plot_config import apply_style, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

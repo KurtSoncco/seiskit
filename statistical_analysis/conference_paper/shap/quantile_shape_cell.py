@@ -76,9 +76,7 @@ models = load_quantile_models(TAUS, targets=list(TARGETS), split_by=SPLIT_BY)
 for tgt_key in TARGETS:
     missing = [tau for tau in TAUS if tau not in models.get(tgt_key, {})]
     if missing:
-        tags = ", ".join(
-            quantile_model_stem(tgt_key, tau, split_by=SPLIT_BY) for tau in missing
-        )
+        tags = ", ".join(quantile_model_stem(tgt_key, tau, split_by=SPLIT_BY) for tau in missing)
         raise FileNotFoundError(
             f"Missing cell-split quantile models for {tgt_key}: {tags}. "
             "Run: python quantile/quantile_channel_model.py --split cell"

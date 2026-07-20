@@ -45,8 +45,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import shap
 
+import shap
 from seiskit.plot_config import apply_style, get_crameri_cmap, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -129,9 +129,7 @@ def pd_1d(model, X_ref: np.ndarray, feat_idx: int, grid: np.ndarray) -> np.ndarr
     return out
 
 
-def pd_2d(
-    model, X_ref: np.ndarray, i: int, j: int, gi: np.ndarray, gj: np.ndarray
-) -> np.ndarray:
+def pd_2d(model, X_ref: np.ndarray, i: int, j: int, gi: np.ndarray, gj: np.ndarray) -> np.ndarray:
     X = X_ref.copy()
     out = np.zeros((len(gi), len(gj)))
     for ii, vi in enumerate(gi):
@@ -154,10 +152,7 @@ def main() -> None:
     quant_models = load_quantile_models(taus=TAUS, targets=Q_TARGETS, split_by="seed")
     missing_mean = [t for t in MEAN_TARGETS if t not in mean_models]
     missing_q = [
-        f"{t}@τ={tau}"
-        for t in Q_TARGETS
-        for tau in TAUS
-        if tau not in quant_models.get(t, {})
+        f"{t}@τ={tau}" for t in Q_TARGETS for tau in TAUS if tau not in quant_models.get(t, {})
     ]
     if missing_mean or missing_q:
         raise FileNotFoundError(
@@ -307,9 +302,7 @@ def main() -> None:
                                 ha="center",
                                 va="center",
                                 fontsize=7,
-                                color="white"
-                                if M[i, j] < np.nanmax(Moff) * 0.55
-                                else "black",
+                                color="white" if M[i, j] < np.nanmax(Moff) * 0.55 else "black",
                             )
                 fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
                 _save(fig, f"mean_interaction_heatmap_{tgt}.png")
@@ -441,18 +434,14 @@ def main() -> None:
                         pair_pct_of_interactions=100 * 2 * M[ia, ib] / total_inter
                         if total_inter > 0
                         else 0.0,
-                        interaction_fraction=100
-                        * total_inter
-                        / (total_main + total_inter)
+                        interaction_fraction=100 * total_inter / (total_main + total_inter)
                         if (total_main + total_inter) > 0
                         else 0.0,
                     )
                 )
 
             # Separate interaction-fraction plot per target
-            s = pd.DataFrame([r for r in qinter_rows if r["target"] == tgt]).sort_values(
-                "tau"
-            )
+            s = pd.DataFrame([r for r in qinter_rows if r["target"] == tgt]).sort_values("tau")
             fig, ax = plt.subplots(figsize=(5.2, 3.6))
             ax.plot(
                 s["tau"],
@@ -512,9 +501,7 @@ def main() -> None:
                     pd_ij = pd_2d(model, X_pdp, i, j, grids[fi], grids[fj])
                     val = friedman_h2(pd_ij, pd1[tau][fi], pd1[tau][fj])
                     h[i, j] = h[j, i] = val
-                    h2_rows.append(
-                        dict(target=tgt, tau=tau, factor_i=fi, factor_j=fj, H2=val)
-                    )
+                    h2_rows.append(dict(target=tgt, tau=tau, factor_i=fi, factor_j=fj, H2=val))
 
                 fig, ax = plt.subplots(figsize=(5.2, 4.4))
                 im = ax.imshow(h, cmap=get_crameri_cmap("lapaz"), vmin=0, vmax=1)

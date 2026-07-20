@@ -19,7 +19,7 @@ from seiskit.plot_config import apply_style, panel_letter, result_path
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, FIG_DPI, factor_color, load_channel50, target_label  # noqa: E402
+from config import FACTORS, FIG_DPI, factor_color, load_channel50  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Data

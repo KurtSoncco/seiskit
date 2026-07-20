@@ -16,10 +16,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.metrics import r2_score
-from sklearn.model_selection import KFold, cross_val_predict
-
 from config import (  # noqa: E402
     FACTORS,
     FIG_DPI,
@@ -31,6 +27,10 @@ from config import (  # noqa: E402
     target_color,
     target_label,
 )
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.metrics import r2_score
+from sklearn.model_selection import KFold, cross_val_predict
+
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 warnings.filterwarnings("ignore")
@@ -61,15 +61,11 @@ def main() -> None:
     # Prefer live mean-model R² when models exist; fall back to recorded values.
     tr, te = seed_grouped_split(d, test_size=0.25, seed=0)
     Xte = d.iloc[te][FACTORS]
-    mean_models = load_mean_models(
-        targets=["log_abs", "f_ratio", "abs_TF_ratio"], split_by="seed"
-    )
+    mean_models = load_mean_models(targets=["log_abs", "f_ratio", "abs_TF_ratio"], split_by="seed")
     recorded = {"log_abs": 0.358, "f_ratio": 0.208}
     for tgt in ["log_abs", "f_ratio"]:
         if tgt in mean_models:
-            recorded[tgt] = float(
-                r2_score(d.iloc[te][tgt].values, mean_models[tgt].predict(Xte))
-            )
+            recorded[tgt] = float(r2_score(d.iloc[te][tgt].values, mean_models[tgt].predict(Xte)))
 
     cm = d.groupby(FACTORS)[["log_abs", "f_ratio", "abs_TF_ratio"]].mean().reset_index()
     cs = (
@@ -113,9 +109,7 @@ def main() -> None:
         m = HistGradientBoostingRegressor(
             max_iter=300, learning_rate=0.05, max_leaf_nodes=15, random_state=0
         )
-        r2cm = r2_score(
-            y, cross_val_predict(m, X, y, cv=KFold(5, shuffle=True, random_state=0))
-        )
+        r2cm = r2_score(y, cross_val_predict(m, X, y, cv=KFold(5, shuffle=True, random_state=0)))
         col = "sd_log" if tgt == "log_abs" else "sd_f"
         ys = cs[col].values
         ms = HistGradientBoostingRegressor(
@@ -123,7 +117,9 @@ def main() -> None:
         )
         r2sd = r2_score(
             ys,
-            cross_val_predict(ms, cs[FACTORS].values, ys, cv=KFold(5, shuffle=True, random_state=0)),
+            cross_val_predict(
+                ms, cs[FACTORS].values, ys, cv=KFold(5, shuffle=True, random_state=0)
+            ),
         )
         row = dict(
             target=tgt,

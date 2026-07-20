@@ -85,9 +85,7 @@ FACTOR_MARKERS = {
     "aHV": "x",
 }
 
-FACTOR_PLOT = {
-    f: {"color": FACTOR_COLORS[f], "marker": FACTOR_MARKERS[f]} for f in FACTORS
-}
+FACTOR_PLOT = {f: {"color": FACTOR_COLORS[f], "marker": FACTOR_MARKERS[f]} for f in FACTORS}
 
 # Target colors: amplitude family uses red/cyan; frequency uses blue; gray = ref.
 TARGET_COLORS = {
@@ -161,11 +159,7 @@ def load_channel50(*, cached: bool = True) -> pd.DataFrame:
         return _CENTER_CACHE
 
     df = load_master(cached=cached)
-    out = (
-        df[df["channel"] == CENTER_CHANNEL]
-        .drop(columns=["channel"])
-        .reset_index(drop=True)
-    )
+    out = df[df["channel"] == CENTER_CHANNEL].drop(columns=["channel"]).reset_index(drop=True)
     if cached:
         _CENTER_CACHE = out
     return out
