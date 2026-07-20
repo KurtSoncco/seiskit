@@ -17,32 +17,32 @@ import numpy as np
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50
+from config import FACTORS, FIG_DPI, load_channel50, target_color, target_label
 
 # Load data
 d50 = load_channel50()
 
 # Apply style
-apply_style(auto_format=False, font_size=10, frame="open")
+apply_style(auto_format=True, font_size=10, frame="open")
 
-# Define lines color and markers to plot.
-lines_color = ["#C44E52", "#4C72B0"]
+# Row colors: frequency vs natural-log amplitude
+lines_color = [target_color("f_ratio"), target_color("log_abs")]
 markers = ["o", "s", "D"]
 linestyles = ["-", "--", "-."]
 
 # X axis labels
 x_labels = {
-    "Vs1": r"$V_{s1}$ (m/s)",
-    "Height": r"$H$ (m)",
-    "CoV": r"$\mathrm{CoV}$",
-    "rH": r"$r_{h}$ (m)",
-    "aHV": r"$a_{hv}$",
+    "Vs1": "Vs1",
+    "Height": "Height",
+    "CoV": "CoV",
+    "rH": "rH",
+    "aHV": "aHV",
 }
 
 # Y axis labels
 y_labels = {
-    "f_ratio": r"$f_0^N$",
-    "log_abs": r"$\log(|TF|_0^N)$",
+    "f_ratio": target_label("f_ratio"),
+    "log_abs": target_label("log_abs"),
 }
 
 # Y axis limits
@@ -56,8 +56,8 @@ fig = plt.figure(figsize=(13, 5))
 gs = fig.add_gridspec(2, 5, hspace=0.1, wspace=0.10)
 
 TARGETS_PLOT = [
-    ("f_ratio", "$f$ ratio"),
-    ("log_abs", r"$\log\left(\left|TF\right|^N_{0}\right)$"),
+    ("f_ratio", target_label("f_ratio")),
+    ("log_abs", target_label("log_abs")),
 ]
 QUANTILES = [0.05, 0.50, 0.95]
 Q_LABELS = ["p5", "p50", "p95"]
@@ -129,4 +129,4 @@ fig.suptitle(
     fontsize=10,
     fontweight="bold",
 )
-fig.savefig(result_path("plots", "quantile_eda.png"), dpi=150, bbox_inches="tight")
+fig.savefig(result_path("plots", "quantile_eda.png"), dpi=FIG_DPI, bbox_inches="tight")

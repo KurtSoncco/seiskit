@@ -1,8 +1,7 @@
-# env: python
-"""Normality assessment via QQ plots — seiskit conference paper diagnostics.
+"""Normality assessment via QQ plots for the center recorder.
 
-Generates a 2x3 panel comparing raw vs log vs Box-Cox transformed QQ plots
-for both target variables at channel 50.
+Compares raw amplitude, natural-log amplitude, and Box–Cox transforms
+against frequency-ratio transforms (raw / ln / Box–Cox).
 """
 
 import sys
@@ -17,7 +16,7 @@ from scipy.stats import boxcox, boxcox_normmax
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50
+from config import FACTORS, load_channel50, target_color, FIG_DPI
 
 # Load data
 d50 = load_channel50()
@@ -124,28 +123,28 @@ def qq(ax, x, title, color, step=0.2):
 # Plot QQ plots
 ## Absolute TF ratio QQ plots
 ## Raw QQ plot
-qq(axes[0, 0], d50["abs_TF_ratio"], "abs TF ratio — raw", "#C44E52", step=0.5)
-## Log QQ plot
-qq(axes[0, 1], np.log(d50["abs_TF_ratio"]), "abs TF ratio — log", "#C44E52", step=0.5)
+qq(axes[0, 0], d50["abs_TF_ratio"], "abs TF ratio — raw", target_color("abs_TF_ratio"), step=0.5)
+## Natural-log QQ plot
+qq(axes[0, 1], d50["log_abs"], "abs TF ratio — ln", target_color("log_abs"), step=0.5)
 ## Box-Cox QQ plot
 qq(
     axes[0, 2],
     d50["abs_TF_ratio"] ** 0 + bc(d50["abs_TF_ratio"].values, lam_abs),
     rf"abs TF ratio — Box-Cox $\lambda$ = {lam_abs:.2f}",
-    "#C44E52",
+    target_color("abs_TF_ratio"),
     step=1.0,
 )
 ## F ratio QQ plots
 ## Raw QQ plot
-qq(axes[1, 0], d50["f_ratio"], "f ratio — raw", "#4C72B0", step=0.2)
+qq(axes[1, 0], d50["f_ratio"], "f ratio — raw", target_color("f_ratio"), step=0.2)
 ## Log QQ plot
-qq(axes[1, 1], np.log(d50["f_ratio"]), "f ratio — log", "#4C72B0", step=0.2)
+qq(axes[1, 1], np.log(d50["f_ratio"]), "f ratio — ln", target_color("f_ratio"), step=0.2)
 ## Box-Cox QQ plot
 qq(
     axes[1, 2],
     bc(d50["f_ratio"].values, lam_f),
     rf"f ratio — Box-Cox $\lambda$ = {lam_f:.2f}",
-    "#4C72B0",
+    target_color("f_ratio"),
     step=0.2,
 )
 
@@ -153,9 +152,9 @@ qq(
 for letter, ax in zip("abcdef", axes.ravel()):
     panel_letter(ax, letter)
 fig.suptitle(
-    "Normal QQ plots: Raw, Log, and Box-Cox transformed targets (Recorder 50) · Points on the line = Normal",
+    "Normal QQ plots: raw, natural-log, and Box-Cox targets (center recorder)",
     fontsize=10,
 )
 fig.tight_layout()
 # Save figure
-fig.savefig(result_path("plots", "normality_assessment.png"), dpi=150, bbox_inches="tight")
+fig.savefig(result_path("plots", "normality_assessment.png"), dpi=FIG_DPI, bbox_inches="tight")

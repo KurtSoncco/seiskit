@@ -11,12 +11,15 @@ import pandas as pd
 import shap
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import (
+from config import (  # noqa: E402
     FACTORS,
+    FIG_DPI,
     cached_shap,
     load_channel50,
     load_quantile_models,
     seed_grouped_split,
+    target_color,
+    target_label,
 )
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
@@ -31,7 +34,7 @@ Xte_df = Xdf.iloc[te]
 
 taus = [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95]
 
-quant_models = load_quantile_models(taus)
+quant_models = load_quantile_models(taus, split_by="seed")
 
 N_SHAP = 3000
 rng = np.random.default_rng(0)
@@ -78,8 +81,8 @@ qint = pd.DataFrame(rows)
 qint.to_csv(result_path("data", "quantile_shap_interactions.csv"), index=False)
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-tcol = {"log_abs": "#C44E52", "f_ratio": "#4C72B0"}
-nice = {"log_abs": "log(abs_TF)", "f_ratio": "f_ratio"}
+tcol = {"log_abs": target_color("log_abs"), "f_ratio": target_color("f_ratio")}
+nice = {"log_abs": target_label("log_abs"), "f_ratio": target_label("f_ratio")}
 
 ax = axes[0]
 for tgt in ["log_abs", "f_ratio"]:
@@ -110,7 +113,7 @@ fig.suptitle(
 fig.tight_layout()
 fig.savefig(
     result_path("plots", "quantile_shap_interactions.png"),
-    dpi=150,
+    dpi=FIG_DPI,
     bbox_inches="tight",
 )
 plt.close(fig)

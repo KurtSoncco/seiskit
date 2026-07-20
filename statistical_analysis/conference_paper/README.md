@@ -1,84 +1,158 @@
-# Heteroscedastic Statistical Analysis of Seismic Transfer-Function Peak Ratios
+# Center-recorder analysis of seismic transfer-function peak ratios
 
-Conference paper analysis: Monte Carlo random-field study of 1-D seismic
-site-response simulations over stochastic, exponentially-correlated
-shear-wave-velocity fields.
+Conference-paper workflow for a random-field study of 1-D seismic
+site-response simulations.
+**All analyses use the center recorder (channel 50) only.**
+
+## Roles of the models (important)
+
+These tools answer **different questions**. Do not rank them as “better / worse.”
+
+| Tool | Estimates | Use for |
+|------|-----------|---------|
+| **OLS / MixedLM** | Linear conditional mean + SEs | Failure baseline: shows seed clustering, non-normal residuals, and that one slope cannot describe heteroscedastic effects |
+| **Mean GBM** | Nonlinear conditional mean \(E[Y\mid X]\) | Predictive benchmarks: R², MSE, MAE, R² ceiling |
+| **QBM** | Conditional quantiles \(q_\tau(Y\mid X)\) | Scientific explanation of spread/tails: pinball loss, calibration, SHAP/PDP by \(\tau\) |
+
+**QBM is not “better than GBM.”** GBM is the mean-prediction benchmark.
+QBM is the distributional model used with SHAP/PDP to show how inputs reshape
+the full response, including effects that change across quantiles.
+
+### R² ceiling (why test R² looks “low”)
+
+Observation-level R² is limited by **seed-to-seed realization noise** that no
+design-factor model can remove. The **R² ceiling** is the fraction of variance
+that lives *between design cells* (deterministic signal). Efficiency is
+
+\[
+\text{efficiency} = \frac{\text{GBM test } R^2}{\text{R}^2\text{ ceiling}}.
+\]
+
+Example (`log_abs`): ceiling ≈ 0.40, GBM R² ≈ 0.35 → **~87% of the explainable
+design signal** is captured even though absolute R² is only ~0.35.
+
+### Raw vs natural-log amplitude
+
+- **Native metrics** (fit on `abs_TF_ratio` vs fit on `log_abs`) are not
+  comparable in MSE/MAE because units differ.
+- **Fair comparison** scores both models on raw `|TF|_0^N`, back-transforming
+  the log model with `exp` + Duan smearing.
+- Logging mainly helps **symmetry / QBM calibration / interpretability**; it
+  need not win every raw-scale mean metric.
+
+### Friedman H² (interaction strength)
+
+For features \(j,k\), H² measures how much of the joint PDP cannot be written
+as an additive combination of the two main-effect PDPs. After centering,
+\(H^2\in[0,1]\): near 0 ≈ additive; near 1 ≈ strong interaction.
+(Previous uncentered code could exceed 1 and should not be published.)
+
+## Narrative
+
+1. Center-recorder peak ratios and factor structure.
+2. Heteroscedasticity + seed clustering → mean-only OLS is insufficient.
+3. Mean GBM + R² ceiling: how much design signal is predictable.
+4. Raw vs ln amplitude: transform sensitivity on a fair raw scale.
+5. **QBM + xAI** (primary scientific section): quantile effects, SHAP
+   importance, signed directionality, PDPs, interactions.
+6. Seed adequacy and extrapolation limits.
 
 ## Quick start
 
 ```bash
-# From the seiskit workspace root:
 uv sync --extra ml
 uv run python statistical_analysis/conference_paper/run_all.py
+# reuse existing seed-split models/:
+uv run python statistical_analysis/conference_paper/run_all.py --skip-train
+# cell-split models for quantile_shape_cell.py:
+uv run python statistical_analysis/conference_paper/quantile/quantile_channel_model.py --split cell
 ```
 
 ## Data
 
-Source: `tf_peak_ratios_mode0.h5` (group `master`) on the Box mount.
-- 2,454,300 rows = 243 factorial cells x 101 channels x 100 seeds
-- Design factors (3 levels each): Vs1, Height, CoV, rH, aHV
-- Targets: `abs_TF_ratio`, `f_ratio`
-
-All paths are configured in `config.py`.
+- HDF5 group `master` on Box (see `config.py`)
+- Analysis table: 24,300 rows via `load_channel50()`
+- Factors: `Vs1`, `Height`, `CoV`, `rH`, `aHV`
+- Targets: `abs_TF_ratio`, `log_abs=ln(abs_TF_ratio)`, `f_ratio`
 
 ## Layout
 
 ```
-config.py              Centralized paths, constants, data loaders
-run_all.py             Regenerate all results
-models/                Saved LightGBM models (channel-50 and pooled 101-ch)
-diagnostics/           EDA, normality, heteroscedasticity, baseline residuals
-performance/           GBM performance, R2 ceiling, quantile 101-ch model
-quantile/              Quantile regression coefficients, seed error
-shap/                  SHAP summaries, interactions, tails, 101-ch
-seed/                  Seed independence (ICC), seed adequacy
-spatial/               101-channel spatial structure, variance decomposition
-extrapolation/         Physics extrapolation, interp/extrap predictions
+config.py           Paths, loaders, Paul Tol colors, split-specific models
+run_all.py          Dependency-aware regeneration
+models/             lgbm_*_{seed|cell}.pkl
+diagnostics/        EDA, normality, heteroscedasticity, OLS residuals
+quantile/           QBM training, QR coefficients, seed error
+performance/        Mean GBM metrics, R² ceiling, QBM calibration
+shap/               Mean/quantile SHAP, PDP, H²
+seed/               ICC / adequacy
+extrapolation/      Physics features, interp/extrap limits
+results/<topic>/    Local plots/ and data/
 ```
 
-Results are written to `results/<topic>/{plots,data}/` under the Box mount.
+## Factor colors (Paul Tol Bright)
 
-## Dependencies
+| Factor | Hex |
+|--------|-----|
+| Vs1 | `#4477AA` |
+| Height | `#EE6677` |
+| CoV | `#228833` |
+| rH | `#CCBB44` |
+| aHV | `#66CCEE` |
 
-All scripts use `seiskit.plot_config` for publication-quality figures and
-require the `[ml]` optional dependencies (`lightgbm`, `shap`, `scikit-learn`,
-`statsmodels`).
+Reserved: purple `#AA3377`, gray `#BBBBBB`.
 
 ## Script map
 
 ### Diagnostics
-- `eda_channel50.py` — distributions, factor effects, seed structure
-- `normality_assessment.py` — QQ plots: raw vs transformed targets
-- `heteroscedasticity_diagnostics.py` — variance structure diagnosis
-- `baseline_residual_diagnostics.py` — OLS baseline, variance partition
+- `eda_channel50.py`, `quantile_eda.py`, `normality_assessment.py`
+- `heteroscedasticity_diagnostics.py`, `baseline_residual_diagnostics.py`
+
+### Quantile / QBM
+- `quantile_channel_model.py` — trains mean + quantile models
+- `quantile_coefficients_abs_TF.py` / `_f_ratio.py` — QR curves vs OLS mean
+- `quantile_seed_error.py` — Monte Carlo error at n=100
 
 ### Performance
-- `gbm_performance.py` — LightGBM mean + quantile, pinball loss
-- `model_r2_ceiling.py` — R2 ceiling decomposition, cell-mean predictability
-- `r2_ceiling_diagnostics.py` — ceiling/efficiency CSV
-- `quantile_101ch_performance.py` — pooled 101-channel quantile model
+- `gbm_performance.py` — mean GBM R²/MSE/MAE + QBM pinball/calibration +
+  `model_metrics.csv` (native + fair raw-amplitude comparison)
+- `model_r2_ceiling.py` — ceiling / efficiency / PI coverage
 
-### Quantile
-- `quantile_coefficients_abs_TF.py` — quantile regression for log(abs TF)
-- `quantile_coefficients_f_ratio.py` — quantile regression for f_ratio
-- `quantile_seed_error.py` — per-quantile Monte Carlo error
+### SHAP / xAI
+- `shap_seed_suite.py` — **QBM xAI suite** by default (plots for quantiles /
+  PDP / H² only). Mean-GBM SHAP tables are still written to CSV; add
+  ``--plot-mean`` if you want mean-GBM plots too.
+- `shap_summary.py`, `shap_interactions.py`, `quantile_shap_tails.py`,
+  `quantile_shap_interactions.py` — older single-purpose scripts (still usable)
+- `quantile_shape_cell.py` — cell-split beeswarm / PDP / H²
+  (requires `*_cell.pkl` models)
 
-### SHAP
-- `shap_summary_abs_TF.py` / `shap_summary_f_ratio.py` — SHAP summaries
-- `shap_interactions.py` — interaction heatmap + dependence scatter
-- `quantile_shap_101ch.py` — per-quantile SHAP across 101 channels
-- `quantile_shap_interactions.py` / `quantile_shap_interactions_101ch.py`
-- `quantile_shap_tails.py` — tail dependence plots
+Re-run the suite without recomputing SHAP::
 
-### Seed
-- `seed_independence.py` — ICC, cell-cell correlation, design effect
-- `seed_adequacy.py` — bootstrap convergence, required n
+    uv run python statistical_analysis/conference_paper/shap/shap_seed_suite.py
 
-### Spatial
-- `spatial_101ch_structure.py` — per-channel R2 ceiling, factor slope drift
-- `spatial_variance_decomposition.py` — crossed variance components CSV
+Force SHAP recomputation::
 
-### Extrapolation
-- `physics_extrapolation.py` — physics features, interp vs extrap R2
-- `seed_variance_and_extrapolation.py` — split-half reproducibility
-- `interp_extrap_predictions.py` — predicted-vs-actual scatter
+    uv run python statistical_analysis/conference_paper/shap/shap_seed_suite.py --force-shap
+
+### Seed & extrapolation
+- `seed_independence.py`, `seed_adequacy.py`
+- `physics_extrapolation.py`, `interp_extrap_predictions.py`,
+  `seed_variance_and_extrapolation.py`
+
+## Model artifacts (split-specific)
+
+```
+lgbm_mean_{target}_{seed|cell}.pkl
+lgbm_q{05,10,25,50,75,90,95}_{target}_{seed|cell}.pkl
+```
+
+Default training/evaluation uses **`seed`**. Cell-split files are required only
+for `quantile_shape_cell.py` and must be trained separately.
+
+## Interpretation boundaries
+
+- Scope is the **center recorder**.
+- `log_abs` is natural log.
+- Mean `|SHAP|` ranks importance; signed SHAP / PDPs show direction and shape.
+- QBM answers distributional questions; mean GBM answers mean-prediction questions.

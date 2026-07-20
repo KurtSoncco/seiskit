@@ -15,7 +15,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50
+from config import FACTORS, load_channel50, target_color, COMPARE_COLOR, FIG_DPI
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
@@ -104,7 +104,7 @@ def r2(y, p):
 # ---------------------------------------------------------------------------
 # Figure
 # ---------------------------------------------------------------------------
-mcol = {"Physics": "#55A868", "GBM": "#C44E52", "OLS": "#4C72B0"}
+mcol = {"Physics": COMPARE_COLOR, "GBM": target_color("log_abs"), "OLS": target_color("f_ratio")}
 nice = {"log_abs": "log(abs_TF)", "f_ratio": "f_ratio"}
 
 fig, axes = plt.subplots(2, 2, figsize=(10, 9.6))
@@ -149,6 +149,6 @@ fig.suptitle(
     y=1.005,
 )
 fig.tight_layout()
-fig.savefig(result_path("plots", "interp_extrap_predictions.png"), dpi=150, bbox_inches="tight")
+fig.savefig(result_path("plots", "interp_extrap_predictions.png"), dpi=FIG_DPI, bbox_inches="tight")
 plt.close(fig)
 print("saved interp_extrap_predictions.png")

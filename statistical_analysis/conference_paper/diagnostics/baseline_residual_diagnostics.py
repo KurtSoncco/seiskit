@@ -1,9 +1,8 @@
-# env: python
-"""Baseline residual diagnostics — seiskit conference paper diagnostics.
+"""Baseline residual diagnostics for the center recorder.
 
-Generates a 2x3 panel covering residual QQ plots, SE inflation from
-seed clustering, variance decomposition, coefficient forest plot,
-and predicted vs actual for channel 50 baseline models.
+Documents why OLS / concentrated point summaries fail under seed clustering
+and non-normal residuals: QQ plots, SE inflation, variance partition,
+coefficient forest, and predicted-vs-actual for channel-50 baselines.
 """
 
 import sys
@@ -21,7 +20,7 @@ from seiskit.plot_config import apply_style, panel_letter, result_path
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50  # noqa: E402
+from config import FACTORS, FIG_DPI, REF_COLOR, load_channel50, target_color  # noqa: E402
 
 d50 = load_channel50()
 
@@ -73,9 +72,9 @@ m_f = results["f_ratio"][0]
 ax = axes[0, 0]
 (osm, osr), (sl, ic, rr) = stats.probplot(m_log.resid.values, dist="norm")
 idx = np.linspace(0, len(osm) - 1, 3000).astype(int)
-ax.plot(osm[idx], osr[idx], "o", ms=2, color="#C44E52", alpha=0.4)
+ax.plot(osm[idx], osr[idx], "o", ms=2, color=target_color("log_abs"), alpha=0.4)
 ax.plot([osm.min(), osm.max()], sl * np.array([osm.min(), osm.max()]) + ic, "-", color="0.2", lw=1)
-ax.set_title("log(abs TF): OLS residual QQ — near normal", loc="left")
+ax.set_title("ln(abs TF): OLS residual QQ — near normal", loc="left")
 ax.set_xlabel("theoretical q")
 ax.set_ylabel("sample q")
 panel_letter(ax, "a")
@@ -83,7 +82,7 @@ panel_letter(ax, "a")
 # b: OLS residual QQ (f_ratio) - heavy tails
 ax = axes[0, 1]
 (osm, osr), (sl, ic, rr) = stats.probplot(m_f.resid.values, dist="norm")
-ax.plot(osm[idx], osr[idx], "o", ms=2, color="#4C72B0", alpha=0.4)
+ax.plot(osm[idx], osr[idx], "o", ms=2, color=target_color("f_ratio"), alpha=0.4)
 ax.plot([osm.min(), osm.max()], sl * np.array([osm.min(), osm.max()]) + ic, "-", color="0.2", lw=1)
 ax.set_title("$f$ ratio: OLS residual QQ — heavy tails remain", loc="left")
 ax.set_xlabel("theoretical q")
@@ -97,8 +96,8 @@ x = np.arange(len(terms))
 w = 0.35
 infl_log = [results["log_abs"][1].bse[t] / results["log_abs"][0].bse[t] for t in terms]
 infl_f = [results["f_ratio"][1].bse[t] / results["f_ratio"][0].bse[t] for t in terms]
-ax.bar(x - w / 2, infl_log, w, color="#C44E52", label="log(abs TF)")
-ax.bar(x + w / 2, infl_f, w, color="#4C72B0", label="$f$ ratio")
+ax.bar(x - w / 2, infl_log, w, color=target_color("log_abs"), label="ln(abs TF)")
+ax.bar(x + w / 2, infl_f, w, color=target_color("f_ratio"), label="$f$ ratio")
 ax.axhline(1, color="0.3", ls="--", lw=1)
 ax.set_xticks(x)
 ax.set_xticklabels(FACTORS, rotation=30, fontsize=7)
@@ -111,7 +110,7 @@ panel_letter(ax, "c")
 ax = axes[1, 0]
 comps = [var_fixed, vseed, vres]
 labs = ["fixed factors", "seed (random)", "residual"]
-cols = ["#555555", "#C44E52", "#B0B0B0"]
+cols = [REF_COLOR, target_color("log_abs"), REF_COLOR]
 ax.bar([0], [comps[0]], color=cols[0], label=labs[0])
 ax.bar([0], [comps[1]], bottom=comps[0], color=cols[1], label=labs[1])
 ax.bar([0], [comps[2]], bottom=comps[0] + comps[1], color=cols[2], label=labs[2])
@@ -131,7 +130,7 @@ ax.text(
 ax.set_xticks([])
 ax.set_ylabel("variance")
 ax.set_xlim(-0.6, 1.4)
-ax.set_title("log(abs TF): variance partition", loc="left")
+ax.set_title("ln(abs TF): variance partition", loc="left")
 ax.legend(fontsize=7, frameon=False, loc="upper right")
 panel_letter(ax, "d")
 
@@ -155,7 +154,7 @@ ax.errorbar(
     xerr=[1.96 * ses[i] for i in order],
     fmt="o",
     ms=4,
-    color="#C44E52",
+    color=target_color("log_abs"),
     ecolor="0.5",
     capsize=2,
 )
@@ -163,7 +162,7 @@ ax.axvline(0, color="0.3", ls="--", lw=1)
 ax.set_yticks(yy)
 ax.set_yticklabels([nice(terms_plot[i]) for i in order], fontsize=5.5)
 ax.set_xlabel("standardized coefficient")
-ax.set_title("log(abs TF): mixed-model effects (95% CI)", loc="left")
+ax.set_title("ln(abs TF): mixed-model effects (95% CI)", loc="left")
 panel_letter(ax, "e")
 
 # f: predicted vs actual (mixed model, log_abs)
@@ -171,19 +170,21 @@ ax = axes[1, 2]
 pred = Xb
 act = d50["log_abs"].values
 idx2 = np.linspace(0, len(pred) - 1, 4000).astype(int)
-ax.plot(pred[idx2], act[idx2], "o", ms=2, color="#C44E52", alpha=0.25)
+ax.plot(pred[idx2], act[idx2], "o", ms=2, color=target_color("log_abs"), alpha=0.25)
 lo, hi = act.min(), act.max()
 ax.plot([lo, hi], [lo, hi], "-", color="0.2", lw=1)
 ax.set_xlabel("predicted (fixed effects)")
-ax.set_ylabel("actual log(abs TF)")
+ax.set_ylabel("actual ln(abs TF)")
 ax.set_title(f"Fixed-effect fit: marginal $R^2$={R2_marg:.2f}", loc="left")
 panel_letter(ax, "f")
 
 fig.suptitle(
-    "Baseline linear models (channel 50): log(abs TF) → hierarchical w/ seed RI; $f$ ratio → non-normal residuals persist",
+    "Baseline linear models (channel 50): ln(abs TF) → hierarchical w/ seed RI; $f$ ratio → non-normal residuals persist",
     fontsize=10,
     y=0.99,
 )
 fig.tight_layout()
-fig.savefig(result_path("plots", "baseline_residual_diagnostics.png"), dpi=150, bbox_inches="tight")
+fig.savefig(
+    result_path("plots", "baseline_residual_diagnostics.png"), dpi=FIG_DPI, bbox_inches="tight"
+)
 print("saved baseline_residual_diagnostics.png")

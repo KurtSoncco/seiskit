@@ -14,7 +14,7 @@ import pandas as pd
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50
+from config import FACTORS, FIG_DPI, load_channel50, target_color, target_label
 
 # ---------------------------------------------------------------------------
 # Data
@@ -99,8 +99,8 @@ contrast_df = pd.DataFrame(rows)
 contrast_df["t_stat"] = (contrast_df["effect"].abs() / contrast_df["se_seedblocked"]).round(1)
 contrast_df["n_seeds_for_t2"] = np.ceil(100 * (2 / contrast_df["t_stat"]) ** 2).astype(int)
 
-tcol = {"log_abs": "#C44E52", "f_ratio": "#4C72B0"}
-nice = {"log_abs": "log(abs_TF)", "f_ratio": "f_ratio"}
+tcol = {"log_abs": target_color("log_abs"), "f_ratio": target_color("f_ratio")}
+nice = {"log_abs": target_label("log_abs"), "f_ratio": target_label("f_ratio")}
 
 # ---------------------------------------------------------------------------
 # Figure
@@ -187,6 +187,6 @@ fig.suptitle(
     y=1.005,
 )
 fig.tight_layout()
-fig.savefig(result_path("plots", "seed_adequacy.png"), dpi=150, bbox_inches="tight")
+fig.savefig(result_path("plots", "seed_adequacy.png"), dpi=FIG_DPI, bbox_inches="tight")
 plt.close(fig)
 print("saved seed_adequacy.png")

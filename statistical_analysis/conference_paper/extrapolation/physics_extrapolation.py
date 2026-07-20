@@ -21,7 +21,7 @@ from seiskit.plot_config import apply_style, panel_letter, result_path
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50  # noqa: E402
+from config import FACTORS, load_channel50, target_color, COMPARE_COLOR, FACTOR_COLORS, FIG_DPI  # noqa: E402
 
 apply_style(auto_format=True, font_size=10, frame="open")
 
@@ -135,9 +135,9 @@ ax = axes[0]
 x = np.arange(len(ext))
 w = 0.26
 mods = [
-    ("R2_physics", "physics features", "#55A868"),
-    ("R2_GBM", "GBM (trees)", "#C44E52"),
-    ("R2_OLS", "raw OLS+interactions", "#4C72B0"),
+    ("R2_physics", "physics features", COMPARE_COLOR),
+    ("R2_GBM", "GBM (trees)", target_color("log_abs")),
+    ("R2_OLS", "raw OLS+interactions", target_color("f_ratio")),
 ]
 clip = -1.5
 for i, (c, lab, col) in enumerate(mods):
@@ -173,8 +173,8 @@ pv = phys_df.pivot_table(
 ).reset_index()
 lbls = (pv.target + "\n" + pv.factor).values
 xx = np.arange(len(pv))
-ax.bar(xx - 0.2, pv["interp"], 0.4, color="#8172B3", label="interpolate (fill gap)")
-ax.bar(xx + 0.2, pv["extrap"], 0.4, color="#DD8452", label="extrapolate (beyond range)")
+ax.bar(xx - 0.2, pv["interp"], 0.4, color=COMPARE_COLOR, label="interpolate (fill gap)")
+ax.bar(xx + 0.2, pv["extrap"], 0.4, color=FACTOR_COLORS["aHV"], label="extrapolate (beyond range)")
 ax.axhline(0, color="0.4", lw=0.8)
 ax.set_xticks(xx)
 ax.set_xticklabels(lbls, fontsize=7.5)
@@ -189,6 +189,6 @@ fig.suptitle(
     y=1.02,
 )
 fig.tight_layout()
-fig.savefig(result_path("plots", "physics_extrapolation.png"), dpi=150, bbox_inches="tight")
+fig.savefig(result_path("plots", "physics_extrapolation.png"), dpi=FIG_DPI, bbox_inches="tight")
 plt.close(fig)
 print("saved physics_extrapolation.png")

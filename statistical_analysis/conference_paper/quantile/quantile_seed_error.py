@@ -1,7 +1,7 @@
 """Per-quantile Monte Carlo error and seed convergence at n=100 (channel 50).
 
 Produces a 2×3 panel figure: exact MC error per quantile, convergence curves,
-and the number of seeds required per quantile — for both log(abs TF) and
+and the number of seeds required per quantile — for both ln(abs TF) and
 f_ratio.
 """
 
@@ -13,10 +13,10 @@ import numpy as np
 import pandas as pd
 from scipy.stats import gaussian_kde
 
-from seiskit.plot_config import apply_style, panel_letter, result_path
+from seiskit.plot_config import apply_style, get_crameri_cmap, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50
+from config import FACTORS, FIG_DPI, load_channel50, target_color, target_label
 
 # ---------------------------------------------------------------------------
 # Data
@@ -127,9 +127,9 @@ for tgt in ["log_abs", "f_ratio"]:
 # ---------------------------------------------------------------------------
 apply_style(auto_format=True, font_size=10, frame="open")
 
-tcol = {"log_abs": "#C44E52", "f_ratio": "#4C72B0"}
-nice = {"log_abs": "log(abs_TF)", "f_ratio": "f_ratio"}
-qcmap = plt.cm.viridis(np.linspace(0, 0.9, len(taus)))
+tcol = {"log_abs": target_color("log_abs"), "f_ratio": target_color("f_ratio")}
+nice = {"log_abs": target_label("log_abs"), "f_ratio": target_label("f_ratio")}
+qcmap = get_crameri_cmap("batlow")(np.linspace(0, 0.9, len(taus)))
 
 fig, axes = plt.subplots(2, 3, figsize=(13, 7.6))
 for r, tgt in enumerate(["log_abs", "f_ratio"]):
@@ -202,6 +202,6 @@ fig.suptitle(
     y=1.005,
 )
 fig.tight_layout()
-fig.savefig(result_path("plots", "quantile_seed_error.png"), dpi=150, bbox_inches="tight")
+fig.savefig(result_path("plots", "quantile_seed_error.png"), dpi=FIG_DPI, bbox_inches="tight")
 plt.close(fig)
 print("saved quantile_seed_error.png")

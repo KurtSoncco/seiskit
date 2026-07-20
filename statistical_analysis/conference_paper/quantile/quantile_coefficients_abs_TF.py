@@ -19,7 +19,7 @@ from seiskit.plot_config import apply_style, panel_letter, result_path
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50  # noqa: E402
+from config import FACTORS, FIG_DPI, factor_color, load_channel50, target_label  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Data
@@ -188,13 +188,7 @@ ols_ref = {
 # ---------------------------------------------------------------------------
 apply_style(auto_format=True, font_size=10, frame="open")
 
-factor_col = {
-    "Vs1_z": "#C44E52",
-    "Height_z": "#4C72B0",
-    "CoV_z": "#55A868",
-    "rH_z": "#8172B3",
-    "aHV_z": "#E1812C",
-}
+factor_col = {f"{f}_z": factor_color(f) for f in FACTORS}
 
 
 def qr_figure(target, qr_pts, ref, fname, ttl):
@@ -238,7 +232,7 @@ def qr_figure(target, qr_pts, ref, fname, ttl):
     )
     fig.suptitle(ttl, fontsize=10, y=0.99)
     fig.tight_layout()
-    fig.savefig(fname, dpi=150, bbox_inches="tight")
+    fig.savefig(fname, dpi=FIG_DPI, bbox_inches="tight")
     print("saved", fname)
 
 

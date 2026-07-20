@@ -9,31 +9,28 @@ import numpy as np
 import pandas as pd
 
 import shap
-from seiskit.plot_config import apply_style, panel_letter, result_path
+from seiskit.plot_config import apply_style, get_crameri_cmap, panel_letter, result_path
 
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import (  # noqa: E402
+    FACTOR_COLORS,
     FACTORS,
+    FIG_DPI,
     cached_shap,
     load_channel50,
     load_quantile_models,
     seed_grouped_split,
+    target_label,
 )
 
 apply_style(auto_format=True, font_size=10, frame="open")
 
 fac = FACTORS
 taus = [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95]
-fcol = {
-    "Vs1": "#4C72B0",
-    "Height": "#C44E52",
-    "CoV": "#55A868",
-    "rH": "#8172B3",
-    "aHV": "#DD8452",
-}
-nice = {"log_abs": "log(abs_TF_ratio)", "f_ratio": "f_ratio"}
+fcol = FACTOR_COLORS
+nice = {"log_abs": target_label("log_abs"), "f_ratio": target_label("f_ratio")}
 
 d50 = load_channel50()
 
@@ -41,7 +38,7 @@ Xdf = d50[FACTORS]
 tr, te = seed_grouped_split(d50)
 Xte_df = Xdf.iloc[te]
 
-quant_models = load_quantile_models(taus)
+quant_models = load_quantile_models(taus, split_by="seed")
 
 q_importance = {}
 q_shapvals = {}
@@ -81,7 +78,9 @@ def dep(ax, tgt, tau, feat, letter, title):
     yv = sv[:, fi]
     partner = {"CoV": "aHV", "aHV": "CoV", "Vs1": "Height", "Height": "Vs1"}[feat]
     cvar = Xte_df[partner].values
-    sc = ax.scatter(xv, yv, c=cvar, cmap="coolwarm", s=12, alpha=0.7, edgecolor="none")
+    sc = ax.scatter(
+        xv, yv, c=cvar, cmap=get_crameri_cmap("vik"), s=12, alpha=0.7, edgecolor="none"
+    )
     ax.axhline(0, color="0.6", lw=0.7)
     ax.set_xlabel(feat)
     ax.set_ylabel(f"SHAP({feat}) @ τ={tau:g}")
@@ -132,7 +131,7 @@ fig.suptitle(
 fig.tight_layout()
 fig.savefig(
     result_path("plots", "quantile_shap_tails.png"),
-    dpi=150,
+    dpi=FIG_DPI,
     bbox_inches="tight",
 )
 plt.close(fig)

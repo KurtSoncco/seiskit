@@ -22,7 +22,7 @@ from seiskit.plot_config import apply_style, panel_letter, result_path
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, load_channel50  # noqa: E402
+from config import FACTORS, load_channel50, target_color, COMPARE_COLOR, REF_COLOR, FACTOR_COLORS, FIG_DPI  # noqa: E402
 
 apply_style(auto_format=True, font_size=10, frame="open")
 
@@ -181,7 +181,7 @@ segs = {
     "seed": [comp["log_abs"]["pct_seed"], comp["f_ratio"]["pct_seed"]],
     "field": [comp["log_abs"]["pct_resid"], comp["f_ratio"]["pct_resid"]],
 }
-cols_seg = {"design": "#55A868", "seed": "#DD8452", "field": "#C0C0C0"}
+cols_seg = {"design": COMPARE_COLOR, "seed": FACTOR_COLORS["aHV"], "field": REF_COLOR}
 for k in ["design", "seed", "field"]:
     ax.bar(x, segs[k], w, bottom=bottom, label=k, color=cols_seg[k], edgecolor="white")
     for xi, (b, v) in enumerate(zip(bottom, segs[k])):
@@ -207,7 +207,7 @@ panel_letter(ax, "a")
 
 # Panel b: seed effect reproducibility
 ax = axes[0, 1]
-for tgt, cc in [("log_abs", "#C44E52"), ("f_ratio", "#4C72B0")]:
+for tgt, cc in [("log_abs", target_color("log_abs")), ("f_ratio", target_color("f_ratio"))]:
     piv = d.pivot_table(index="seed", columns="cell", values=tgt)
     piv_c = piv.sub(piv.mean(0), axis=1)
     cols = np.array(piv_c.columns.values, copy=True)
@@ -237,7 +237,7 @@ ax = axes[0, 2]
 en = {"Vs1": 0.299, "Height": 0.099, "CoV": 0.144, "rH": 0.060, "aHV": 0.255}
 ef = {"Vs1": 0.301, "Height": 0.189, "CoV": 0.084, "rH": 0.021, "aHV": 0.192}
 xf = np.arange(5)
-ax.bar(xf - 0.2, [en[f] for f in fac], 0.4, label="naive (seed+field)", color="#8172B3")
+ax.bar(xf - 0.2, [en[f] for f in fac], 0.4, label="naive (seed+field)", color=COMPARE_COLOR)
 ax.bar(xf + 0.2, [ef[f] for f in fac], 0.4, label="field-only (seed removed)", color="#CCB974")
 ax.set_xticks(xf)
 ax.set_xticklabels(fac, rotation=45, ha="right")
@@ -255,9 +255,9 @@ def plot_ie(ax, tgt, factor, letter):
     r = extrap_df[
         (extrap_df.target == tgt) & (extrap_df.factor == factor) & (extrap_df["mode"] == "extrap")
     ].iloc[0]
-    ax.scatter([2], [r["mean_gb"]], marker="s", s=90, color="#C44E52", label="GBM extrap", zorder=6)
+    ax.scatter([2], [r["mean_gb"]], marker="s", s=90, color=target_color("log_abs"), label="GBM extrap", zorder=6)
     ax.scatter(
-        [2], [r["mean_ols"]], marker="^", s=90, color="#4C72B0", label="OLS extrap", zorder=6
+        [2], [r["mean_ols"]], marker="^", s=90, color=target_color("f_ratio"), label="OLS extrap", zorder=6
     )
     ax.axvspan(-0.3, 1.3, color="0.9", zorder=0)
     ax.text(0.5, ax.get_ylim()[1], "train", ha="center", va="top", fontsize=7, color="0.4")
@@ -284,7 +284,7 @@ fig.suptitle(
 )
 fig.tight_layout()
 fig.savefig(
-    result_path("plots", "seed_variance_and_extrapolation.png"), dpi=150, bbox_inches="tight"
+    result_path("plots", "seed_variance_and_extrapolation.png"), dpi=FIG_DPI, bbox_inches="tight"
 )
 plt.close(fig)
 print("saved seed_variance_and_extrapolation.png")
