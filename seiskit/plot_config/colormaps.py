@@ -29,6 +29,8 @@ _FALLBACK: dict[str, str] = {
     "batlow": "viridis",
     "vik": "RdBu_r",
     "roma": "coolwarm",
+    "berlin": "RdBu_r",
+    "lapaz": "cividis",
     "lajolla": "YlOrBr",
     "devon": "cividis",
     "oslo": "Greys",

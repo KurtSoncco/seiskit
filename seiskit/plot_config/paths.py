@@ -11,32 +11,36 @@ import inspect
 from pathlib import Path
 
 TOPIC_BY_SCRIPT = {
+    # diagnostics — center recorder only
     "baseline_residual_diagnostics": "diagnostics",
     "heteroscedasticity_diagnostics": "diagnostics",
     "normality_assessment": "diagnostics",
     "eda_channel50": "diagnostics",
-    "r2_ceiling_diagnostics": "performance",
+    "quantile_eda": "diagnostics",
+    # performance
     "gbm_performance": "performance",
     "model_r2_ceiling": "performance",
-    "quantile_101ch_performance": "performance",
+    # extrapolation
     "interp_extrap_predictions": "extrapolation",
     "physics_extrapolation": "extrapolation",
     "seed_variance_and_extrapolation": "extrapolation",
+    # quantile / QBM
+    "quantile_channel_model": "quantile",
     "quantile_coefficients_abs_TF": "quantile",
     "quantile_coefficients_f_ratio": "quantile",
     "quantile_seed_error": "quantile",
-    "quantile_shap_101ch": "shap",
+    # SHAP (mean importance + directionality / quantile tails)
     "quantile_shap_interactions": "shap",
-    "quantile_shap_interactions_101ch": "shap",
     "quantile_shap_tails": "shap",
     "quantile_shape_cell": "shap",
     "shap_interactions": "shap",
+    "shap_seed_suite": "shap",
+    "shap_summary": "shap",
     "shap_summary_abs_TF": "shap",
     "shap_summary_f_ratio": "shap",
+    # seed
     "seed_adequacy": "seed",
     "seed_independence": "seed",
-    "spatial_101ch_structure": "spatial",
-    "spatial_variance_decomposition": "spatial",
 }
 
 _RESULTS_ROOT: Path | None = None

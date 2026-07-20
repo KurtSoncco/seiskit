@@ -1,8 +1,9 @@
 """Nomenclature, LaTeX variable mapping, and text helpers.
 
 Every label that appears on an axis, legend entry, or title should be
-routed through :func:`format_label` (for LaTeX variable substitution)
-and :func:`to_title_case` (for axis labels).
+routed through :func:`format_label` (for LaTeX variable substitution).
+:func:`to_title_case` remains available for callers that want it
+explicitly; ``apply_style(auto_format=True)`` does not apply it.
 """
 
 from __future__ import annotations
@@ -14,16 +15,21 @@ import re
 # Each tuple: (compiled_regex, replacement_string)
 # ---------------------------------------------------------------------------
 _REPLACEMENTS: list[tuple[re.Pattern, str]] = [
-    # Longest compound terms first to prevent partial matches
+    # Longest compound terms first to prevent partial matches.
+    # Modeled amplitude uses natural log; display as \ln.
+    (
+        re.compile(r"\bln\s*\(\s*abs[_ ]?TF[_ ]?(?:ratio)?\s*\)", re.IGNORECASE),
+        r"$\ln(|TF|_0^N)$",
+    ),
     (
         re.compile(r"\blog\s*\(\s*abs[_ ]?TF[_ ]?(?:ratio)?\s*\)", re.IGNORECASE),
-        r"$\log(|TF|_0^N)$",
+        r"$\ln(|TF|_0^N)$",
     ),
     (
         re.compile(r"\blog[_ \s]+abs[_ \s]+TF(?:[_ \s]+ratio)?\b", re.IGNORECASE),
-        r"$\log(|TF|_0^N)$",
+        r"$\ln(|TF|_0^N)$",
     ),
-    (re.compile(r"\blog[_ ]?abs\b", re.IGNORECASE), r"$\log(|TF|_0^N)$"),
+    (re.compile(r"\blog[_ ]?abs\b", re.IGNORECASE), r"$\ln(|TF|_0^N)$"),
     (re.compile(r"\babs[_ \s]?TF[_ \s]?ratio\b", re.IGNORECASE), r"$|TF|_0^N$"),
     (re.compile(r"\babs[_ \s]?TF\b", re.IGNORECASE), r"$|TF|_0^N$"),
     # Handle variants where $f$ is already partially LaTeX-ified
@@ -40,8 +46,9 @@ _REPLACEMENTS: list[tuple[re.Pattern, str]] = [
 
 # Simple key map kept for direct lookups (e.g. df column names)
 LABEL_MAP: dict[str, str] = {
-    "log_abs": r"$\log(|TF|_0^N)$",
-    "log(abs_TF)": r"$\log(|TF|_0^N)$",
+    "log_abs": r"$\ln(|TF|_0^N)$",
+    "log(abs_TF)": r"$\ln(|TF|_0^N)$",
+    "ln(abs_TF)": r"$\ln(|TF|_0^N)$",
     "abs_TF_ratio": r"$|TF|_0^N$",
     "abs_TF": r"$|TF|_0^N$",
     "f_ratio": r"$f_0^N$",

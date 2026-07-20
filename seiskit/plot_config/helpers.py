@@ -48,10 +48,10 @@ def add_subfigure_label(
     ax: Axes,
     index: int,
     *,
-    x: float = 0.02,
+    x: float = 0.04,
     y: float = 0.97,
     fontsize: int | None = None,
-    alpha: float = 0.75,
+    alpha: float = 0.6,
 ) -> None:
     """Place a sequential subfigure label (a, b, c, ...) inside the axes.
 

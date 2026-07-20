@@ -4,8 +4,8 @@ Call :func:`apply_style` once at the start of any script to globally set
 matplotlib rcParams for publication-quality figures.
 
 When ``auto_format=True`` is passed, Axes/Figure methods are monkey-patched
-to automatically apply LaTeX label substitution, Title Case, uniform font
-sizes, and legend placement — eliminating boilerplate in analysis scripts.
+to automatically apply LaTeX label substitution, uniform font sizes, and
+legend placement — eliminating boilerplate in analysis scripts.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover
     _SEABORN_AVAILABLE = False
 
 from seiskit.plot_config.colormaps import get_crameri_cmap
-from seiskit.plot_config.labels import format_label, to_title_case
+from seiskit.plot_config.labels import format_label
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -101,12 +101,12 @@ def _normalize_font_kw(kwargs: dict) -> None:
 
 def _patched_set_xlabel(self, xlabel, *args, **kwargs):
     _normalize_font_kw(kwargs)
-    return _ORIG_SET_XLABEL(self, to_title_case(format_label(xlabel)), *args, **kwargs)
+    return _ORIG_SET_XLABEL(self, format_label(xlabel), *args, **kwargs)
 
 
 def _patched_set_ylabel(self, ylabel, *args, **kwargs):
     _normalize_font_kw(kwargs)
-    return _ORIG_SET_YLABEL(self, to_title_case(format_label(ylabel)), *args, **kwargs)
+    return _ORIG_SET_YLABEL(self, format_label(ylabel), *args, **kwargs)
 
 
 def _patched_set_title(self, label, *args, **kwargs):
@@ -116,8 +116,7 @@ def _patched_set_title(self, label, *args, **kwargs):
         return _ORIG_SET_TITLE(self, label, *args, **kwargs)
     # Only strip newline-based subtitles; keep em-dash content (e.g. "f ratio — raw")
     main = label.split("\n")[0].strip()
-    formatted = to_title_case(format_label(main))
-    return _ORIG_SET_TITLE(self, formatted, *args, **kwargs)
+    return _ORIG_SET_TITLE(self, format_label(main), *args, **kwargs)
 
 
 def _patched_legend(self, *args, **kwargs):
@@ -156,7 +155,7 @@ def _patched_imshow(self, X, *args, **kwargs):
 def _patched_suptitle(self, t, *args, **kwargs):
     kwargs.setdefault("fontweight", "bold")
     kwargs.setdefault("fontsize", _ACTIVE_FONT_SIZE)
-    return _ORIG_SUPTITLE(self, to_title_case(format_label(t)), *args, **kwargs)
+    return _ORIG_SUPTITLE(self, format_label(t), *args, **kwargs)
 
 
 def _next_hatch(ax: Axes) -> str:
@@ -218,8 +217,9 @@ def apply_style(
     ----------
     auto_format:
         When ``True``, monkey-patch Axes/Figure methods to auto-apply
-        LaTeX label substitution, Title Case, uniform sizing, and legend
-        placement.  Leaves other seiskit scripts unaffected when ``False``.
+        LaTeX label substitution, uniform sizing, and legend placement.
+        Leaves other seiskit scripts unaffected when ``False``.
+        Does **not** alter letter casing (no Title Case).
     font_size:
         Base font size in points.  ``None`` keeps the module default (12).
     frame:
