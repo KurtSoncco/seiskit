@@ -23,6 +23,11 @@ jobs:
       with:
         version: "latest"
 
+    - name: Install OpenSees runtime libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libblas3 liblapack3
+
     - name: Install dependencies
       run: |
         uv sync --extra dev

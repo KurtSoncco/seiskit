@@ -8,7 +8,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-pytest.importorskip("openseespy.opensees")
+# OpenSeesPy wraps a missing native dep (e.g. libblas.so.3) as RuntimeError,
+# which pytest.importorskip does not treat as skip.
+try:
+    import openseespy.opensees  # noqa: F401
+except (ImportError, RuntimeError) as exc:
+    pytest.skip(f"openseespy unavailable: {exc}", allow_module_level=True)
 
 ROOT = Path(__file__).resolve().parents[1]
 EXP = ROOT / "comparison" / "1D_theory_validation" / "run_experiment.py"
