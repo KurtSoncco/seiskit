@@ -231,15 +231,15 @@ fi
 echo "=== analyze ==="
 "$PYTHON" analyze_response.py --h5-dir results/h5 --out-dir results/analysis
 echo "=== plot ==="
-"$PYTHON" plot_comparison.py --h5-dir results/h5 --out-dir results/figures --sobol-id 0
+"$PYTHON" plot_comparison.py --h5-dir results/h5 --out-dir results/figures \
+  --analysis-dir results/analysis --sobol-ids 19,37,36,10,44
 echo "Local analysis complete."
 echo "  CSV: results/analysis/method_comparison_summary.csv"
-echo "  Geomean CSV: results/analysis/method_comparison_geomean_summary.csv"
-echo "  TF:  results/figures/tf_methods_sobol00_M1.png"
-echo "  Geomean: results/figures/tf_grf2d_vs_pretell_geomean_sobol00_M1.png"
-echo "  AF:  results/figures/af_method_subplots_sobol00_M1.png"
-echo "  Sa:  results/figures/method_subplots_sobol00_M1.png"
-echo "  Profiles: results/figures/hallal_profiles_sobol00.png"
+echo "  Band misfit: results/analysis/tf_band_misfit_vs_opensees.csv"
+echo "  Panels: results/figures/profile_tf_panel_sobol*_M1.png"
+echo "  Peak bias: results/figures/tf_peak_*_all_sobol.png"
+echo "  Band misfit fig: results/figures/tf_band_misfit_all_sobol.png"
+echo "  Error vs Sobol: results/figures/tf_error_vs_sobol_params.png"
 if [ "$INCLUDE_2D" = "1" ]; then
-  echo "  2D GRF:   results/figures/grf2d_explainability_Vs*_s1.png"
+  echo "  (2D H5s used inside profile/TF panels)"
 fi

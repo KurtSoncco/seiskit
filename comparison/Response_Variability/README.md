@@ -44,14 +44,14 @@ Override: `RV_PRETELL_N_SAMPLES=N`.
 Under linear viscoelastic site response, the transfer function
 
 \[
-AF(f) = |FAS_{surface}(f)| / |FAS_{base}(f)|
+TF(f) = |FAS_{surface}(f)| / |FAS_{base}(f)|
 \]
 
-is an intrinsic property of the profile (and 2D geometry). Primary metrics:
+is an intrinsic property of the profile (and 2D geometry). (HDF5 still stores this curve under the legacy dataset name `transfer_function/AF`.) Primary metrics:
 
-- median / geomean `|AF(f)|` and peak metrics (`f_peak`, `A_peak`)
-- `σ_ln AF(f)` across seeds (aleatory TF variability)
-- Anderson-style GOF on `ln AF` near `f_peak`
+- median / geomean `|TF(f)|` and peak metrics (`f_peak`, `A_peak` ≡ peak `|TF|`)
+- `σ_ln TF(f)` across seeds (aleatory TF variability)
+- Anderson-style GOF on `ln TF` near `f_peak`
 
 **Reference method priority:** `opensees_2d` → `grf_2d` → `hallal_vs`.
 
@@ -104,9 +104,12 @@ chmod +x submit_local.sh
 
 ```bash
 python analyze_response.py --h5-dir results/h5 --out-dir results/analysis
-python plot_comparison.py --h5-dir results/h5 --out-dir results/figures --sobol-id 0
+python plot_comparison.py --h5-dir results/h5 --out-dir results/figures \
+  --analysis-dir results/analysis --sobol-ids 19,37,36,10,44
 ```
 
+Per-Sobol figures: `profile_tf_panel_sobolNN_M1.png` (top: Vs profiles a–c; bottom: full-width TF).  
+Cross-Sobol metrics: `tf_peak_*_all_sobol.png`, `tf_band_misfit_all_sobol.png`, `tf_error_vs_sobol_params.png` (ground truth: 2D OpenSees).
 ## HPC
 
 **Recommended split:** Stampede3 runs **Hallal + Pretell + `opensees_2d`**. Run **`grf_2d` locally** with GIFNO (no weights in git).

@@ -20,6 +20,7 @@ TOPIC_BY_SCRIPT = {
     # performance
     "gbm_performance": "performance",
     "model_r2_ceiling": "performance",
+    "qbm_performance": "performance",
     # extrapolation
     "interp_extrap_predictions": "extrapolation",
     "physics_extrapolation": "extrapolation",

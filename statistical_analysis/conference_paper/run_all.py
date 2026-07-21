@@ -52,6 +52,7 @@ PHASES: list[tuple[str, list[str]]] = [
         "performance",
         [
             "performance/gbm_performance.py",
+            "performance/qbm_performance.py",
             "performance/model_r2_ceiling.py",
         ],
     ),
