@@ -4,12 +4,13 @@ H = 50 m, Vs1 = 230 m/s. Rows vary r_h, CoV, and a_hv; the center column is
 the shared baseline cell (r_h=30, CoV=0.2, a_hv=10).
 
 Produces:
-  complete/tf_results/plots_raw_centernode_allseeds_3x3/
-    tf_raw_3x3_center_node_all_seeds_h50_vs1_230_node_50.{png,pdf}
+  complete/full_paper/figures/qualitative/
+    tf_raw_3x3_center_node_all_seeds_h50_vs1_230_node_50.pdf
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -17,9 +18,19 @@ import numpy as np
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-from seiskit.plot_config import add_subfigure_label, apply_style
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from config import (  # noqa: E402
+    DATA_LINEWIDTH,
+    FIG_DPI,
+    LABEL_FONTSIZE,
+    TICK_LABELSIZE,
+    add_panel_label,
+    apply_full_paper_style,
+    figsize,
+    figure_dir,
+)
 
-apply_style(auto_format=True, font_size=10, frame="open")
+apply_full_paper_style(auto_format=True, frame="open", grid=False)
 
 # ---------------------------------------------------------------------------
 # Paths / constants
@@ -27,7 +38,7 @@ apply_style(auto_format=True, font_size=10, frame="open")
 BOX = Path("/mnt/box/GIG Lab - UC Berkeley/Projects/Statistical Analysis")
 TF_DIR = BOX / "h=50" / "transfer_function_results"
 BASE_1D = BOX / "h=50" / "base_cases" / "base_case_tf_Vs1230.npz"
-OUT_DIR = BOX / "complete" / "tf_results" / "plots_raw_centernode_allseeds_3x3"
+OUT_DIR = figure_dir("qualitative")
 OUT_STEM = "tf_raw_3x3_center_node_all_seeds_h50_vs1_230_node_50"
 
 H = 50.0
@@ -56,8 +67,7 @@ PANELS: list[tuple[float, float, float]] = [
     (30.0, 0.2, 50.0),
 ]
 
-DOC_WIDTH = 6.5  # inches — Nature single-column / manuscript width
-FIG_HEIGHT = DOC_WIDTH * 0.95
+DOC_WIDTH, FIG_HEIGHT = figsize(aspect=0.95)
 
 FREQ_LIM = (1e-1, 1e1)
 TF_LIM = (1e-1, 1e3)
@@ -137,12 +147,12 @@ def plot_tf_panel(
         zorder=3,
         label="_nolegend_",
     )
-    ax.plot(freq, geo, color=COLOR_GEO, ls="--", lw=1.5, zorder=4)
-    ax.plot(freq, lo, color=COLOR_GEO, ls="--", lw=0.8, alpha=0.65, zorder=4)
-    ax.plot(freq, hi, color=COLOR_GEO, ls="--", lw=0.8, alpha=0.65, zorder=4)
+    ax.plot(freq, geo, color=COLOR_GEO, ls="--", lw=DATA_LINEWIDTH, zorder=4)
+    ax.plot(freq, lo, color=COLOR_GEO, ls="--", lw=0.6, alpha=0.65, zorder=4)
+    ax.plot(freq, hi, color=COLOR_GEO, ls="--", lw=0.6, alpha=0.65, zorder=4)
 
     # 1D baseline — black dotted (distinct in B&W without relying on hue)
-    ax.plot(freq_1d, tf_1d, color=COLOR_1D, lw=2.0, zorder=2, dashes=(1, 1.5))
+    ax.plot(freq_1d, tf_1d, color=COLOR_1D, lw=DATA_LINEWIDTH, zorder=2, dashes=(1, 1.5))
 
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -189,8 +199,8 @@ def plot_figure(
         stack = np.asarray(tf_all[i0 : i0 + N_SEEDS, CENTER_CH, :], dtype=np.float64)
         plot_tf_panel(ax, freq, stack, freq_1d, tf_1d)
 
-        # Subfigure letter: top-left (same as model_scheme / vs_rh_realizations)
-        add_subfigure_label(ax, i)
+        # Subfigure letter: top-left (Nature: 8 pt bold lowercase)
+        add_panel_label(ax, i)
 
         # Parameters: top-right (mirrors vs_rh_realizations annotation placement)
         ax.text(
@@ -200,32 +210,32 @@ def plot_figure(
             transform=ax.transAxes,
             ha="right",
             va="top",
-            fontsize=6.5,
+            fontsize=TICK_LABELSIZE,
             linespacing=1.25,
             zorder=6,
             bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.0},
         )
 
-        ax.tick_params(labelsize=8)
+        ax.tick_params(labelsize=TICK_LABELSIZE)
         row, col = divmod(i, 3)
         if row == 2:
-            ax.set_xlabel("Frequency (Hz)")
+            ax.set_xlabel("Frequency (Hz)", fontsize=LABEL_FONTSIZE)
         else:
             ax.tick_params(labelbottom=False)
         if col == 0:
-            ax.set_ylabel(r"$TF$")
+            ax.set_ylabel(r"$TF$", fontsize=LABEL_FONTSIZE)
         else:
             ax.tick_params(labelleft=False)
 
         if legend_handles is None:
             legend_handles = [
-                Line2D([0], [0], color=COLOR_SAMPLES, lw=1.2, label="2D samples"),
+                Line2D([0], [0], color=COLOR_SAMPLES, lw=DATA_LINEWIDTH, label="2D samples"),
                 Patch(
                     facecolor=COLOR_GEO,
                     edgecolor=COLOR_GEO,
                     alpha=0.35,
                     linestyle="--",
-                    linewidth=1.2,
+                    linewidth=DATA_LINEWIDTH,
                     label=r"Geomean $\pm 1\sigma$ ($\log\vert TF\vert$)",
                 ),
                 Line2D(
@@ -233,13 +243,13 @@ def plot_figure(
                     [0],
                     color=COLOR_1D,
                     ls=":",
-                    lw=2.0,
-                    label="1D (Baseline model)",
+                    lw=DATA_LINEWIDTH,
+                    label="1D (baseline model)",
                 ),
             ]
 
     assert legend_handles is not None
-    # Two-line title: bold scientific main + non-bold parenthetical subtitle
+    # Header: sentence case, no bold on ordinary text (Nature)
     header.text(
         0.5,
         1.0,
@@ -247,8 +257,8 @@ def plot_figure(
         transform=header.transAxes,
         ha="center",
         va="top",
-        fontsize=10,
-        fontweight="bold",
+        fontsize=LABEL_FONTSIZE,
+        fontweight="normal",
     )
     header.text(
         0.5,
@@ -258,13 +268,13 @@ def plot_figure(
         transform=header.transAxes,
         ha="center",
         va="top",
-        fontsize=8.5,
+        fontsize=TICK_LABELSIZE,
     )
     header.legend(
         handles=legend_handles,
         loc="lower center",
         ncol=3,
-        fontsize=8,
+        fontsize=TICK_LABELSIZE,
         frameon=False,
         handlelength=2.2,
         columnspacing=1.2,
@@ -280,19 +290,18 @@ def main() -> None:
     freq, tf_all, freq_1d, tf_1d = load_data()
     fig = plot_figure(freq, tf_all, freq_1d, tf_1d)
 
-    # Confirm publication fonts (Times New Roman preferred; STIX is the WSL fallback)
     import matplotlib as mpl
 
     print(
         f"Fonts: family={mpl.rcParams['font.family']}, "
-        f"serif={mpl.rcParams['font.serif'][:2]}, "
+        f"sans={mpl.rcParams['font.sans-serif'][:2]}, "
         f"mathtext={mpl.rcParams['mathtext.fontset']}"
     )
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for ext in ("png", "pdf"):
+    for ext in ("pdf",):
         path = OUT_DIR / f"{OUT_STEM}.{ext}"
-        fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.12)
+        fig.savefig(path, dpi=FIG_DPI, bbox_inches="tight", pad_inches=0.12)
         print(f"Wrote {path}")
     plt.close(fig)
 

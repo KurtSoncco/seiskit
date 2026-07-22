@@ -1,26 +1,39 @@
 """2x2 Vs realizations across r_h and a_hv for the full paper.
 
 Panels (a)–(d) share one seed and a soil-focused batlow color scale with
-gray bedrock overshoot. Produces: vs_rh_realizations.{png,pdf} under the
-Box complete/figures folder.
+gray bedrock overshoot. Produces: vs_rh_realizations.pdf under
+``complete/full_paper/figures/vs_rh_realizations/``.
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from seiskit.gaussian_field import create_vs_realization
-from seiskit.plot_config import add_subfigure_label, apply_style, get_crameri_cmap
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from config import (  # noqa: E402
+    ANNOTATION_FONTSIZE,
+    LABEL_FONTSIZE,
+    TICK_LABELSIZE,
+    add_panel_label,
+    apply_full_paper_style,
+    figsize,
+    figure_dir,
+    save_figure,
+)
 
-apply_style(auto_format=True, font_size=10, frame="open")
+from seiskit.gaussian_field import create_vs_realization
+from seiskit.plot_config import get_crameri_cmap
+
+apply_full_paper_style(auto_format=True, frame="open", grid=False)
 
 # ---------------------------------------------------------------------------
 # Paths / constants
 # ---------------------------------------------------------------------------
-OUT_DIR = Path("/mnt/box/GIG Lab - UC Berkeley/Projects/Statistical Analysis/complete/figures")
+OUT_DIR = figure_dir("vs_rh_realizations")
 
 VMIN, VMAX = 150.0, 350.0
 VS1, VS2 = 230.0, 1500.0
@@ -73,13 +86,8 @@ def generate_panel_fields() -> list[np.ndarray]:
     return fields
 
 
-DOC_WIDTH = 6.5  # inches — manuscript column/page width
-ASPECT_RATIO = 0.75
-FIG_HEIGHT = DOC_WIDTH * ASPECT_RATIO
-
-
 def _param_annotation(ax: plt.Axes, rH: float, aHV: float) -> None:
-    """Parameter box in the upper-right corner."""
+    """Parameter box in the upper-right corner (sentence case, ≤7 pt)."""
     ax.text(
         0.98,
         0.98,
@@ -87,7 +95,7 @@ def _param_annotation(ax: plt.Axes, rH: float, aHV: float) -> None:
         transform=ax.transAxes,
         ha="right",
         va="top",
-        fontsize=7,
+        fontsize=ANNOTATION_FONTSIZE,
         color="black",
         zorder=7,
         bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.0},
@@ -105,7 +113,7 @@ def _xaxis_on_top(ax: plt.Axes, *, label: str | None = None) -> None:
         bottom=False,
         labeltop=True,
         labelbottom=False,
-        pad=3,
+        pad=1.5,
     )
     ax.spines["top"].set_visible(True)
     ax.spines["bottom"].set_visible(False)
@@ -129,19 +137,19 @@ def plot_vs_rh_realizations(fields: list[np.ndarray]) -> plt.Figure:
         extent=extent,
     )
 
-    fig = plt.figure(figsize=(DOC_WIDTH, FIG_HEIGHT))
-    # Headroom for top x-ticks + shared distance label inside the fixed canvas
+    fig = plt.figure(figsize=figsize())
+    # Tight margins: top strip only for shared distance label + ticks
     gs = fig.add_gridspec(
         2,
         3,
-        width_ratios=[1.0, 1.0, 0.045],
+        width_ratios=[1.0, 1.0, 0.04],
         height_ratios=[1.0, 1.0],
-        wspace=0.15,
-        hspace=0.10,
-        left=0.11,
-        right=0.87,
-        top=0.78,
-        bottom=0.06,
+        wspace=0.06,
+        hspace=0.05,
+        left=0.07,
+        right=0.92,
+        top=0.90,
+        bottom=0.04,
     )
 
     axes = [
@@ -165,7 +173,7 @@ def plot_vs_rh_realizations(fields: list[np.ndarray]) -> plt.Figure:
         row, col = divmod(i, 2)
         if row == 0:
             _xaxis_on_top(ax)
-            ax.set_xticklabels([f"{t:g}" for t in xticks], fontsize=8)
+            ax.set_xticklabels([f"{t:g}" for t in xticks], fontsize=TICK_LABELSIZE)
         else:
             ax.tick_params(
                 axis="x",
@@ -179,34 +187,34 @@ def plot_vs_rh_realizations(fields: list[np.ndarray]) -> plt.Figure:
             ax.spines["top"].set_visible(False)
 
         if col == 0:
-            ax.set_ylabel("Depth (m)", fontsize=9)
+            ax.set_ylabel("Depth (m)", fontsize=LABEL_FONTSIZE, labelpad=2)
         else:
             ax.tick_params(labelleft=False)
 
-        ax.tick_params(axis="y", labelsize=8)
+        ax.tick_params(axis="y", labelsize=TICK_LABELSIZE, pad=1.5)
 
         _param_annotation(ax, rH, aHV)
-        add_subfigure_label(ax, i)
+        add_panel_label(ax, i)
 
-    # Shared x label just above the top-row tick labels (over data panels only)
+    # Shared x label tucked just above the top-row tick labels
     pos0 = axes[0].get_position()
     pos1 = axes[1].get_position()
     fig.text(
         0.5 * (pos0.x0 + pos1.x1),
-        pos0.y1 + 0.07,
+        pos0.y1 + 0.035,
         "Distance from center (m)",
         ha="center",
         va="bottom",
-        fontsize=9,
+        fontsize=LABEL_FONTSIZE,
         transform=fig.transFigure,
         clip_on=False,
     )
 
     assert im is not None
     cbar = fig.colorbar(im, cax=cax, extend="max")
-    cbar.set_label(r"$V_{s1}$ (m/s)", fontsize=9)
+    cbar.set_label(r"$V_{s1}$ (m/s)", fontsize=LABEL_FONTSIZE, labelpad=4)
     cbar.set_ticks(np.arange(VMIN, VMAX + 1, 50))
-    cbar.ax.tick_params(labelsize=7)
+    cbar.ax.tick_params(labelsize=TICK_LABELSIZE, pad=1.5)
 
     return fig
 
@@ -214,14 +222,7 @@ def plot_vs_rh_realizations(fields: list[np.ndarray]) -> plt.Figure:
 def main() -> None:
     fields = generate_panel_fields()
     fig = plot_vs_rh_realizations(fields)
-
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    # Tight crop with pad so top ticks / axis labels are not clipped at the
-    # fixed canvas edge (apply_style defaults savefig.bbox='tight' already).
-    for ext in ("png", "pdf"):
-        path = OUT_DIR / f"vs_rh_realizations.{ext}"
-        fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.15)
-        print(f"Wrote {path}")
+    save_figure(fig, "vs_rh_realizations", out_dir=OUT_DIR)
     plt.close(fig)
 
 

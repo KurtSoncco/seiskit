@@ -3,43 +3,51 @@
 Panel (a): time-domain pulse with a broken x-axis (0–1 s | 14–15 s).
 Panel (b): unnormalized Fourier amplitude spectrum on log-log axes.
 
-Produces: ricker_wave.{png,pdf} under Box complete/figures.
+Produces: ricker_wave.pdf under
+``complete/full_paper/figures/descriptions/``.
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-import matplotlib as mpl
 import matplotlib.path as mpath
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 from matplotlib.ticker import LogLocator, NullFormatter
 
-from seiskit.plot_config import add_subfigure_label, apply_style
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from config import (  # noqa: E402
+    DATA_LINEWIDTH,
+    LABEL_FONTSIZE,
+    TICK_LABELSIZE,
+    add_panel_label,
+    apply_full_paper_style,
+    figsize,
+    figure_dir,
+    save_figure,
+)
+
 from seiskit.utils import compute_ricker
 
-apply_style(auto_format=True, font_size=10, frame="open")
-
-mpl.rcParams["svg.fonttype"] = "none"
-mpl.rcParams["pdf.fonttype"] = 42
+apply_full_paper_style(auto_format=True, frame="open", grid=False)
 
 # ---------------------------------------------------------------------------
 # Paths / constants
 # ---------------------------------------------------------------------------
-OUT_DIR = Path("/mnt/box/GIG Lab - UC Berkeley/Projects/Statistical Analysis/complete/figures")
+OUT_DIR = figure_dir("descriptions")
 
 FREQ = 3.0
 T_SHIFT = 0.5
 DURATION = 15.0
 DT = 0.001
 
-DOC_WIDTH = 6.5
-FIG_HEIGHT = DOC_WIDTH * 0.42
-LINEWIDTH = 2.0
-TICK_LABELSIZE = 8
-GRID_KW = dict(color="0.75", linestyle=":", linewidth=0.6, alpha=0.7)
+# Shorter aspect than default 4:3 — time/FAS pair is wide and short
+FIG_HEIGHT = figsize(aspect=0.42)[1]
+LINEWIDTH = DATA_LINEWIDTH
+GRID_KW = dict(color="0.75", linestyle=":", linewidth=0.4, alpha=0.7)
 
 
 def _generate_signal() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -94,13 +102,13 @@ def _draw_axis_break(fig: plt.Figure, ax_left: plt.Axes, ax_right: plt.Axes) -> 
             linestyle="none",
             color="k",
             mec="k",
-            mew=1.1,
+            mew=DATA_LINEWIDTH,
             mfc="none",
             clip_on=False,
         )
     )
     dash_kw = dict(
-        transform=fig.transFigure, color="k", lw=1.1, clip_on=False
+        transform=fig.transFigure, color="k", lw=DATA_LINEWIDTH, clip_on=False
     )  # Definition of the  horizontal dash line
     dash_length = 0.4  # You control the length of the lines here
     for y in ys:
@@ -153,7 +161,7 @@ def _style_fas_axis(ax: plt.Axes) -> None:
 
 def plot_ricker_wave(t: np.ndarray, v: np.ndarray, f: np.ndarray, fas: np.ndarray) -> plt.Figure:
     """Build the side-by-side time / FAS figure."""
-    fig = plt.figure(figsize=(DOC_WIDTH, FIG_HEIGHT))
+    fig = plt.figure(figsize=figsize(height=FIG_HEIGHT))
     # Outer grid separates panel (a) from panel (b); the broken time axes
     # live in a tight nested grid so only they sit close together.
     outer = fig.add_gridspec(
@@ -177,7 +185,7 @@ def plot_ricker_wave(t: np.ndarray, v: np.ndarray, f: np.ndarray, fas: np.ndarra
     _style_time_axes(ax_left, ax_right)
     _draw_axis_break(fig, ax_left, ax_right)
 
-    ax_left.set_ylabel(r"$v(t)$ (m/s)", fontsize=9)
+    ax_left.set_ylabel(r"$v(t)$ (m/s)", fontsize=LABEL_FONTSIZE)
     # Shared x-label centered under the broken-axis pair
     pos_l = ax_left.get_position()
     pos_r = ax_right.get_position()
@@ -187,7 +195,7 @@ def plot_ricker_wave(t: np.ndarray, v: np.ndarray, f: np.ndarray, fas: np.ndarra
         "Time (s)",
         ha="center",
         va="bottom",
-        fontsize=9,
+        fontsize=LABEL_FONTSIZE,
         transform=fig.transFigure,
     )
 
@@ -195,11 +203,11 @@ def plot_ricker_wave(t: np.ndarray, v: np.ndarray, f: np.ndarray, fas: np.ndarra
     mask = (f > 0.0) & (f <= 12.0)
     ax_fas.plot(f[mask], fas[mask], color="k", linewidth=LINEWIDTH, solid_capstyle="round")
     _style_fas_axis(ax_fas)
-    ax_fas.set_xlabel("Frequency (Hz)", fontsize=9)
-    ax_fas.set_ylabel("Fourier Amplitude (g-s)", fontsize=9)
+    ax_fas.set_xlabel("Frequency (Hz)", fontsize=LABEL_FONTSIZE)
+    ax_fas.set_ylabel("Fourier amplitude (g-s)", fontsize=LABEL_FONTSIZE)
 
-    add_subfigure_label(ax_left, 0, fontsize=10)
-    add_subfigure_label(ax_fas, 1, fontsize=10)
+    add_panel_label(ax_left, 0)
+    add_panel_label(ax_fas, 1)
 
     return fig
 
@@ -207,12 +215,7 @@ def plot_ricker_wave(t: np.ndarray, v: np.ndarray, f: np.ndarray, fas: np.ndarra
 def main() -> None:
     t, v, f, fas = _generate_signal()
     fig = plot_ricker_wave(t, v, f, fas)
-
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for ext in ("png", "pdf"):
-        path = OUT_DIR / f"ricker_wave.{ext}"
-        fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.15)
-        print(f"Wrote {path}")
+    save_figure(fig, "ricker_wave", out_dir=OUT_DIR)
     plt.close(fig)
 
 

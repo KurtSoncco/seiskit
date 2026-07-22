@@ -5,36 +5,41 @@ with dimension arrows for Lx,var and L_array. Panel (b): zoom with spike
 geophones (center-only or full array).
 
 Paper targets:
-  - Full paper → array receivers, DOC_WIDTH = 7 in
-  - Conference paper → center receiver, DOC_WIDTH = 6.5 in
+  - Full paper → array receivers (FIG_WIDTH = 7 in from config)
+  - Conference paper → center receiver (6.5 in)
 
-Produces: model_scheme_{center,array}.{png,pdf,svg} under Box complete/figures.
+Produces: model_scheme_{center,array}.pdf under
+``complete/full_paper/figures/model_scheme/``.
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Literal
 
 import h5py
 import hdf5plugin  # noqa: F401 — registers Blosc2 filter
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Rectangle
-from matplotlib.transforms import Bbox
 
-from seiskit.plot_config import (
-    COLORBLIND_COLORS,
-    add_subfigure_label,
-    apply_style,
-    get_crameri_cmap,
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from config import (  # noqa: E402
+    ANNOTATION_FONTSIZE,
+    DATA_LINEWIDTH,
+    LABEL_FONTSIZE,
+    TICK_LABELSIZE,
+    add_panel_label,
+    apply_full_paper_style,
+    figsize,
+    figure_dir,
+    save_figure,
 )
 
-apply_style(auto_format=True, font_size=10, frame="open")
+from seiskit.plot_config import COLORBLIND_COLORS, get_crameri_cmap
 
-mpl.rcParams["svg.fonttype"] = "none"
-mpl.rcParams["pdf.fonttype"] = 42
+apply_full_paper_style(auto_format=True, frame="open", grid=False)
 
 # ---------------------------------------------------------------------------
 # Paths / constants
@@ -42,27 +47,16 @@ mpl.rcParams["pdf.fonttype"] = 42
 H5_PATH = Path(
     "/mnt/box/GIG Lab - UC Berkeley/Projects/Statistical Analysis/h=50/results/run_4050.h5"
 )
-OUT_DIR = Path(
-    "/mnt/box/GIG Lab - UC Berkeley/Projects/Statistical Analysis/complete/figures/model_scheme"
-)
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+OUT_DIR = figure_dir("model_scheme")
 
-ASPECT_RATIO = 0.75  # 3:2; full-paper height stays under ~170 mm at 7 in width
-
-# Conference paper: single center geophone
-CONF_DOC_WIDTH = 6.5  # inches
-CONF_FIG_HEIGHT = CONF_DOC_WIDTH * ASPECT_RATIO
-
-# Full paper: full receiver array
-FULL_DOC_WIDTH = 7.0  # inches
-FULL_FIG_HEIGHT = FULL_DOC_WIDTH * ASPECT_RATIO
+# Conference paper still uses 6.5 in (see conference_paper/config.py)
+CONF_FIGSIZE = (6.5, 6.5 * 0.75)
 
 VMIN, VMAX = 140.0, 340.0
 LX_VAR = 500.0
 ZOOM_HALF = 100.0
 N_RECEIVERS = 101
 RECEIVER_COLOR = COLORBLIND_COLORS[1]
-TICK_LABELSIZE = 8
 SPIKE_DEPTH = 1.0  # m — shaft length into the ground
 SPIKE_MS = 10  # circle markersize
 
@@ -85,8 +79,8 @@ PAPER_RECEIVERS: dict[PaperTarget, ReceiverMode] = {
     "conference": "center",
 }
 PAPER_SIZE: dict[PaperTarget, tuple[float, float]] = {
-    "full": (FULL_DOC_WIDTH, FULL_FIG_HEIGHT),
-    "conference": (CONF_DOC_WIDTH, CONF_FIG_HEIGHT),
+    "full": figsize(),
+    "conference": CONF_FIGSIZE,
 }
 
 
@@ -142,7 +136,7 @@ def _draw_boxes(ax: plt.Axes, lz: float) -> None:
             lz,
             fill=False,
             linestyle="--",
-            linewidth=1.1,
+            linewidth=DATA_LINEWIDTH,
             edgecolor="black",
             zorder=5,
         )
@@ -155,7 +149,7 @@ def _draw_boxes(ax: plt.Axes, lz: float) -> None:
             lz,
             fill=False,
             linestyle="--",
-            linewidth=1.1,
+            linewidth=DATA_LINEWIDTH,
             edgecolor="red",
             zorder=6,
         )
@@ -191,7 +185,7 @@ def _dimension_arrow(
         label,
         ha="center",
         va="center",
-        fontsize=7,
+        fontsize=ANNOTATION_FONTSIZE,
         color=color,
         zorder=9,
         bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.9, "pad": 0.8},
@@ -301,7 +295,7 @@ def plot_model_scheme(
         _no_xaxis(ax_ff)
 
     ax_ff_l.set_yticks(yticks)
-    ax_ff_l.set_ylabel("Depth (m)", fontsize=9)
+    ax_ff_l.set_ylabel("Depth (m)", fontsize=LABEL_FONTSIZE)
     ax_ff_r.tick_params(left=False, labelleft=False)
 
     # --- Domain flanks + main ---
@@ -358,7 +352,7 @@ def plot_model_scheme(
         ha="left",
         va="top",
         color="red",
-        fontsize=9,
+        fontsize=LABEL_FONTSIZE,
         transform=ax_main.transData,
         bbox={
             "boxstyle": "round,pad=0.3",
@@ -369,7 +363,7 @@ def plot_model_scheme(
         },
     )
 
-    add_subfigure_label(ax_main, 0, x=0.02)
+    add_panel_label(ax_main, 0, x=0.02)
 
     # Full-model label centered over domain columns (flanks + main), not FF
     pos_fl = ax_fl.get_position()
@@ -393,14 +387,14 @@ def plot_model_scheme(
     ax_b.tick_params(labelsize=TICK_LABELSIZE)
     _xaxis_on_top(ax_b)
     ax_b.set_xticks([-100, -50, 0, 50, 100])
-    ax_b.set_ylabel("Depth (m)", fontsize=9)
+    ax_b.set_ylabel("Depth (m)", fontsize=LABEL_FONTSIZE)
 
     if receivers == "center":
         rx = np.array([0.0])
     else:
         rx = np.linspace(-ZOOM_HALF, ZOOM_HALF, N_RECEIVERS)
     _draw_spike_geophones(ax_b, rx)
-    add_subfigure_label(ax_b, 1, x=0.02)
+    add_panel_label(ax_b, 1, x=0.02)
 
     fig.text(
         0.5 * (pos_fl.x0 + pos_fr.x1),
@@ -408,12 +402,12 @@ def plot_model_scheme(
         "Distance from center (m)",
         ha="center",
         va="top",
-        fontsize=9,
+        fontsize=LABEL_FONTSIZE,
         transform=fig.transFigure,
     )
 
     cbar = fig.colorbar(im, cax=cax, extend="max")
-    cbar.set_label(r"$V_{s1}$ (m/s)", fontsize=9)
+    cbar.set_label(r"$V_{s1}$ (m/s)", fontsize=LABEL_FONTSIZE)
     cbar.set_ticks(np.arange(VMIN, VMAX + 1, 40))
     cbar.ax.tick_params(labelsize=TICK_LABELSIZE)
 
@@ -428,19 +422,6 @@ def plot_model_scheme(
     return fig
 
 
-def _export(fig: plt.Figure, stem: str) -> None:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    w, h = fig.get_size_inches()
-    bbox = Bbox.from_bounds(0, 0, w, h)
-    for ext in ("svg", "pdf", "png"):
-        path = OUT_DIR / f"{stem}.{ext}"
-        kw: dict = {"bbox_inches": bbox}
-        if ext == "png":
-            kw["dpi"] = 300
-        fig.savefig(path, **kw)
-        print(f"Wrote {path} ({w:.2f} x {h:.2f} in)")
-
-
 def main() -> None:
     vs, lx, lz, dx, _dz = load_vs(H5_PATH)
 
@@ -448,7 +429,7 @@ def main() -> None:
     for paper in ("full", "conference"):
         mode = PAPER_RECEIVERS[paper]
         fig = plot_model_scheme(vs, lx, lz, dx, receivers=mode, figsize=PAPER_SIZE[paper])
-        _export(fig, f"model_scheme_{mode}")
+        save_figure(fig, f"model_scheme_{mode}", out_dir=OUT_DIR)
         plt.close(fig)
 
 

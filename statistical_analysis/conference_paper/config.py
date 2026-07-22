@@ -28,12 +28,30 @@ BOX_ROOT = Path("/mnt/box/GIG Lab - UC Berkeley/Projects/Statistical Analysis/co
 DATA_PATH = BOX_ROOT / "peak_analysis" / "tf_peak_ratios_mode0.h5"
 
 CONF_ROOT = Path(__file__).resolve().parent
-RESULTS_ROOT = CONF_ROOT  # local results/<topic>/{plots,data}/
+
+# Local analysis outputs (already structured):
+#   conference_paper/results/<topic>/{plots,data}/
+RESULTS_ROOT = CONF_ROOT
 MODELS_DIR = CONF_ROOT / "models"
 CACHE_DIR = CONF_ROOT / ".cache"
 
+# Box mirror for manuscript / shared deliverables (parallel to full_paper/):
+#   complete/conference_paper/figures/<topic>/
+#   complete/conference_paper/results/<topic>/   (optional exports)
+PAPER_OUT_ROOT = BOX_ROOT / "conference_paper"
+BOX_FIGURES_DIR = PAPER_OUT_ROOT / "figures"
+BOX_RESULTS_DIR = PAPER_OUT_ROOT / "results"
+
 # Route seiskit.plot_config.result_path() to this package root.
 set_results_root(RESULTS_ROOT)
+
+
+def figure_dir(*parts: str) -> Path:
+    """Return ``BOX_FIGURES_DIR / parts...``, creating the directory if needed."""
+    path = BOX_FIGURES_DIR.joinpath(*parts) if parts else BOX_FIGURES_DIR
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
 
 # ---------------------------------------------------------------------------
 # Design constants (center recorder)

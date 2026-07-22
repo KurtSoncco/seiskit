@@ -5,13 +5,14 @@ the center of a 3x3 GridSpec; the six surrounding occupied cells show low/high
 levels of each parameter. Cells (0,2) and (2,0) hold metadata / key text.
 
 Produces:
-  complete/tf_results/plots_raw_centernode_cross_7panel/
-    tf_raw_cross_center_node_all_seeds_h50_vs1_230_node_50.{png,pdf}
+  complete/full_paper/figures/qualitative/
+    tf_raw_cross_center_node_all_seeds_h50_vs1_230_node_50.pdf
 """
 
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 from typing import Mapping
 
@@ -20,9 +21,19 @@ import numpy as np
 from matplotlib.lines import Line2D
 from matplotlib.patches import FancyBboxPatch, Patch, Rectangle
 
-from seiskit.plot_config import add_subfigure_label, apply_style
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from config import (  # noqa: E402
+    DATA_LINEWIDTH,
+    FIG_DPI,
+    LABEL_FONTSIZE,
+    TICK_LABELSIZE,
+    add_panel_label,
+    apply_full_paper_style,
+    figsize,
+    figure_dir,
+)
 
-apply_style(auto_format=True, font_size=10, frame="open")
+apply_full_paper_style(auto_format=True, frame="open", grid=False)
 
 
 def _load_sibling():
@@ -51,12 +62,10 @@ plot_tf_panel = _sib.plot_tf_panel
 # ---------------------------------------------------------------------------
 # Paths / constants
 # ---------------------------------------------------------------------------
-BOX = Path("/mnt/box/GIG Lab - UC Berkeley/Projects/Statistical Analysis")
-OUT_DIR = BOX / "complete" / "tf_results" / "plots_raw_centernode_cross_7panel"
+OUT_DIR = figure_dir("qualitative")
 OUT_STEM = "tf_raw_cross_center_node_all_seeds_h50_vs1_230_node_50"
 
-DOC_WIDTH = 6.5  # inches — Nature single-column / manuscript width
-FIG_HEIGHT = DOC_WIDTH * 0.90
+DOC_WIDTH, FIG_HEIGHT = figsize(aspect=0.90)
 
 # Accent colors for each sweep — standardized parameter colors from
 # statistical_analysis/conference_paper/config.py (FACTOR_COLORS, Paul Tol Bright)
@@ -198,13 +207,13 @@ def _draw_accent_bar(ax: plt.Axes, color: str) -> None:
 
 def _legend_handles() -> list:
     return [
-        Line2D([0], [0], color=COLOR_SAMPLES, lw=1.2, label="2D samples"),
+        Line2D([0], [0], color=COLOR_SAMPLES, lw=DATA_LINEWIDTH, label="2D samples"),
         Patch(
             facecolor=COLOR_GEO,
             edgecolor=COLOR_GEO,
             alpha=0.35,
             linestyle="--",
-            linewidth=1.2,
+            linewidth=DATA_LINEWIDTH,
             label=r"Geomean $\pm 1\sigma$ ($\log\vert TF\vert$)",
         ),
         Line2D(
@@ -212,8 +221,8 @@ def _legend_handles() -> list:
             [0],
             color=COLOR_1D,
             ls=":",
-            lw=2.0,
-            label="1D (Baseline model)",
+            lw=DATA_LINEWIDTH,
+            label="1D (baseline model)",
         ),
     ]
 
@@ -246,14 +255,14 @@ def _fill_metadata_cell(
         transform=ax.transAxes,
         ha="left",
         va="top",
-        fontsize=7,
+        fontsize=LABEL_FONTSIZE,
         linespacing=1.35,
     )
 
     ax.legend(
         handles=_legend_handles(),
         loc="lower left",
-        fontsize=7,
+        fontsize=LABEL_FONTSIZE,
         frameon=False,
         handlelength=2.0,
         labelspacing=0.35,
@@ -276,11 +285,11 @@ def _fill_key_cell(
     ax.text(
         0.0,
         1.0,
-        "Each parameter increases\nTop-Left → Bottom-Right\n· Center = Baseline",
+        "Each parameter increases\nTop-left → bottom-right\n· Center = baseline",
         transform=ax.transAxes,
         ha="left",
         va="top",
-        fontsize=7,
+        fontsize=LABEL_FONTSIZE,
         linespacing=1.3,
     )
 
@@ -308,7 +317,7 @@ def _fill_key_cell(
             transform=ax.transAxes,
             ha="left",
             va="center",
-            fontsize=8,
+            fontsize=LABEL_FONTSIZE,
         )
 
 
@@ -358,8 +367,8 @@ def make_cross_figure(
     x_tick_cells, y_tick_cells = _tick_label_cells(occupied)
 
     fig = plt.figure(figsize=(DOC_WIDTH, FIG_HEIGHT), constrained_layout=True)
-    # Reserve a top strip for the two-line title (bold main + non-bold subtitle);
-    # constrained_layout only auto-reserves space for suptitle, not fig.text.
+    # Reserve a top strip for the two-line title; constrained_layout only
+    # auto-reserves space for suptitle, not fig.text.
     fig.get_layout_engine().set(rect=(0.0, 0.0, 1.0, 0.925))
     fig.text(
         0.5,
@@ -367,8 +376,8 @@ def make_cross_figure(
         "Sensitivity of transfer function to parameters",
         ha="center",
         va="top",
-        fontsize=10,
-        fontweight="bold",
+        fontsize=LABEL_FONTSIZE,
+        fontweight="normal",
     )
     fig.text(
         0.5,
@@ -377,7 +386,7 @@ def make_cross_figure(
         rf"center node, {N_SEEDS} seeds per case)",
         ha="center",
         va="top",
-        fontsize=8.5,
+        fontsize=TICK_LABELSIZE,
     )
     gs = fig.add_gridspec(3, 3, wspace=0.06, hspace=0.08)
 
@@ -427,7 +436,7 @@ def make_cross_figure(
             accent_color = ACCENT_BASELINE if varying is None else accents[varying]
             _draw_accent_bar(ax, accent_color)
 
-            add_subfigure_label(ax, letter_i)
+            add_panel_label(ax, letter_i)
             letter_i += 1
 
             ax.text(
@@ -437,7 +446,7 @@ def make_cross_figure(
                 transform=ax.transAxes,
                 ha="right",
                 va="top",
-                fontsize=6.5,
+                fontsize=TICK_LABELSIZE,
                 linespacing=1.25,
                 zorder=6,
                 bbox={
@@ -448,7 +457,7 @@ def make_cross_figure(
                 },
             )
 
-            ax.tick_params(labelsize=8)
+            ax.tick_params(labelsize=TICK_LABELSIZE)
             if (r, c) not in x_tick_cells:
                 ax.tick_params(labelbottom=False)
             if (r, c) not in y_tick_cells:
@@ -461,8 +470,8 @@ def make_cross_figure(
     if sum(1 for t in drawn if t == _case_tuple(baseline)) != 1:
         raise RuntimeError("baseline was not drawn exactly once")
 
-    fig.supxlabel("Frequency (Hz)", fontsize=10)
-    fig.supylabel(r"$TF$", fontsize=10)
+    fig.supxlabel("Frequency (Hz)", fontsize=LABEL_FONTSIZE)
+    fig.supylabel(r"$TF$", fontsize=LABEL_FONTSIZE)
 
     return fig
 
@@ -493,14 +502,14 @@ def main() -> None:
 
     print(
         f"Fonts: family={mpl.rcParams['font.family']}, "
-        f"serif={mpl.rcParams['font.serif'][:2]}, "
+        f"sans={mpl.rcParams['font.sans-serif'][:2]}, "
         f"mathtext={mpl.rcParams['mathtext.fontset']}"
     )
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for ext in ("png", "pdf"):
+    for ext in ("pdf",):
         path = OUT_DIR / f"{OUT_STEM}.{ext}"
-        fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.12)
+        fig.savefig(path, dpi=FIG_DPI, bbox_inches="tight", pad_inches=0.12)
         print(f"Wrote {path}")
     plt.close(fig)
 
