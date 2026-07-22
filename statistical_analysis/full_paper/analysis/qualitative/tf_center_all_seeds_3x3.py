@@ -213,7 +213,7 @@ def plot_figure(
         else:
             ax.tick_params(labelbottom=False)
         if col == 0:
-            ax.set_ylabel(r"$|TF|$")
+            ax.set_ylabel(r"$TF$")
         else:
             ax.tick_params(labelleft=False)
 

@@ -17,7 +17,7 @@ import numpy as np
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, FIG_DPI, load_channel50, target_color, target_label
+from config import FACTORS, FIG_DPI, FIG_WIDTH, load_channel50, target_color, target_label
 
 # Load data
 d50 = load_channel50()
@@ -47,13 +47,13 @@ y_labels = {
 
 # Y axis limits
 y_limits = {
-    "f_ratio": (0.80, 1.30),
-    "log_abs": (-4, 1.0),
+    "f_ratio": (0.80, 1.40),
+    "log_abs": (-4, 2.0),
 }
 
 # Create figure and gridspec
-fig = plt.figure(figsize=(13, 5))
-gs = fig.add_gridspec(2, 5, hspace=0.1, wspace=0.10)
+fig = plt.figure(figsize=(FIG_WIDTH, FIG_WIDTH * 0.75))
+gs = fig.add_gridspec(2, 5, hspace=0.1, wspace=0.20)
 
 TARGETS_PLOT = [
     ("f_ratio", target_label("f_ratio")),
@@ -125,7 +125,7 @@ for line in leg.get_lines():
 
 
 fig.suptitle(
-    "Center Recorder: Marginal Quantile Profiles (p5 / p50 / p95) by Factor",
+    "Marginal Quantile Profiles (p5 / p50 / p95) by Factorial Variables",
     fontsize=10,
     fontweight="bold",
 )

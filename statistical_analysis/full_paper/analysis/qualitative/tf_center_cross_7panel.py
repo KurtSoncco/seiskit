@@ -462,7 +462,7 @@ def make_cross_figure(
         raise RuntimeError("baseline was not drawn exactly once")
 
     fig.supxlabel("Frequency (Hz)", fontsize=10)
-    fig.supylabel(r"$|TF|$", fontsize=10)
+    fig.supylabel(r"$TF$", fontsize=10)
 
     return fig
 

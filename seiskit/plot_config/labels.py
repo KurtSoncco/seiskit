@@ -17,21 +17,25 @@ import re
 _REPLACEMENTS: list[tuple[re.Pattern, str]] = [
     # Longest compound terms first to prevent partial matches.
     # Modeled amplitude uses natural log; display as \ln.
+    # Strip absolute-value bars from TF notation (|TF| → TF).
+    (re.compile(r"\\ln\(\s*\|TF\|_0\^N\s*\)"), r"\ln(TF_0^N)"),
+    (re.compile(r"\|TF\|_0\^N"), r"TF_0^N"),
+    (re.compile(r"\|TF\|"), r"TF"),
     (
         re.compile(r"\bln\s*\(\s*abs[_ ]?TF[_ ]?(?:ratio)?\s*\)", re.IGNORECASE),
-        r"$\ln(|TF|_0^N)$",
+        r"$\ln(TF_0^N)$",
     ),
     (
         re.compile(r"\blog\s*\(\s*abs[_ ]?TF[_ ]?(?:ratio)?\s*\)", re.IGNORECASE),
-        r"$\ln(|TF|_0^N)$",
+        r"$\ln(TF_0^N)$",
     ),
     (
         re.compile(r"\blog[_ \s]+abs[_ \s]+TF(?:[_ \s]+ratio)?\b", re.IGNORECASE),
-        r"$\ln(|TF|_0^N)$",
+        r"$\ln(TF_0^N)$",
     ),
-    (re.compile(r"\blog[_ ]?abs\b", re.IGNORECASE), r"$\ln(|TF|_0^N)$"),
-    (re.compile(r"\babs[_ \s]?TF[_ \s]?ratio\b", re.IGNORECASE), r"$|TF|_0^N$"),
-    (re.compile(r"\babs[_ \s]?TF\b", re.IGNORECASE), r"$|TF|_0^N$"),
+    (re.compile(r"\blog[_ ]?abs\b", re.IGNORECASE), r"$\ln(TF_0^N)$"),
+    (re.compile(r"\babs[_ \s]?TF[_ \s]?ratio\b", re.IGNORECASE), r"$TF_0^N$"),
+    (re.compile(r"\babs[_ \s]?TF\b", re.IGNORECASE), r"$TF_0^N$"),
     # Handle variants where $f$ is already partially LaTeX-ified
     (re.compile(r"\$f\$\s*ratio", re.IGNORECASE), r"$f_0^N$"),
     (re.compile(r"\bf[_ ]?ratio\b", re.IGNORECASE), r"$f_0^N$"),
@@ -46,11 +50,11 @@ _REPLACEMENTS: list[tuple[re.Pattern, str]] = [
 
 # Simple key map kept for direct lookups (e.g. df column names)
 LABEL_MAP: dict[str, str] = {
-    "log_abs": r"$\ln(|TF|_0^N)$",
-    "log(abs_TF)": r"$\ln(|TF|_0^N)$",
-    "ln(abs_TF)": r"$\ln(|TF|_0^N)$",
-    "abs_TF_ratio": r"$|TF|_0^N$",
-    "abs_TF": r"$|TF|_0^N$",
+    "log_abs": r"$\ln(TF_0^N)$",
+    "log(abs_TF)": r"$\ln(TF_0^N)$",
+    "ln(abs_TF)": r"$\ln(TF_0^N)$",
+    "abs_TF_ratio": r"$TF_0^N$",
+    "abs_TF": r"$TF_0^N$",
     "f_ratio": r"$f_0^N$",
     "a_HV": r"$a_{hv}$",
     "aHV": r"$a_{hv}$",

@@ -9,18 +9,32 @@ Outputs (all under ``results/shap/``)
 Data (always written when computed)
     mean_shap_*.csv          — mean-GBM xAI tables (kept; plots off by default)
     quantile_shap_*.csv
+    shap_interval_delta.csv  — Δφ = φ(0.95)−φ(0.05) (aleatoric interval drivers)
+    shap_tau_sensitivity.csv — how |SHAP| / φ change across τ
     pdp_by_quantile.csv
     h2_by_quantile.csv
 
 Plots (QBM-focused by default)
+    quantile_beeswarm_{target}.png   — τ=0.05 | 0.50 | 0.95 side-by-side
     quantile_importance_{target}.png
     quantile_dependence_{target}_{feat}_q{tau}.png
+    shap_interval_sensitivity_{target}.png
+    shap_interval_beeswarm_{target}.png
+    shap_tau_delta_{target}.png
     quantile_interactions_{target}.png
-    pdp_{target}_{feat}.png
+    pdp_{target}.png              — all factors × τ∈{0.05,0.50,0.95}
     h2_heatmap_{target}_q{tau}.png
 
     Optional mean-GBM plots with ``--plot-mean``:
     mean_beeswarm_*.png, mean_importance_*.png, ...
+
+Notes
+-----
+Interval ΔSHAP attributes features to conditional-quantile spread (aleatoric /
+predictive-interval drivers), following He et al. (Chem. Eng. J. 2025).
+
+For full UbiQTree epistemic/aleatoric/entanglement decomposition of SHAP
+(Dubey et al., arXiv:2508.09639) see ``shap_ubiqtree.py``.
 
 Usage
 -----
@@ -36,18 +50,18 @@ from __future__ import annotations
 import sys
 import time
 import warnings
-from itertools import combinations
 from pathlib import Path
 
 import matplotlib
 
 matplotlib.use("Agg")
+import matplotlib.cm as mpl_cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 import shap
-from seiskit.plot_config import apply_style, get_crameri_cmap, result_path
+from seiskit.plot_config import apply_style, get_crameri_cmap, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import (  # noqa: E402
@@ -382,6 +396,47 @@ def main() -> None:
 
     _csv(pd.DataFrame(q_imp_rows), "quantile_shap_importance.csv")
 
+    # Side-by-side beeswarms at lower / median / upper quantiles so feature
+    # impacts that matter only in the tails are visible against τ=0.50.
+    beeswarm_cmap = get_crameri_cmap("managua").reversed()
+    for tgt in Q_TARGETS:
+        mean_abs = np.mean(
+            [np.abs(q_shap_tail[(tgt, tau)]).mean(0) for tau in TAIL_TAUS],
+            axis=0,
+        )
+        feature_order = np.argsort(-mean_abs)
+        fig, axes = plt.subplots(1, 3, figsize=(14, 4.6), layout="constrained")
+        for col, tau in enumerate(TAIL_TAUS):
+            expl = shap.Explanation(
+                values=q_shap_tail[(tgt, tau)],
+                data=Xte.to_numpy(),
+                feature_names=FACTORS,
+            )
+            shap.plots.beeswarm(
+                expl,
+                ax=axes[col],
+                show=False,
+                color=beeswarm_cmap,
+                color_bar=False,
+                plot_size=None,
+                order=feature_order,
+            )
+            axes[col].set_title(rf"$\tau={tau:g}$")
+            if col > 0:
+                axes[col].set_yticklabels([])
+            panel_letter(axes[col], "abc"[col])
+        sm = mpl_cm.ScalarMappable(cmap=beeswarm_cmap)
+        sm.set_array([0, 1])
+        cbar = fig.colorbar(sm, ax=axes, ticks=[0, 1], shrink=0.85, location="right")
+        cbar.set_ticklabels(["Low", "High"])
+        cbar.set_label("Feature value")
+        cbar.ax.tick_params(length=0)
+        fig.suptitle(
+            f"Quantile SHAP beeswarm — {target_label(tgt)} (seed hold-out)",
+            fontsize=11,
+        )
+        _save(fig, f"quantile_beeswarm_{tgt}.png")
+
     for tgt, tau, feat, partner in TAIL_DEPS:
         sv = q_shap_tail[(tgt, tau)]
         fi = FACTORS.index(feat)
@@ -402,6 +457,175 @@ def main() -> None:
         cb = fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04)
         cb.set_label(partner)
         _save(fig, f"quantile_dependence_{tgt}_{feat}_q{int(tau * 100):02d}.png")
+
+    # ------------------------------------------------------------------
+    # 3b) Interval ΔSHAP (aleatoric drivers) + τ-attribution dynamics
+    # ------------------------------------------------------------------
+    # Δφ_j = φ_j(τ=0.95) − φ_j(τ=0.05) attributes feature j to moving the
+    # prediction across the conditional quantile interval (He et al. 2025).
+    # This is NOT an epistemic CI on φ; epistemic UQ needs multi-fit ensembles.
+    print("\n=== Interval SHAP sensitivity + τ-dynamics ===")
+    interval_rows: list[dict] = []
+    tau_sens_rows: list[dict] = []
+    Xte_np = Xte.to_numpy()
+    for tgt in Q_TARGETS:
+        sv_lo = q_shap_tail[(tgt, 0.05)]
+        sv_med = q_shap_tail[(tgt, 0.50)]
+        sv_hi = q_shap_tail[(tgt, 0.95)]
+        d_full = sv_hi - sv_lo
+        d_upper = sv_hi - sv_med
+        d_lower = sv_med - sv_lo
+
+        y_lo = np.asarray(quant_models[tgt][0.05].predict(Xte), dtype=float)
+        y_hi = np.asarray(quant_models[tgt][0.95].predict(Xte), dtype=float)
+        dy = y_hi - y_lo
+        # TreeSHAP: f(x) = base + Σφ; bases differ across quantile models.
+        base_lo = float(np.mean(y_lo - sv_lo.sum(axis=1)))
+        base_hi = float(np.mean(y_hi - sv_hi.sum(axis=1)))
+        d_base = base_hi - base_lo
+        efficiency_resid = d_full.sum(axis=1) - (dy - d_base)
+        efficiency_mae = float(np.mean(np.abs(efficiency_resid)))
+        mean_width = float(np.mean(dy))
+        print(
+            f"  {tgt}: mean PI width={mean_width:.4g}, "
+            f"ΣΔφ efficiency MAE={efficiency_mae:.3g} (vs Δŷ−Δbase)"
+        )
+
+        mean_abs_d = np.abs(d_full).mean(axis=0)
+        mean_d = d_full.mean(axis=0)
+        share_d = 100 * mean_abs_d / mean_abs_d.sum() if mean_abs_d.sum() > 0 else mean_abs_d
+        for f, ma, md, sh in zip(FACTORS, mean_abs_d, mean_d, share_d):
+            interval_rows.append(
+                dict(
+                    target=tgt,
+                    factor=f,
+                    mean_delta_shap=float(md),
+                    mean_abs_delta_shap=float(ma),
+                    share_pct=float(sh),
+                    mean_interval_width=mean_width,
+                    efficiency_mae=efficiency_mae,
+                    delta_base=d_base,
+                )
+            )
+
+        # Bar: mean |Δφ| by factor
+        order = np.argsort(mean_abs_d)
+        fig, ax = plt.subplots(figsize=(5.5, 3.6))
+        ax.barh(
+            np.arange(len(FACTORS)),
+            mean_abs_d[order],
+            color=[FACTOR_COLORS[FACTORS[i]] for i in order],
+        )
+        ax.set_yticks(np.arange(len(FACTORS)))
+        ax.set_yticklabels([FACTORS[i] for i in order])
+        ax.set_xlabel(r"mean $|\phi_{0.95}-\phi_{0.05}|$")
+        ax.set_title(
+            f"Interval SHAP sensitivity — {target_label(tgt)}\n"
+            r"(aleatoric PI drivers; $\tau=0.95$ vs $0.05$)"
+        )
+        _save(fig, f"shap_interval_sensitivity_{tgt}.png")
+
+        # Beeswarm of local Δφ colored by feature value
+        fig, ax = plt.subplots(figsize=(6.4, 3.8))
+        expl = shap.Explanation(
+            values=d_full,
+            data=Xte_np,
+            feature_names=FACTORS,
+        )
+        shap.plots.beeswarm(
+            expl,
+            ax=ax,
+            show=False,
+            color=beeswarm_cmap,
+            color_bar=True,
+            plot_size=None,
+            order=np.argsort(-mean_abs_d),
+        )
+        ax.set_xlabel(r"$\Delta\phi=\phi_{0.95}-\phi_{0.05}$")
+        fig.suptitle(
+            f"Interval ΔSHAP beeswarm — {target_label(tgt)} (seed hold-out)",
+            fontsize=11,
+        )
+        _save(fig, f"shap_interval_beeswarm_{tgt}.png")
+
+        # --- τ-attribution dynamics ---
+        qdf = pd.DataFrame([r for r in q_imp_rows if r["target"] == tgt])
+        ma_lo = np.abs(sv_lo).mean(0)
+        ma_med = np.abs(sv_med).mean(0)
+        ma_hi = np.abs(sv_hi).mean(0)
+        mean_abs_d_lower = np.abs(d_lower).mean(0)
+        mean_abs_d_upper = np.abs(d_upper).mean(0)
+        for k, f in enumerate(FACTORS):
+            sub = qdf[qdf.factor == f].sort_values("tau")
+            taus_arr = sub["tau"].to_numpy(dtype=float)
+            ma_arr = sub["mean_abs_shap"].to_numpy(dtype=float)
+            slope = float(np.polyfit(taus_arr, ma_arr, 1)[0]) if len(taus_arr) >= 2 else 0.0
+            sh_lo = float(sub.loc[np.isclose(sub["tau"], 0.05), "share_pct"].iloc[0])
+            sh_med = float(sub.loc[np.isclose(sub["tau"], 0.50), "share_pct"].iloc[0])
+            sh_hi = float(sub.loc[np.isclose(sub["tau"], 0.95), "share_pct"].iloc[0])
+            tau_sens_rows.append(
+                dict(
+                    target=tgt,
+                    factor=f,
+                    mean_abs_shap_q05=float(ma_lo[k]),
+                    mean_abs_shap_q50=float(ma_med[k]),
+                    mean_abs_shap_q95=float(ma_hi[k]),
+                    delta_mean_abs_full=float(ma_hi[k] - ma_lo[k]),
+                    delta_mean_abs_lower=float(ma_med[k] - ma_lo[k]),
+                    delta_mean_abs_upper=float(ma_hi[k] - ma_med[k]),
+                    slope_mean_abs_vs_tau=slope,
+                    share_q05=sh_lo,
+                    share_q50=sh_med,
+                    share_q95=sh_hi,
+                    delta_share_full=sh_hi - sh_lo,
+                    mean_abs_local_delta_full=float(mean_abs_d[k]),
+                    mean_abs_local_delta_lower=float(mean_abs_d_lower[k]),
+                    mean_abs_local_delta_upper=float(mean_abs_d_upper[k]),
+                    mean_signed_local_delta_full=float(mean_d[k]),
+                )
+            )
+
+        # Grouped bars: Δ mean|SHAP| lower / upper / full span
+        x = np.arange(len(FACTORS))
+        w = 0.25
+        fig, ax = plt.subplots(figsize=(7.2, 3.8))
+        d_lo_bar = ma_med - ma_lo
+        d_hi_bar = ma_hi - ma_med
+        d_span_bar = ma_hi - ma_lo
+        ax.bar(
+            x - w,
+            d_lo_bar,
+            width=w,
+            color=REF_COLOR,
+            label=r"$\Delta$ lower ($\tau$ 0.50−0.05)",
+        )
+        ax.bar(
+            x,
+            d_hi_bar,
+            width=w,
+            color=target_color(tgt),
+            alpha=0.65,
+            label=r"$\Delta$ upper ($\tau$ 0.95−0.50)",
+        )
+        ax.bar(
+            x + w,
+            d_span_bar,
+            width=w,
+            color=target_color(tgt),
+            edgecolor="black",
+            linewidth=0.6,
+            label=r"$\Delta$ full ($\tau$ 0.95−0.05)",
+        )
+        ax.axhline(0, color=REF_COLOR, lw=0.8)
+        ax.set_xticks(x)
+        ax.set_xticklabels(FACTORS)
+        ax.set_ylabel(r"$\Delta$ mean $|$SHAP$|$")
+        ax.set_title(f"SHAP change across τ — {target_label(tgt)}")
+        ax.legend(fontsize=8, frameon=False, loc="best")
+        _save(fig, f"shap_tau_delta_{tgt}.png")
+
+    _csv(pd.DataFrame(interval_rows), "shap_interval_delta.csv")
+    _csv(pd.DataFrame(tau_sens_rows), "shap_tau_sensitivity.csv")
 
     # ------------------------------------------------------------------
     # 4) Quantile interaction share vs τ
@@ -472,7 +696,7 @@ def main() -> None:
         print("\n=== Skipping quantile interactions (--skip-interactions) ===")
 
     # ------------------------------------------------------------------
-    # 5) PDP by factor (3 quantiles overlaid) + centered H²
+    # 5) PDP by target (all factors as subplots; τ∈{0.05,0.50,0.95})
     # ------------------------------------------------------------------
     if not SKIP_PDP:
         print("\n=== PDP + centered H² ===")
@@ -481,8 +705,12 @@ def main() -> None:
             f: np.linspace(X_pdp[:, k].min(), X_pdp[:, k].max(), PDP_GRID)
             for k, f in enumerate(FACTORS)
         }
+        tau_style = {
+            0.05: dict(ls="--", lw=1.4, alpha=0.75),
+            0.50: dict(ls="-", lw=1.8, alpha=0.95),
+            0.95: dict(ls=":", lw=1.4, alpha=0.75),
+        }
         for tgt in Q_TARGETS:
-            # Cache 1D PDPs for H² and plotting
             pd1 = {tau: {} for tau in TAIL_TAUS}
             for tau in TAIL_TAUS:
                 model = quant_models[tgt][tau]
@@ -494,54 +722,44 @@ def main() -> None:
                             dict(target=tgt, tau=tau, factor=f, x=float(x), pdp=float(y))
                         )
 
-                # H² matrix
-                h = np.zeros((len(FACTORS), len(FACTORS)))
-                for i, j in combinations(range(len(FACTORS)), 2):
-                    fi, fj = FACTORS[i], FACTORS[j]
-                    pd_ij = pd_2d(model, X_pdp, i, j, grids[fi], grids[fj])
-                    val = friedman_h2(pd_ij, pd1[tau][fi], pd1[tau][fj])
-                    h[i, j] = h[j, i] = val
-                    h2_rows.append(dict(target=tgt, tau=tau, factor_i=fi, factor_j=fj, H2=val))
-
-                fig, ax = plt.subplots(figsize=(5.2, 4.4))
-                im = ax.imshow(h, cmap=get_crameri_cmap("lapaz"), vmin=0, vmax=1)
-                ax.set_xticks(range(5))
-                ax.set_yticks(range(5))
-                ax.set_xticklabels(FACTORS, rotation=45, ha="right")
-                ax.set_yticklabels(FACTORS)
-                ax.set_title(f"Centered H² — {target_label(tgt)}, τ={tau:g}")
-                for i in range(5):
-                    for j in range(5):
-                        if i != j:
-                            ax.text(
-                                j,
-                                i,
-                                f"{h[i, j]:.2f}",
-                                ha="center",
-                                va="center",
-                                fontsize=7,
-                            )
-                fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label=r"$H^2$")
-                _save(fig, f"h2_heatmap_{tgt}_q{int(tau * 100):02d}.png")
-
-            # One PDP plot per factor with three quantiles overlaid
-            for f in FACTORS:
-                fig, ax = plt.subplots(figsize=(4.8, 3.5))
-                for tau, ls in zip(TAIL_TAUS, ["--", "-", ":"]):
+            n_fac = len(FACTORS)
+            fig, axes = plt.subplots(
+                1,
+                n_fac,
+                figsize=(2.6 * n_fac, 3.4),
+                sharey=True,
+                layout="constrained",
+            )
+            for col, f in enumerate(FACTORS):
+                ax = axes[col]
+                for tau in TAIL_TAUS:
                     ax.plot(
                         grids[f],
                         pd1[tau][f],
-                        ls,
                         color=FACTOR_COLORS[f],
-                        lw=1.8 if tau == 0.5 else 1.4,
-                        alpha=0.95 if tau == 0.5 else 0.75,
                         label=rf"$\tau={tau:g}$",
+                        **tau_style[tau],
                     )
                 ax.set_xlabel(f)
-                ax.set_ylabel(f"partial dependence ({target_label(tgt)})")
-                ax.set_title(f"PDP — {target_label(tgt)}: {f}")
-                ax.legend(fontsize=8, frameon=False)
-                _save(fig, f"pdp_{tgt}_{f}.png")
+                ax.set_title(f)
+                panel_letter(ax, "abcde"[col])
+            axes[0].set_ylabel(f"partial dependence ({target_label(tgt)})")
+            # Single shared τ legend from the first panel
+            handles, labels = axes[0].get_legend_handles_labels()
+            fig.legend(
+                handles,
+                labels,
+                loc="upper center",
+                ncol=len(TAIL_TAUS),
+                fontsize=8,
+                frameon=False,
+                bbox_to_anchor=(0.5, 1.08),
+            )
+            fig.suptitle(
+                f"Partial dependence — {target_label(tgt)} (seed hold-out)",
+                fontsize=11,
+            )
+            _save(fig, f"pdp_{tgt}.png")
 
         _csv(pd.DataFrame(pdp_rows), "pdp_by_quantile.csv")
         _csv(pd.DataFrame(h2_rows), "h2_by_quantile.csv")

@@ -79,6 +79,7 @@ _ORIG_SET_XLABEL = Axes.set_xlabel
 _ORIG_SET_YLABEL = Axes.set_ylabel
 _ORIG_SET_TITLE = Axes.set_title
 _ORIG_LEGEND = Axes.legend
+_ORIG_FIG_LEGEND = Figure.legend
 _ORIG_SET_XTICKLABELS = Axes.set_xticklabels
 _ORIG_SET_YTICKLABELS = Axes.set_yticklabels
 _ORIG_IMSHOW = Axes.imshow
@@ -127,6 +128,17 @@ def _patched_legend(self, *args, **kwargs):
     kwargs.setdefault("edgecolor", "none")
     kwargs.setdefault("fontsize", _ACTIVE_FONT_SIZE)
     leg = _ORIG_LEGEND(self, *args, **kwargs)
+    if leg is not None:
+        for txt in leg.get_texts():
+            txt.set_text(format_label(txt.get_text()))
+            txt.set_fontsize(kwargs["fontsize"])
+    return leg
+
+
+def _patched_fig_legend(self, *args, **kwargs):
+    """Format legend texts on ``Figure.legend`` (Axes patch does not apply)."""
+    kwargs.setdefault("fontsize", _ACTIVE_FONT_SIZE)
+    leg = _ORIG_FIG_LEGEND(self, *args, **kwargs)
     if leg is not None:
         for txt in leg.get_texts():
             txt.set_text(format_label(txt.get_text()))
@@ -195,6 +207,7 @@ def _install_monkeypatches() -> None:
     Axes.bar = _patched_bar
     Axes.barh = _patched_barh
     Figure.suptitle = _patched_suptitle
+    Figure.legend = _patched_fig_legend
     _MONKEYPATCHED = True
 
 

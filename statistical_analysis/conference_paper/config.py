@@ -52,8 +52,23 @@ N_ROWS_FULL = N_CELLS * N_CHANNELS * N_SEEDS  # 2,454,300
 N_ROWS_CENTER = N_CELLS * N_SEEDS  # 24,300
 
 DEFAULT_SPLIT_BY = "seed"  # seed-grouped hold-out is the package default
-DEFAULT_TAUS = [0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95]
-FIG_DPI = 150
+DEFAULT_TAUS = [0.05, 0.25, 0.50, 0.75, 0.95]
+
+# Figure geometry — every conference-paper figure uses this column width.
+FIG_WIDTH = 6.5  # inches
+ASPECT_RATIO = 0.75  # height / width
+FIG_DPI = 300
+
+
+def figsize(height: float | None = None) -> tuple[float, float]:
+    """Return ``(FIG_WIDTH, height)`` for matplotlib ``figsize``.
+
+    When *height* is omitted, uses ``FIG_WIDTH * ASPECT_RATIO``.
+    """
+    if height is None:
+        height = FIG_WIDTH * ASPECT_RATIO
+    return (FIG_WIDTH, float(height))
+
 
 # ---------------------------------------------------------------------------
 # Paul Tol Bright palette (factor + reference colors)
@@ -99,8 +114,8 @@ COMPARE_COLOR = TOL_BRIGHT["purple"]
 
 # Display labels (natural log is explicit; auto-format uses LABEL_MAP keys)
 TARGET_LABELS = {
-    "abs_TF_ratio": r"$|TF|_0^N$",
-    "log_abs": r"$\ln(|TF|_0^N)$",
+    "abs_TF_ratio": r"$TF_0^N$",
+    "log_abs": r"$\ln(TF_0^N)$",
     "f_ratio": r"$f_0^N$",
 }
 

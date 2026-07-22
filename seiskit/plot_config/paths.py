@@ -36,6 +36,8 @@ TOPIC_BY_SCRIPT = {
     "quantile_shape_cell": "shap",
     "shap_interactions": "shap",
     "shap_seed_suite": "shap",
+    "shap_combined_figures": "shap",
+    "shap_ubiqtree": "shap",
     "shap_summary": "shap",
     "shap_summary_abs_TF": "shap",
     "shap_summary_f_ratio": "shap",

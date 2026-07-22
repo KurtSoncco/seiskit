@@ -120,12 +120,13 @@ Reserved: purple `#AA3377`, gray `#BBBBBB`.
 
 ### SHAP / xAI
 - `shap_seed_suite.py` — **QBM xAI suite** by default (plots for quantiles /
-  PDP / H² only). Mean-GBM SHAP tables are still written to CSV; add
-  ``--plot-mean`` if you want mean-GBM plots too.
+  PDP / H² only), including side-by-side beeswarms at τ=0.05 / 0.50 / 0.95.
+  Mean-GBM SHAP tables are still written to CSV; add ``--plot-mean`` if you
+  want mean-GBM plots too.
 - `shap_summary.py`, `shap_interactions.py`, `quantile_shap_tails.py`,
   `quantile_shap_interactions.py` — older single-purpose scripts (still usable)
-- `quantile_shape_cell.py` — cell-split beeswarm / PDP / H²
-  (requires `*_cell.pkl` models)
+- `quantile_shape_cell.py` — cell-split beeswarm (τ=0.05 / 0.50 / 0.95) /
+  PDP / H² (requires `*_cell.pkl` models)
 
 Re-run the suite without recomputing SHAP::
 

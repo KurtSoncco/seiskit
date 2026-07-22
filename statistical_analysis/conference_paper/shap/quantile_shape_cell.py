@@ -150,44 +150,51 @@ pairs = list(combinations(range(len(FACTORS)), 2))
 # Apply style to plots
 apply_style(auto_format=True, font_size=10, frame="open")
 
-# Plot beeswarm (τ=0.50) for both targets in a 1x2 figure with one colorbar
-beeswarm_cmap = get_crameri_cmap("berlin")
-fig, axes = plt.subplots(1, 2, figsize=(13, 5), layout="constrained")
-mean_abs = np.mean([np.abs(shap_vals[t][0.50]).mean(0) for t in TARGETS], axis=0)
-feature_order = np.argsort(-mean_abs)
-
-for col, tgt_key in enumerate(TARGETS):
-    expl = shap.Explanation(
-        values=shap_vals[tgt_key][0.50],
-        data=X_shap.values,
-        feature_names=FACTORS,
+# Side-by-side beeswarms at τ=0.05 / 0.50 / 0.95 (per target) so tail-only
+# feature impacts stand out against the median.
+TAIL_BEESWARM = [0.05, 0.50, 0.95]
+beeswarm_cmap = get_crameri_cmap("managua").reversed()
+for tgt_key in TARGETS:
+    mean_abs = np.mean(
+        [np.abs(shap_vals[tgt_key][tau]).mean(0) for tau in TAIL_BEESWARM],
+        axis=0,
     )
-    shap.plots.beeswarm(
-        expl,
-        ax=axes[col],
-        show=False,
-        color=beeswarm_cmap,
-        color_bar=False,
-        plot_size=None,
-        order=feature_order,
+    feature_order = np.argsort(-mean_abs)
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.6), layout="constrained")
+    for col, tau in enumerate(TAIL_BEESWARM):
+        expl = shap.Explanation(
+            values=shap_vals[tgt_key][tau],
+            data=X_shap.values,
+            feature_names=FACTORS,
+        )
+        shap.plots.beeswarm(
+            expl,
+            ax=axes[col],
+            show=False,
+            color=beeswarm_cmap,
+            color_bar=False,
+            plot_size=None,
+            order=feature_order,
+        )
+        axes[col].set_title(rf"$\tau={tau:g}$")
+        if col > 0:
+            axes[col].set_yticklabels([])
+        panel_letter(axes[col], "abc"[col])
+
+    sm = mpl_cm.ScalarMappable(cmap=beeswarm_cmap)
+    sm.set_array([0, 1])
+    cbar = fig.colorbar(sm, ax=axes, ticks=[0, 1], shrink=0.85, location="right")
+    cbar.set_ticklabels(["Low", "High"])
+    cbar.set_label("Feature value")
+    cbar.ax.tick_params(length=0)
+
+    fig.suptitle(f"SHAP beeswarm — {NICE[tgt_key]} (cell-grouped QBM)")
+    fig.savefig(
+        result_path("plots", f"quantile_shap_beeswarm_{tgt_key}.png"),
+        dpi=FIG_DPI,
+        bbox_inches="tight",
     )
-    axes[col].set_title(NICE[tgt_key])
-    if col > 0:
-        axes[col].set_yticklabels([])
-    panel_letter(axes[col], "ab"[col])
-
-sm = mpl_cm.ScalarMappable(cmap=beeswarm_cmap)
-sm.set_array([0, 1])
-# Locate correctly the colorbar to the right of the figure, without superimposing on the plots
-cbar = fig.colorbar(sm, ax=axes, ticks=[0, 1], shrink=0.85, location="right")
-cbar.set_ticklabels(["Low", "High"])
-cbar.set_label("Feature value")
-cbar.ax.tick_params(length=0)
-
-fig.suptitle("SHAP beeswarm (τ=0.50, Cell-Grouped QBM)")
-fig.tight_layout()
-fig.savefig(result_path("plots", "quantile_shap_beeswarm.png"), dpi=FIG_DPI, bbox_inches="tight")
-plt.close()
+    plt.close()
 
 # Plot quantile-specific physics
 fig, axes = plt.subplots(1, 2, figsize=(13, 5))
@@ -267,7 +274,7 @@ for tgt_key in TARGETS:
             h[i, j] = h[j, i] = friedman_h2(
                 model, X_ref, i, j, grids[FACTORS[i]], grids[FACTORS[j]]
             )
-        im = ax.imshow(h, cmap=get_crameri_cmap("lapaz"), vmin=0, vmax=max(0.15, h.max()))
+        im = ax.imshow(h, cmap=get_crameri_cmap("bamako"), vmin=0, vmax=max(0.15, h.max()))
         ax.set_xticks(range(len(FACTORS)))
         ax.set_yticks(range(len(FACTORS)))
         ax.set_xticklabels(FACTORS, rotation=45, ha="right", fontsize=8)
@@ -275,7 +282,15 @@ for tgt_key in TARGETS:
         for ii in range(len(FACTORS)):
             for jj in range(len(FACTORS)):
                 if ii != jj:
-                    ax.text(jj, ii, f"{h[ii, jj]:.2f}", ha="center", va="center", fontsize=7)
+                    ax.text(
+                        jj,
+                        ii,
+                        f"{h[ii, jj]:.2f}",
+                        ha="center",
+                        va="center",
+                        fontsize=7,
+                        color="white",
+                    )
         ax.set_title(f"τ={tau:g}")
         panel_letter(ax, "abc"[k])
 

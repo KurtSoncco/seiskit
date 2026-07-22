@@ -4,6 +4,10 @@ Panel (a): outside-domain free-field BC strips + domain flanks + main window,
 with dimension arrows for Lx,var and L_array. Panel (b): zoom with spike
 geophones (center-only or full array).
 
+Paper targets:
+  - Full paper → array receivers, DOC_WIDTH = 7 in
+  - Conference paper → center receiver, DOC_WIDTH = 6.5 in
+
 Produces: model_scheme_{center,array}.{png,pdf,svg} under Box complete/figures.
 """
 
@@ -43,9 +47,15 @@ OUT_DIR = Path(
 )
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-DOC_WIDTH = 6.5
-ASPECT_RATIO = 0.75
-FIG_HEIGHT = DOC_WIDTH * ASPECT_RATIO
+ASPECT_RATIO = 0.75  # 3:2; full-paper height stays under ~170 mm at 7 in width
+
+# Conference paper: single center geophone
+CONF_DOC_WIDTH = 6.5  # inches
+CONF_FIG_HEIGHT = CONF_DOC_WIDTH * ASPECT_RATIO
+
+# Full paper: full receiver array
+FULL_DOC_WIDTH = 7.0  # inches
+FULL_FIG_HEIGHT = FULL_DOC_WIDTH * ASPECT_RATIO
 
 VMIN, VMAX = 140.0, 340.0
 LX_VAR = 500.0
@@ -67,6 +77,17 @@ MAIN_WIDTH = WIN_CENTER[1] - WIN_CENTER[0]
 CBAR_WIDTH = 20.0
 
 ReceiverMode = Literal["center", "array"]
+PaperTarget = Literal["conference", "full"]
+
+# Which receiver layout each manuscript uses
+PAPER_RECEIVERS: dict[PaperTarget, ReceiverMode] = {
+    "full": "array",
+    "conference": "center",
+}
+PAPER_SIZE: dict[PaperTarget, tuple[float, float]] = {
+    "full": (FULL_DOC_WIDTH, FULL_FIG_HEIGHT),
+    "conference": (CONF_DOC_WIDTH, CONF_FIG_HEIGHT),
+}
 
 
 def load_vs(path: Path) -> tuple[np.ndarray, float, float, float, float]:
@@ -211,6 +232,7 @@ def plot_model_scheme(
     dx: float,
     *,
     receivers: ReceiverMode = "array",
+    figsize: tuple[float, float] | None = None,
 ) -> plt.Figure:
     """Build the two-panel model-scheme figure."""
     _nz, nx = vs.shape
@@ -221,7 +243,9 @@ def plot_model_scheme(
     cmap = get_crameri_cmap("navia", reverse=False).copy()
     cmap.set_over("gray")
 
-    fig = plt.figure(figsize=(DOC_WIDTH, FIG_HEIGHT))
+    if figsize is None:
+        figsize = PAPER_SIZE["full" if receivers == "array" else "conference"]
+    fig = plt.figure(figsize=figsize)
     # Top: FF | flank | main | flank | FF | cbar
     # Bottom: panel (b) spans domain columns (1:4), cbar shared
     gs = fig.add_gridspec(
@@ -420,8 +444,10 @@ def _export(fig: plt.Figure, stem: str) -> None:
 def main() -> None:
     vs, lx, lz, dx, _dz = load_vs(H5_PATH)
 
-    for mode in ("center", "array"):
-        fig = plot_model_scheme(vs, lx, lz, dx, receivers=mode)
+    # Full paper → array; conference paper → center (with matching page widths).
+    for paper in ("full", "conference"):
+        mode = PAPER_RECEIVERS[paper]
+        fig = plot_model_scheme(vs, lx, lz, dx, receivers=mode, figsize=PAPER_SIZE[paper])
         _export(fig, f"model_scheme_{mode}")
         plt.close(fig)
 
