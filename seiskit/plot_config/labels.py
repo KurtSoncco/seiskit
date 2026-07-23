@@ -36,6 +36,10 @@ _REPLACEMENTS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\blog[_ ]?abs\b", re.IGNORECASE), r"$\ln(TF_0^N)$"),
     (re.compile(r"\babs[_ \s]?TF[_ \s]?ratio\b", re.IGNORECASE), r"$TF_0^N$"),
     (re.compile(r"\babs[_ \s]?TF\b", re.IGNORECASE), r"$TF_0^N$"),
+    # 1D-normalized IM ratios (χ family)
+    (re.compile(r"\bPGA[_ ]?ratio\b", re.IGNORECASE), r"$\mathrm{PGA}^N$"),
+    (re.compile(r"\bPSA[_ ]?ratio\b", re.IGNORECASE), r"$\mathrm{PSA}^N$"),
+    (re.compile(r"\bI[_ ]?a[_ ]?ratio\b", re.IGNORECASE), r"$I_a^N$"),
     # Handle variants where $f$ is already partially LaTeX-ified
     (re.compile(r"\$f\$\s*ratio", re.IGNORECASE), r"$f_0^N$"),
     (re.compile(r"\bf[_ ]?ratio\b", re.IGNORECASE), r"$f_0^N$"),
@@ -56,6 +60,14 @@ LABEL_MAP: dict[str, str] = {
     "abs_TF_ratio": r"$TF_0^N$",
     "abs_TF": r"$TF_0^N$",
     "f_ratio": r"$f_0^N$",
+    "PGA_ratio": r"$\mathrm{PGA}^N$",
+    "PSA_ratio": r"$\mathrm{PSA}^N$",
+    "Ia_ratio": r"$I_a^N$",
+    "ln_f_ratio": r"$\ln(f_0^N)$",
+    "ln_abs_TF_ratio": r"$\ln(TF_0^N)$",
+    "ln_PGA_ratio": r"$\ln(\mathrm{PGA}^N)$",
+    "ln_PSA_ratio": r"$\ln(\mathrm{PSA}^N)$",
+    "ln_Ia_ratio": r"$\ln(I_a^N)$",
     "a_HV": r"$a_{hv}$",
     "aHV": r"$a_{hv}$",
     "Vs1": r"$V_{s1}$ (m/s)",
@@ -65,6 +77,21 @@ LABEL_MAP: dict[str, str] = {
     "CoV": r"$\mathrm{CoV}$",
     "CV": r"$\mathrm{CoV}$",
 }
+
+_LN_WRAP = re.compile(r"^(?:ln|log)\s*\(\s*(.+?)\s*\)$", re.IGNORECASE)
+
+
+def as_ln_label(label: str) -> str:
+    """Wrap a mathtext ``$...$`` label as ``$\\ln(...)$`` (no double wrap)."""
+    s = label.strip()
+    if s.startswith("$") and s.endswith("$") and len(s) >= 2:
+        inner = s[1:-1]
+    else:
+        inner = s
+    stripped = inner.strip()
+    if stripped.startswith(r"\ln(") and stripped.endswith(")"):
+        return f"${stripped}$"
+    return rf"$\ln({stripped})$"
 
 
 def rename_channel(text: str) -> str:
@@ -81,10 +108,15 @@ def format_label(text: str) -> str:
     """Substitute known variable names with their LaTeX equivalents.
 
     Handles underscore, space, and mixed-case variants (e.g. ``"abs TF ratio"``,
-    ``"abs_TF_ratio"``, ``"f_ratio"``, ``"f ratio"``).
+    ``"abs_TF_ratio"``, ``"f_ratio"``, ``"PGA_ratio"``, ``"Ia_ratio"``).
+    ``ln(...)`` / ``log(...)`` wrappers become ``$\\ln(...)$`` around the
+    formatted inner label.
     """
     if not isinstance(text, str) or not text:
         return text
+    wrapped = _LN_WRAP.match(text.strip())
+    if wrapped:
+        return as_ln_label(format_label(wrapped.group(1)))
     result = text
     for pattern, repl in _REPLACEMENTS:
         # Use lambda to avoid re.sub interpreting LaTeX backslashes as backrefs

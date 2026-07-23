@@ -115,6 +115,88 @@ TICK_MINOR_SIZE = 1.5
 DATA_LINEWIDTH = 1.0  # keep data strokes within the 1 pt ceiling
 SPINE_LINEWIDTH = AXIS_LINEWIDTH
 
+# ---------------------------------------------------------------------------
+# Paul Tol palettes — Bright for factors, Muted for χ metrics
+# ---------------------------------------------------------------------------
+# Bright purple/gray reserved for reference overlays (not factors).
+# Muted cyan/green/sand/rose skipped for metrics (too close to Bright aHV/CoV/rH/Height).
+FACTORS = ["Vs1", "Height", "CoV", "rH", "aHV"]
+METRICS = ("f_ratio", "abs_TF_ratio", "PGA_ratio", "PSA_ratio", "Ia_ratio")
+
+TOL_BRIGHT = {
+    "blue": "#4477AA",
+    "red": "#EE6677",
+    "green": "#228833",
+    "yellow": "#CCBB44",
+    "cyan": "#66CCEE",
+    "purple": "#AA3377",
+    "gray": "#BBBBBB",
+}
+
+TOL_MUTED = {
+    "indigo": "#332288",
+    "cyan": "#88CCEE",
+    "teal": "#44AA99",
+    "green": "#117733",
+    "olive": "#999933",
+    "sand": "#DDCC77",
+    "rose": "#CC6677",
+    "wine": "#882255",
+    "purple": "#AA4499",
+    "pale_grey": "#DDDDDD",
+}
+
+FACTOR_COLORS = {
+    "Vs1": TOL_BRIGHT["blue"],
+    "Height": TOL_BRIGHT["red"],
+    "CoV": TOL_BRIGHT["green"],
+    "rH": TOL_BRIGHT["yellow"],
+    "aHV": TOL_BRIGHT["cyan"],
+}
+
+METRIC_COLORS = {
+    "f_ratio": TOL_MUTED["indigo"],
+    "abs_TF_ratio": TOL_MUTED["teal"],
+    "PGA_ratio": TOL_MUTED["wine"],
+    "PSA_ratio": TOL_MUTED["purple"],
+    "Ia_ratio": TOL_MUTED["olive"],
+}
+
+# 1D-normalized ratios χ; superscript N matches conference LABEL_MAP convention.
+METRIC_LABELS = {
+    "f_ratio": r"$f_0^N$",
+    "abs_TF_ratio": r"$TF_0^N$",
+    "PGA_ratio": r"$\mathrm{PGA}^N$",
+    "PSA_ratio": r"$\mathrm{PSA}^N$",
+    "Ia_ratio": r"$I_a^N$",
+}
+
+REF_COLOR = TOL_BRIGHT["gray"]
+COMPARE_COLOR = TOL_BRIGHT["purple"]
+
+
+def factor_color(name: str) -> str:
+    """Return Paul Tol Bright color for a factor (strips ``_z`` suffix)."""
+    key = name[:-2] if name.endswith("_z") else name
+    return FACTOR_COLORS[key]
+
+
+def metric_color(name: str) -> str:
+    """Return Paul Tol Muted color for a χ metric column."""
+    return METRIC_COLORS[name]
+
+
+def metric_label(name: str, *, log: bool = False) -> str:
+    """Return the display LaTeX label for a χ metric column.
+
+    When *log* is True, wrap as ``$\\ln(...)$`` (e.g. ``$\\ln(f_0^N)$``).
+    """
+    from seiskit.plot_config.labels import as_ln_label
+
+    label = METRIC_LABELS[name]
+    return as_ln_label(label) if log else label
+
+
 _SUBFIG_LABELS = list(string.ascii_lowercase)
 
 

@@ -27,6 +27,7 @@ from seiskit.plot_config.helpers import (
 )
 from seiskit.plot_config.labels import (
     LABEL_MAP,
+    as_ln_label,
     format_label,
     rename_channel,
     to_title_case,
@@ -54,6 +55,7 @@ __all__ = [
     "get_crameri_cmap",
     # Labels
     "LABEL_MAP",
+    "as_ln_label",
     "format_label",
     "rename_channel",
     "to_title_case",

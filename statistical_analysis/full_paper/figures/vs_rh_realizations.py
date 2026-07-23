@@ -144,7 +144,7 @@ def plot_vs_rh_realizations(fields: list[np.ndarray]) -> plt.Figure:
         3,
         width_ratios=[1.0, 1.0, 0.04],
         height_ratios=[1.0, 1.0],
-        wspace=0.06,
+        wspace=0.15,
         hspace=0.05,
         left=0.07,
         right=0.92,
