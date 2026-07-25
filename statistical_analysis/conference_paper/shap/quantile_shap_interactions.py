@@ -14,7 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import (  # noqa: E402
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     cached_shap,
+    figsize,
     load_channel50,
     load_quantile_models,
     seed_grouped_split,
@@ -80,7 +82,7 @@ for tgt in ["log_abs", "f_ratio"]:
 qint = pd.DataFrame(rows)
 qint.to_csv(result_path("data", "quantile_shap_interactions.csv"), index=False)
 
-fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+fig, axes = plt.subplots(1, 2, figsize=figsize(height=FIG_WIDTH * 0.45))
 tcol = {"log_abs": target_color("log_abs"), "f_ratio": target_color("f_ratio")}
 nice = {"log_abs": target_label("log_abs"), "f_ratio": target_label("f_ratio")}
 
@@ -105,11 +107,6 @@ ax.set_title("Dominant pair interaction vs quantile", fontsize=10)
 ax.legend(frameon=False, fontsize=8)
 panel_letter(ax, "b")
 
-fig.suptitle(
-    "Per-quantile SHAP interaction structure (channel 50)",
-    fontsize=12,
-    y=1.02,
-)
 fig.tight_layout()
 fig.savefig(
     result_path("plots", "quantile_shap_interactions.png"),

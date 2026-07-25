@@ -69,8 +69,10 @@ from config import (  # noqa: E402
     FACTOR_COLORS,
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     REF_COLOR,
     cached_shap,
+    figsize,
     load_channel50,
     load_mean_models,
     load_quantile_models,
@@ -228,11 +230,6 @@ def main() -> None:
                 sort=True,
             )
             fig = plt.gcf()
-            fig.suptitle(
-                f"Mean SHAP beeswarm — {target_label(tgt)} (seed hold-out)",
-                fontsize=11,
-                y=1.02,
-            )
             fig.axes[0].set_xlabel(f"SHAP value (impact on {target_label(tgt)})")
             _save(fig, f"mean_beeswarm_{tgt}.png")
 
@@ -249,7 +246,7 @@ def main() -> None:
             ax.set_title(f"Mean |SHAP| importance — {target_label(tgt)}")
             _save(fig, f"mean_importance_{tgt}.png")
 
-            fig, axes = plt.subplots(1, 5, figsize=(13, 2.8), sharey=True)
+            fig, axes = plt.subplots(1, 5, figsize=figsize(height=2.8), sharey=True)
             for ax, f in zip(axes, FACTORS):
                 sub = [r for r in dir_rows if r["target"] == tgt and r["factor"] == f]
                 xs = [r["level"] for r in sub]
@@ -259,11 +256,6 @@ def main() -> None:
                 ax.set_title(f)
                 ax.set_xlabel("level")
             axes[0].set_ylabel("mean signed SHAP")
-            fig.suptitle(
-                f"Signed SHAP directionality — {target_label(tgt)}",
-                fontsize=11,
-                y=1.05,
-            )
             fig.tight_layout()
             _save(fig, f"mean_directionality_{tgt}.png")
 
@@ -405,7 +397,7 @@ def main() -> None:
             axis=0,
         )
         feature_order = np.argsort(-mean_abs)
-        fig, axes = plt.subplots(1, 3, figsize=(14, 4.6), layout="constrained")
+        fig, axes = plt.subplots(1, 3, figsize=figsize(height=FIG_WIDTH * 0.45), layout="constrained")
         for col, tau in enumerate(TAIL_TAUS):
             expl = shap.Explanation(
                 values=q_shap_tail[(tgt, tau)],
@@ -431,10 +423,6 @@ def main() -> None:
         cbar.set_ticklabels(["Low", "High"])
         cbar.set_label("Feature value")
         cbar.ax.tick_params(length=0)
-        fig.suptitle(
-            f"Quantile SHAP beeswarm — {target_label(tgt)} (seed hold-out)",
-            fontsize=11,
-        )
         _save(fig, f"quantile_beeswarm_{tgt}.png")
 
     for tgt, tau, feat, partner in TAIL_DEPS:
@@ -542,10 +530,6 @@ def main() -> None:
             order=np.argsort(-mean_abs_d),
         )
         ax.set_xlabel(r"$\Delta\phi=\phi_{0.95}-\phi_{0.05}$")
-        fig.suptitle(
-            f"Interval ΔSHAP beeswarm — {target_label(tgt)} (seed hold-out)",
-            fontsize=11,
-        )
         _save(fig, f"shap_interval_beeswarm_{tgt}.png")
 
         # --- τ-attribution dynamics ---
@@ -588,7 +572,7 @@ def main() -> None:
         # Grouped bars: Δ mean|SHAP| lower / upper / full span
         x = np.arange(len(FACTORS))
         w = 0.25
-        fig, ax = plt.subplots(figsize=(7.2, 3.8))
+        fig, ax = plt.subplots(figsize=figsize(height=3.8))
         d_lo_bar = ma_med - ma_lo
         d_hi_bar = ma_hi - ma_med
         d_span_bar = ma_hi - ma_lo
@@ -726,7 +710,7 @@ def main() -> None:
             fig, axes = plt.subplots(
                 1,
                 n_fac,
-                figsize=(2.6 * n_fac, 3.4),
+                figsize=figsize(height=3.4),
                 sharey=True,
                 layout="constrained",
             )
@@ -753,11 +737,7 @@ def main() -> None:
                 ncol=len(TAIL_TAUS),
                 fontsize=8,
                 frameon=False,
-                bbox_to_anchor=(0.5, 1.08),
-            )
-            fig.suptitle(
-                f"Partial dependence — {target_label(tgt)} (seed hold-out)",
-                fontsize=11,
+                bbox_to_anchor=(0.5, 1.02),
             )
             _save(fig, f"pdp_{tgt}.png")
 

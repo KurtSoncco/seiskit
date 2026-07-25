@@ -15,7 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from config import (  # noqa: E402
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     cached_shap,
+    figsize,
     load_channel50,
     load_mean_models,
     seed_grouped_split,
@@ -68,7 +70,7 @@ for tgt in ["log_abs", "f_ratio"]:
     tp[tgt], _ = top_pairs(shap_inter[tgt], 3)
     print(tgt, [(f"{a}×{b}", round(v, 4)) for v, a, b in tp[tgt]])
 
-fig, axes = plt.subplots(2, 3, figsize=(11.5, 7.0))
+fig, axes = plt.subplots(2, 3, figsize=figsize(height=FIG_WIDTH * 0.75))
 for r, tgt in enumerate(["log_abs", "f_ratio"]):
     si = shap_inter[tgt]
     M = np.abs(si).mean(0)
@@ -113,11 +115,6 @@ for r, tgt in enumerate(["log_abs", "f_ratio"]):
 for r, tgt in enumerate(["log_abs", "f_ratio"]):
     panel_letter(axes[r, 0], chr(97 + r * 3))
 
-fig.suptitle(
-    "SHAP interaction structure — LightGBM mean models (channel 50)",
-    fontsize=12,
-    y=1.005,
-)
 fig.tight_layout()
 fig.savefig(
     result_path("plots", "shap_interactions.png"),

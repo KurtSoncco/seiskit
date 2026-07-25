@@ -27,7 +27,9 @@ from config import (  # noqa: E402
     FACTOR_COLORS,
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     REF_COLOR,
+    figsize,
     load_channel50,
     target_color,
 )
@@ -177,7 +179,7 @@ extrap_df = pd.DataFrame(results)
 # ---------------------------------------------------------------------------
 # Figure
 # ---------------------------------------------------------------------------
-fig, axes = plt.subplots(2, 3, figsize=(12, 7))
+fig, axes = plt.subplots(2, 3, figsize=figsize(height=FIG_WIDTH * 0.75))
 
 # Panel a: variance decomposition
 ax = axes[0, 0]
@@ -299,11 +301,6 @@ plot_ie(axes[1, 0], "log_abs", "Height", "d")
 plot_ie(axes[1, 1], "log_abs", "Vs1", "e")
 plot_ie(axes[1, 2], "f_ratio", "aHV", "f")
 
-fig.suptitle(
-    "Seed structure & model interpolation/extrapolation limits (channel 50)",
-    fontsize=12,
-    y=1.005,
-)
 fig.tight_layout()
 fig.savefig(
     result_path("plots", "seed_variance_and_extrapolation.png"), dpi=FIG_DPI, bbox_inches="tight"

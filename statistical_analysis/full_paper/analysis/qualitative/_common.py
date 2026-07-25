@@ -283,8 +283,8 @@ def plot_3x3_figure(
     gs = fig.add_gridspec(
         2,
         1,
-        height_ratios=[0.12, 1.0],
-        hspace=0.04,
+        height_ratios=[0.07, 1.0],
+        hspace=0.02,
         left=0.09,
         right=0.99,
         bottom=0.07,
@@ -292,7 +292,7 @@ def plot_3x3_figure(
     )
     header = fig.add_subplot(gs[0, 0])
     header.axis("off")
-    gs_panels = gs[1, 0].subgridspec(3, 3, wspace=0.10, hspace=0.16)
+    gs_panels = gs[1, 0].subgridspec(3, 3, wspace=0.10, hspace=0.14)
     axes = np.empty((3, 3), dtype=object)
     for r in range(3):
         for c in range(3):
@@ -310,11 +310,11 @@ def plot_3x3_figure(
 
         add_panel_label(ax, i)
         ax.text(
-            0.98,
+            0.02,
             0.97,
             _panel_param_text(rh, cov, ahv),
             transform=ax.transAxes,
-            ha="right",
+            ha="left",
             va="top",
             fontsize=TICK_LABELSIZE,
             linespacing=1.25,
@@ -339,17 +339,7 @@ def plot_3x3_figure(
     assert legend_handles is not None
     header.text(
         0.5,
-        1.0,
-        "Sensitivity of transfer function to parameters",
-        transform=header.transAxes,
-        ha="center",
-        va="top",
-        fontsize=LABEL_FONTSIZE,
-        fontweight="normal",
-    )
-    header.text(
-        0.5,
-        0.68,
+        0.95,
         _subtitle(h, vs1, mode),
         transform=header.transAxes,
         ha="center",
@@ -638,19 +628,10 @@ def make_cross_figure(
     x_tick_cells, y_tick_cells = _tick_label_cells(occupied)
 
     fig = plt.figure(figsize=(DOC_WIDTH_CROSS, FIG_HEIGHT_CROSS), constrained_layout=True)
-    fig.get_layout_engine().set(rect=(0.0, 0.0, 1.0, 0.925))
+    fig.get_layout_engine().set(rect=(0.0, 0.0, 1.0, 0.96))
     fig.text(
         0.5,
         0.985,
-        "Sensitivity of transfer function to parameters",
-        ha="center",
-        va="top",
-        fontsize=LABEL_FONTSIZE,
-        fontweight="normal",
-    )
-    fig.text(
-        0.5,
-        0.952,
         _subtitle(h, vs1, mode),
         ha="center",
         va="top",
@@ -701,11 +682,11 @@ def make_cross_figure(
             letter_i += 1
 
             ax.text(
-                0.98,
+                0.02,
                 0.97,
                 _panel_annotation(case, baseline),
                 transform=ax.transAxes,
-                ha="right",
+                ha="left",
                 va="top",
                 fontsize=TICK_LABELSIZE,
                 linespacing=1.25,

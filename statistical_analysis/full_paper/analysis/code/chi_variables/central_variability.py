@@ -118,8 +118,8 @@ def assess_cell_metric(
         return empty, [], []
 
     # Means: axis 0 = node, axis 1 = seed
-    mu_j = np.nanmean(Y, axis=0)  # (m,) per seed
-    nu_i = np.nanmean(Y, axis=1)  # (n,) per node
+    mu_j = np.nanmean(Y, axis=0)  # (N_s,) per seed
+    nu_i = np.nanmean(Y, axis=1)  # (N_x,) per node
     Y_bar = float(np.nanmean(Y))
 
     s2_W_j = _pop_var(Y, axis=0)  # within seed (across nodes)
@@ -278,23 +278,25 @@ def build_summary_md(cell_df: pd.DataFrame) -> str:
         "",
         "## Notation",
         "",
+        "Canonical symbols: "
+        "`statistical_analysis/full_paper/analysis/NOTATION.md`. "
         "Fix one design cell and one metric $\\chi$. Index **nodes** by "
-        "$i = 1,\\ldots,n$ ($n = 101$) and **seeds** by $j = 1,\\ldots,m$ "
-        "($m = 100$). Work on the log scale",
+        "$i = 1,\\ldots,N_x$ ($N_x = 101$) and **seeds** by "
+        "$j = 1,\\ldots,N_s$ ($N_s = 100$). Work on the log scale",
         "",
         r"$$",
         r"Y_{ij} = \ln \chi_{ij}.",
         r"$$",
         "",
         "All sums below are over finite $Y_{ij}$ only. Population (ddof = 0) "
-        "means and variances divide by the count of terms (not $n-1$).",
+        "means and variances divide by the count of terms (not $N_x-1$).",
         "",
         "### Central tendency",
         "",
         "**Seed log-mean** (average across nodes at fixed seed) and **seed geomean**:",
         "",
         r"$$",
-        r"\mu_j = \frac{1}{n}\sum_{i=1}^{n} Y_{ij},"
+        r"\mu_j = \frac{1}{N_x}\sum_{i=1}^{N_x} Y_{ij},"
         r"\qquad "
         r"G^{\mathrm{seed}}_j = e^{\mu_j}.",
         r"$$",
@@ -302,7 +304,7 @@ def build_summary_md(cell_df: pd.DataFrame) -> str:
         "**Node log-mean** (average across seeds at fixed node) and **node geomean**:",
         "",
         r"$$",
-        r"\nu_i = \frac{1}{m}\sum_{j=1}^{m} Y_{ij},"
+        r"\nu_i = \frac{1}{N_s}\sum_{j=1}^{N_s} Y_{ij},"
         r"\qquad "
         r"G^{\mathrm{node}}_i = e^{\nu_i}.",
         r"$$",
@@ -310,7 +312,7 @@ def build_summary_md(cell_df: pd.DataFrame) -> str:
         "**Overall log-mean** and **overall geomean** (CSV: `ln_chi_bar`, `chi_geom`):",
         "",
         r"$$",
-        r"\bar{Y} = \frac{1}{nm}\sum_{i=1}^{n}\sum_{j=1}^{m} Y_{ij},"
+        r"\bar{Y} = \frac{1}{N_x N_s}\sum_{i=1}^{N_x}\sum_{j=1}^{N_s} Y_{ij},"
         r"\qquad "
         r"G = e^{\bar{Y}}.",
         r"$$",
@@ -319,8 +321,8 @@ def build_summary_md(cell_df: pd.DataFrame) -> str:
         "",
         r"$$",
         r"G ="
-        r"\Bigl(\prod_{j=1}^{m} G^{\mathrm{seed}}_j\Bigr)^{1/m} ="
-        r"\Bigl(\prod_{i=1}^{n} G^{\mathrm{node}}_i\Bigr)^{1/n}.",
+        r"\Bigl(\prod_{j=1}^{N_s} G^{\mathrm{seed}}_j\Bigr)^{1/N_s} ="
+        r"\Bigl(\prod_{i=1}^{N_x} G^{\mathrm{node}}_i\Bigr)^{1/N_x}.",
         r"$$",
         "",
         "Also reported in `cell_summary.csv`:",
@@ -337,7 +339,7 @@ def build_summary_md(cell_df: pd.DataFrame) -> str:
         "",
         r"$$",
         r"s^{2}_{W,j} ="
-        r"\frac{1}{n}\sum_{i=1}^{n} (Y_{ij} - \mu_j)^2.",
+        r"\frac{1}{N_x}\sum_{i=1}^{N_x} (Y_{ij} - \mu_j)^2.",
         r"$$",
         "",
         "Design-level summary (average over seeds; CSV rms form "
@@ -345,21 +347,21 @@ def build_summary_md(cell_df: pd.DataFrame) -> str:
         "",
         r"$$",
         r"\overline{s^{2}_W} ="
-        r"\frac{1}{m}\sum_{j=1}^{m} s^{2}_{W,j}.",
+        r"\frac{1}{N_s}\sum_{j=1}^{N_s} s^{2}_{W,j}.",
         r"$$",
         "",
         "**Across-seed** variance at fixed node $i$ (seed-to-seed scatter at one depth):",
         "",
         r"$$",
         r"s^{2}_{B,i} ="
-        r"\frac{1}{m}\sum_{j=1}^{m} (Y_{ij} - \nu_i)^2.",
+        r"\frac{1}{N_s}\sum_{j=1}^{N_s} (Y_{ij} - \nu_i)^2.",
         r"$$",
         "",
         "Design-level summary (average over nodes; CSV `s_B_bar`):",
         "",
         r"$$",
         r"\overline{s^{2}_B} ="
-        r"\frac{1}{n}\sum_{i=1}^{n} s^{2}_{B,i}.",
+        r"\frac{1}{N_x}\sum_{i=1}^{N_x} s^{2}_{B,i}.",
         r"$$",
         "",
         "### Law of total variance (primary splits)",
@@ -369,22 +371,22 @@ def build_summary_md(cell_df: pd.DataFrame) -> str:
         "",
         r"$$",
         r"\sigma^{2}_{\mathrm{total}} ="
-        r"\frac{1}{nm}"
-        r"\sum_{i=1}^{n}\sum_{j=1}^{m} (Y_{ij} - \bar{Y})^2.",
+        r"\frac{1}{N_x N_s}"
+        r"\sum_{i=1}^{N_x}\sum_{j=1}^{N_s} (Y_{ij} - \bar{Y})^2.",
         r"$$",
         "",
         "**Variance of seed means** (CSV `s_mu` $= \\sqrt{\\sigma^{2}_{\\mu}}$):",
         "",
         r"$$",
         r"\sigma^{2}_{\mu} ="
-        r"\frac{1}{m}\sum_{j=1}^{m} (\mu_j - \bar{Y})^2.",
+        r"\frac{1}{N_s}\sum_{j=1}^{N_s} (\mu_j - \bar{Y})^2.",
         r"$$",
         "",
         "**Variance of node means** (CSV `s_nu` $= \\sqrt{\\sigma^{2}_{\\nu}}$):",
         "",
         r"$$",
         r"\sigma^{2}_{\nu} ="
-        r"\frac{1}{n}\sum_{i=1}^{n} (\nu_i - \bar{Y})^2.",
+        r"\frac{1}{N_x}\sum_{i=1}^{N_x} (\nu_i - \bar{Y})^2.",
         r"$$",
         "",
         "**Seed-conditioned decomposition** (within a realization vs across realizations):",

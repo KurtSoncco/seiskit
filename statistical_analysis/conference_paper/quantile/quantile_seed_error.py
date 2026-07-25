@@ -16,7 +16,7 @@ from scipy.stats import gaussian_kde
 from seiskit.plot_config import apply_style, get_crameri_cmap, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, FIG_DPI, load_channel50, target_color, target_label
+from config import FACTORS, FIG_DPI, FIG_WIDTH, figsize, load_channel50, target_color, target_label
 
 # ---------------------------------------------------------------------------
 # Data
@@ -131,7 +131,7 @@ tcol = {"log_abs": target_color("log_abs"), "f_ratio": target_color("f_ratio")}
 nice = {"log_abs": target_label("log_abs"), "f_ratio": target_label("f_ratio")}
 qcmap = get_crameri_cmap("batlow")(np.linspace(0, 0.9, len(taus)))
 
-fig, axes = plt.subplots(2, 3, figsize=(13, 7.6))
+fig, axes = plt.subplots(2, 3, figsize=figsize(height=FIG_WIDTH * 0.75))
 for r, tgt in enumerate(["log_abs", "f_ratio"]):
     sub = qerr[qerr.target == tgt].set_index("tau")
 
@@ -196,11 +196,6 @@ for r, tgt in enumerate(["log_abs", "f_ratio"]):
     ax.legend(fontsize=6.5, frameon=False)
     panel_letter(ax, chr(99 + r * 3))
 
-fig.suptitle(
-    "Per-quantile Monte Carlo error & seed convergence at n=100 (channel 50)",
-    fontsize=12,
-    y=1.005,
-)
 fig.tight_layout()
 fig.savefig(result_path("plots", "quantile_seed_error.png"), dpi=FIG_DPI, bbox_inches="tight")
 plt.close(fig)

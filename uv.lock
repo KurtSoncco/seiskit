@@ -1209,6 +1209,19 @@ wheels = [
 ]
 
 [[package]]
+name = "gplearn"
+version = "0.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "joblib" },
+    { name = "scikit-learn" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/2d/0a30cb1f4b50865484041e691fe83cffaf64f0da631c42b56178218e4c94/gplearn-0.4.2.tar.gz", hash = "sha256:31b6d04562e639689c44f5bd1475d87201084e7689a986f1784f10a1175b7814", size = 24645, upload-time = "2022-05-03T10:47:32.742Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/b0/063b2ddfd9258c4f43abd3b5d13ca94b53e9479a3f21df18fafe3948b67d/gplearn-0.4.2-py3-none-any.whl", hash = "sha256:4c7204c48ca0a8d8590d085bb2b7b0446245c3796f8d85ee477464de07d27a4d", size = 25723, upload-time = "2022-05-03T10:47:30.387Z" },
+]
+
+[[package]]
 name = "graphviz"
 version = "0.21"
 source = { registry = "https://pypi.org/simple" }
@@ -3765,6 +3778,7 @@ ml = [
     { name = "arviz" },
     { name = "bambi", version = "0.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "bambi", version = "0.17.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "gplearn" },
     { name = "interpret" },
     { name = "lightgbm" },
     { name = "ngboost" },
@@ -3792,6 +3806,7 @@ requires-dist = [
     { name = "cmcrameri" },
     { name = "cmcrameri", marker = "extra == 'analysis'" },
     { name = "fsspec", marker = "extra == 'analysis'" },
+    { name = "gplearn", marker = "extra == 'ml'", specifier = ">=0.4.2" },
     { name = "h5py" },
     { name = "hdf5plugin" },
     { name = "interpret", marker = "extra == 'ml'" },

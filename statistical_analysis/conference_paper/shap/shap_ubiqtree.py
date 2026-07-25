@@ -49,7 +49,9 @@ from config import (  # noqa: E402
     FACTOR_COLORS,
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     REF_COLOR,
+    figsize,
     load_channel50,
     load_mean_models,
     load_quantile_models,
@@ -109,7 +111,7 @@ def _cached_phi_trees(key: str, booster, X: np.ndarray) -> np.ndarray:
 def _plot_bars(result, tag: str, title: str) -> None:
     order = np.argsort(result.mean)
     y = np.arange(len(FACTORS))
-    fig, ax = plt.subplots(figsize=(6.2, 3.8))
+    fig, ax = plt.subplots(figsize=figsize(height=3.8))
     colors = [FACTOR_COLORS[FACTORS[i]] for i in order]
     ax.barh(
         y,
@@ -131,7 +133,7 @@ def _plot_bars(result, tag: str, title: str) -> None:
 def _plot_decompose(result, tag: str, title: str, tgt: str) -> None:
     x = np.arange(len(FACTORS))
     w = 0.25
-    fig, ax = plt.subplots(figsize=(7.2, 3.8))
+    fig, ax = plt.subplots(figsize=figsize(height=3.8))
     ax.bar(x - w, result.aleatoric, width=w, color=REF_COLOR, label="aleatoric $A$")
     ax.bar(
         x,
@@ -159,7 +161,7 @@ def _plot_decompose(result, tag: str, title: str, tgt: str) -> None:
 
 
 def _plot_metrics(result, tag: str, title: str) -> None:
-    fig, axes = plt.subplots(2, 2, figsize=(9.5, 6.5), layout="constrained")
+    fig, axes = plt.subplots(2, 2, figsize=figsize(height=FIG_WIDTH * 0.75), layout="constrained")
     order = np.argsort(np.abs(result.mean))
     names = [FACTORS[i] for i in order]
     panels = [
@@ -176,7 +178,6 @@ def _plot_metrics(result, tag: str, title: str) -> None:
             ax.set_xlim(0, 1)
             ax.axvline(0.9, color="green", ls="--", lw=0.9, alpha=0.8)
             ax.axvline(0.7, color="orange", ls="--", lw=0.9, alpha=0.8)
-    fig.suptitle(title, fontsize=11)
     _save(fig, f"ubiq_metrics_{tag}.png")
 
 
@@ -187,7 +188,7 @@ def _plot_violin(result, tag: str, title: str) -> None:
     order = np.argsort(np.abs(result.mean))
     data = [flat[:, j] for j in order]
     labels = [FACTORS[j] for j in order]
-    fig, ax = plt.subplots(figsize=(7.0, 3.8))
+    fig, ax = plt.subplots(figsize=figsize(height=3.8))
     parts = ax.violinplot(data, showmeans=True, showextrema=True, vert=False)
     for i, body in enumerate(parts["bodies"]):
         body.set_facecolor(FACTOR_COLORS[labels[i]])

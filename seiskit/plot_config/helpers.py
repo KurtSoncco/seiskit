@@ -22,21 +22,21 @@ def panel_letter(
     letter: str,
     *,
     fontsize: int | None = None,
-    x: float = 0.02,
+    x: float = 0.98,
     y: float = 0.98,
 ) -> None:
-    """Place a bare lowercase panel letter (a, b, c, ...) in the axes.
+    """Place a parenthesized panel letter ``(a)``, ``(b)``, ... in the axes.
 
-    Lighter-weight alternative to :func:`add_subfigure_label` — no
-    parentheses, positioned flush with the top-left corner.
+    Lighter-weight alternative to :func:`add_subfigure_label`, positioned
+    flush with the top-right corner by default.
     """
     ax.text(
         x,
         y,
-        letter.lower(),
+        f"({letter.lower()})",
         transform=ax.transAxes,
         va="top",
-        ha="left",
+        ha="right",
         fontweight="bold",
         fontsize=fontsize or FONT_SIZE,
         bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.7, "pad": 1.5},
@@ -48,12 +48,12 @@ def add_subfigure_label(
     ax: Axes,
     index: int,
     *,
-    x: float = 0.04,
-    y: float = 0.97,
+    x: float = 0.98,
+    y: float = 0.98,
     fontsize: int | None = None,
     alpha: float = 0.6,
 ) -> None:
-    """Place a sequential subfigure label (a, b, c, ...) inside the axes.
+    """Place a sequential subfigure label ``(a)``, ``(b)``, ... inside the axes.
 
     The label has a white bounding box with partial transparency so that
     underlying data remains visible.
@@ -65,7 +65,7 @@ def add_subfigure_label(
     index:
         0-based subfigure index (0 → "a", 1 → "b", ...).
     x, y:
-        Position in axes coordinates (upper-left by default).
+        Position in axes coordinates (upper-right by default).
     fontsize:
         Override the default label font size.
     alpha:
@@ -80,7 +80,7 @@ def add_subfigure_label(
         fontsize=fontsize or FONT_SIZE,
         fontweight="bold",
         va="top",
-        ha="left",
+        ha="right",
         bbox=dict(
             boxstyle="round,pad=0.3",
             facecolor="white",
@@ -203,16 +203,16 @@ def annotate_comment(
     ax: Axes,
     text: str,
     *,
-    x: float = 0.98,
+    x: float = 0.02,
     y: float = 0.95,
     fontsize: int | None = None,
     alpha: float = 0.6,
 ) -> None:
-    """Place a text annotation in the upper-right corner of *ax*.
+    """Place a text annotation in the upper-left corner of *ax*.
 
     Uses a white background box with the given *alpha* transparency,
-    suitable for brief notes or context strings that would otherwise
-    crowd a title.
+    suitable for brief notes or context strings.  Defaults to the
+    upper-left so panel letters can occupy the upper-right.
     """
     ax.text(
         x,
@@ -220,7 +220,7 @@ def annotate_comment(
         text,
         transform=ax.transAxes,
         va="top",
-        ha="right",
+        ha="left",
         fontsize=fontsize or (FONT_SIZE - 2),
         bbox={
             "facecolor": "white",

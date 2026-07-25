@@ -43,6 +43,7 @@ ml = [
     "shap",
     "interpret",
     "ngboost",
+    "gplearn>=0.4.2",
     "pygam",
     "bambi",
     "arviz",

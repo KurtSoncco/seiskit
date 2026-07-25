@@ -14,7 +14,7 @@ import pandas as pd
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, FIG_DPI, load_channel50, target_color, target_label
+from config import FACTORS, FIG_DPI, FIG_WIDTH, figsize, load_channel50, target_color, target_label
 
 # ---------------------------------------------------------------------------
 # Data
@@ -106,7 +106,7 @@ nice = {"log_abs": target_label("log_abs"), "f_ratio": target_label("f_ratio")}
 # Figure
 # ---------------------------------------------------------------------------
 apply_style(auto_format=True, font_size=10, frame="open")
-fig, axes = plt.subplots(2, 2, figsize=(11, 8))
+fig, axes = plt.subplots(2, 2, figsize=figsize(height=FIG_WIDTH * 0.75))
 
 # (a) bootstrap convergence of estimators (worst-case high-var cell)
 ax = axes[0, 0]
@@ -181,11 +181,6 @@ ax.set_title("Every factor effect resolved with\nwide margin at n=100", fontsize
 ax.legend(fontsize=7, frameon=False)
 panel_letter(ax, "d")
 
-fig.suptitle(
-    "Is n=100 seeds enough? Monte Carlo convergence & effect resolution (channel 50)",
-    fontsize=12,
-    y=1.005,
-)
 fig.tight_layout()
 fig.savefig(result_path("plots", "seed_adequacy.png"), dpi=FIG_DPI, bbox_inches="tight")
 plt.close(fig)

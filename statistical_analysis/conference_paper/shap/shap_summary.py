@@ -74,7 +74,6 @@ def main() -> None:
         )
         fig = plt.gcf()
         label = target_label(tgt)
-        fig.suptitle(f"Mean SHAP — {label} (center recorder)", fontsize=11, y=1.02)
         ax = fig.axes[0]
         ax.set_xlabel(f"SHAP value (signed impact on {label})")
         # Keep legacy filenames for paper figure wiring

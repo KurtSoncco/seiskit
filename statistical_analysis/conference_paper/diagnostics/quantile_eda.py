@@ -114,7 +114,7 @@ leg = fig.legend(
     handles,
     labels,
     loc="upper center",
-    bbox_to_anchor=(0.5, 0.95),
+    bbox_to_anchor=(0.5, 1.02),
     ncol=3,
     fontsize=8,
     frameon=False,
@@ -123,10 +123,4 @@ leg = fig.legend(
 for line in leg.get_lines():
     line.set_linewidth(2.5)
 
-
-fig.suptitle(
-    "Marginal Quantile Profiles (p5 / p50 / p95) by Factorial Variables",
-    fontsize=10,
-    fontweight="bold",
-)
 fig.savefig(result_path("plots", "quantile_eda.png"), dpi=FIG_DPI, bbox_inches="tight")

@@ -53,8 +53,8 @@ GRID_ALPHA = 0.5
 
 PCT_STYLES = {
     "median": {"ls": "-", "label": "Median"},
-    "p5": {"ls": "--", "label": "P5"},
-    "p95": {"ls": ":", "label": "P95"},
+    "p5": {"ls": "--", "label": "$P_{5}$"},
+    "p95": {"ls": ":", "label": "$P_{95}$"},
 }
 
 Y_LIMS = {

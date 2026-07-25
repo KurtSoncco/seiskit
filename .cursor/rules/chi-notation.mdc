@@ -1,0 +1,30 @@
+---
+description: Canonical χ CT/variability notation (N_x nodes, N_s seeds)
+globs: statistical_analysis/full_paper/analysis/**
+alwaysApply: false
+---
+
+# χ notation for full-paper analysis
+
+Before inventing or changing symbols for central tendency, variability, or sample-size adequacy, read:
+
+[`statistical_analysis/full_paper/analysis/NOTATION.md`](statistical_analysis/full_paper/analysis/NOTATION.md)
+
+## Counts (required)
+
+| Symbol | Meaning |
+|--------|---------|
+| \(N_x\) | number of nodes |
+| \(N_s\) | number of seeds |
+| \(i\) | node index |
+| \(j\) | seed index |
+
+**Never** use bare \(n\)/\(m\) or \(N\)/\(S\) for node/seed counts in math, markdown, or plot labels.
+
+Keep code identifiers as-is: `N_NODES`, `N_SEEDS`, `n_nodes`, `n_seeds`, and historical CSV names (`S_req_*`, `adequate_mean_S100`, …).
+
+## Common pitfall
+
+- \(n_{\mathrm{eff}}\) is CosWM effective sample size — leave it; it is not \(N_x\).
+- Adequacy overall estimators are \(\hat\mu\), \(\hat\sigma^2\) (not \(\hat\mu_S\), \(\hat\sigma^2_S\)).
+- Required-seed formulas use \(N_{s,\mu}(\varepsilon)\), \(N_{s,\sigma^2}(\varepsilon)\).

@@ -34,8 +34,10 @@ from config import (  # noqa: E402
     FACTOR_PLOT,
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     TARGET_COLORS,
     cached_shap,
+    figsize,
     load_channel50,
     load_quantile_models,
     quantile_model_stem,
@@ -160,7 +162,7 @@ for tgt_key in TARGETS:
         axis=0,
     )
     feature_order = np.argsort(-mean_abs)
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4.6), layout="constrained")
+    fig, axes = plt.subplots(1, 3, figsize=figsize(height=FIG_WIDTH * 0.45), layout="constrained")
     for col, tau in enumerate(TAIL_BEESWARM):
         expl = shap.Explanation(
             values=shap_vals[tgt_key][tau],
@@ -188,7 +190,6 @@ for tgt_key in TARGETS:
     cbar.set_label("Feature value")
     cbar.ax.tick_params(length=0)
 
-    fig.suptitle(f"SHAP beeswarm — {NICE[tgt_key]} (cell-grouped QBM)")
     fig.savefig(
         result_path("plots", f"quantile_shap_beeswarm_{tgt_key}.png"),
         dpi=FIG_DPI,
@@ -197,7 +198,7 @@ for tgt_key in TARGETS:
     plt.close()
 
 # Plot quantile-specific physics
-fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+fig, axes = plt.subplots(1, 2, figsize=figsize(height=FIG_WIDTH * 0.50))
 for col, tgt_key in enumerate(TARGETS):
     ax = axes[col]
     for fi, feat in enumerate(FACTORS):
@@ -229,14 +230,15 @@ for col, tgt_key in enumerate(TARGETS):
         ax.set_ylim(0, 0.6)
 
     panel_letter(ax, "ab"[col])
-fig.suptitle("Factor importance across quantiles (Cell-Grouped QBM)", fontsize=10)
 fig.tight_layout()
 fig.savefig(result_path("plots", "quantile_shap_physics.png"), dpi=FIG_DPI, bbox_inches="tight")
 plt.close()
 
 # Plot PDPs at τ = 0.05, 0.50, 0.95
 for tgt_key in TARGETS:
-    fig, axes = plt.subplots(3, len(FACTORS), figsize=(14, 7), sharey="row", sharex="col")
+    fig, axes = plt.subplots(
+        3, len(FACTORS), figsize=figsize(height=FIG_WIDTH * 0.70), sharey="row", sharex="col"
+    )
     for row, tau in enumerate([0.05, 0.50, 0.95]):
         model = models[tgt_key][tau]
         for col, feat in enumerate(FACTORS):
@@ -256,7 +258,6 @@ for tgt_key in TARGETS:
                     FACTOR_LIM[feat]["step"],
                 )
             )
-    fig.suptitle(f"{NICE[tgt_key]}: partial dependence (cell-grouped QBM)")
     fig.tight_layout()
     fig.savefig(
         result_path("plots", f"quantile_shap_pdp_{tgt_key}.png"), dpi=FIG_DPI, bbox_inches="tight"
@@ -265,7 +266,7 @@ for tgt_key in TARGETS:
 
 # Plot Friedman H² heatmaps
 for tgt_key in TARGETS:
-    fig, axes = plt.subplots(1, 3, figsize=(13, 5))
+    fig, axes = plt.subplots(1, 3, figsize=figsize(height=FIG_WIDTH * 0.50))
     im = None
     for k, (ax, tau) in enumerate(zip(axes, [0.05, 0.50, 0.95])):
         model = models[tgt_key][tau]
@@ -297,6 +298,5 @@ for tgt_key in TARGETS:
     # Colorbar at the left edge of the figure
     fig.colorbar(im, ax=axes, location="right", shrink=0.8, label=r"$H^2$")
 
-    fig.suptitle(f"{NICE[tgt_key]}: Friedman $H^2$ interaction strength")
     fig.savefig(result_path("plots", f"quantile_shap_hstat_{tgt_key}.png"), dpi=FIG_DPI)
     plt.close()

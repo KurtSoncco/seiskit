@@ -20,7 +20,7 @@ from seiskit.plot_config import apply_style, panel_letter, result_path
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, FIG_DPI, REF_COLOR, load_channel50, target_color  # noqa: E402
+from config import FACTORS, FIG_DPI, FIG_WIDTH, REF_COLOR, figsize, load_channel50, target_color  # noqa: E402
 
 d50 = load_channel50()
 
@@ -63,7 +63,7 @@ R2_marg = var_fixed / (var_fixed + vseed + vres)
 R2_cond = (var_fixed + vseed) / (var_fixed + vseed + vres)
 
 apply_style(auto_format=True, font_size=10, frame="open")
-fig, axes = plt.subplots(2, 3, figsize=(14, 8.5))
+fig, axes = plt.subplots(2, 3, figsize=figsize(height=FIG_WIDTH * 0.75))
 
 m_log = results["log_abs"][0]
 m_f = results["f_ratio"][0]
@@ -178,11 +178,6 @@ ax.set_ylabel("actual ln(abs TF)")
 ax.set_title(f"Fixed-effect fit: marginal $R^2$={R2_marg:.2f}", loc="left")
 panel_letter(ax, "f")
 
-fig.suptitle(
-    "Baseline linear models (channel 50): ln(abs TF) → hierarchical w/ seed RI; $f$ ratio → non-normal residuals persist",
-    fontsize=10,
-    y=0.99,
-)
 fig.tight_layout()
 fig.savefig(
     result_path("plots", "baseline_residual_diagnostics.png"), dpi=FIG_DPI, bbox_inches="tight"

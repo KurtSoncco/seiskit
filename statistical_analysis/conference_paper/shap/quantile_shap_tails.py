@@ -18,7 +18,9 @@ from config import (  # noqa: E402
     FACTOR_COLORS,
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     cached_shap,
+    figsize,
     load_channel50,
     load_quantile_models,
     seed_grouped_split,
@@ -54,7 +56,7 @@ for tgt in ["log_abs", "f_ratio"]:
             q_shapvals[(tgt, tau)] = sv
     q_importance[tgt] = pd.DataFrame(mat, index=taus, columns=fac)
 
-fig, axes = plt.subplots(2, 3, figsize=(12.5, 7.2))
+fig, axes = plt.subplots(2, 3, figsize=figsize(height=FIG_WIDTH * 0.75))
 
 for r, tgt in enumerate(["log_abs", "f_ratio"]):
     ax = axes[r, 0]
@@ -121,11 +123,6 @@ dep(
     "aHV at τ=0.95 (upper tail)\nanisotropy drives amplification",
 )
 
-fig.suptitle(
-    "Per-quantile SHAP: which factors drive the tails (channel 50 quantile GBMs)",
-    fontsize=12,
-    y=1.005,
-)
 fig.tight_layout()
 fig.savefig(
     result_path("plots", "quantile_shap_tails.png"),

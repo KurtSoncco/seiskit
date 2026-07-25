@@ -15,7 +15,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import COMPARE_COLOR, FACTORS, FIG_DPI, load_channel50, target_color
+from config import COMPARE_COLOR, FACTORS, FIG_DPI, FIG_WIDTH, figsize, load_channel50, target_color
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
@@ -107,7 +107,7 @@ def r2(y, p):
 mcol = {"Physics": COMPARE_COLOR, "GBM": target_color("log_abs"), "OLS": target_color("f_ratio")}
 nice = {"log_abs": "log(abs_TF)", "f_ratio": "f_ratio"}
 
-fig, axes = plt.subplots(2, 2, figsize=(10, 9.6))
+fig, axes = plt.subplots(2, 2, figsize=figsize(height=FIG_WIDTH * 0.85))
 specs = [("log_abs", "Height"), ("f_ratio", "aHV")]
 modes = ["interp", "extrap"]
 mode_lbl = {
@@ -143,11 +143,6 @@ for r, (tgt, factor) in enumerate(specs):
         ax.legend(fontsize=7, frameon=False, loc="upper left")
         panel_letter(ax, chr(97 + r * 2 + c))
 
-fig.suptitle(
-    "Model predictions on held-out design levels: interpolation vs extrapolation (channel 50)",
-    fontsize=12,
-    y=1.005,
-)
 fig.tight_layout()
 fig.savefig(result_path("plots", "interp_extrap_predictions.png"), dpi=FIG_DPI, bbox_inches="tight")
 plt.close(fig)

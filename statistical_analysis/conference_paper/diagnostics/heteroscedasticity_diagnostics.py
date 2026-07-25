@@ -25,7 +25,9 @@ from config import (  # noqa: E402
     FACTOR_COLORS,
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     REF_COLOR,
+    figsize,
     load_channel50,
     target_color,
     target_label,
@@ -95,7 +97,7 @@ def main() -> None:
     eta_df = pd.DataFrame(eta_rows)
 
     apply_style(auto_format=True, font_size=10, frame="open")
-    fig, axes = plt.subplots(2, 3, figsize=(14, 8.5))
+    fig, axes = plt.subplots(2, 3, figsize=figsize(height=FIG_WIDTH * 0.75))
 
     for ax, tgt in [
         (axes[0, 0], "f_ratio"),
@@ -179,10 +181,6 @@ def main() -> None:
     ax.legend(fontsize=9, frameon=False)
     panel_letter(ax, "f")
 
-    fig.suptitle(
-        "Heteroscedasticity: variance is factor-dependent; mean drivers ≠ variance drivers",
-        fontsize=10,
-    )
     fig.tight_layout()
     out = result_path("plots", "heteroscedasticity_diagnostics.png")
     fig.savefig(out, dpi=FIG_DPI, bbox_inches="tight")

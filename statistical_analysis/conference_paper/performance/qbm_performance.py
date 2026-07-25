@@ -35,6 +35,7 @@ from config import (  # noqa: E402
     FIG_DPI,
     FIG_WIDTH,
     REF_COLOR,
+    figsize,
     load_channel50,
     load_quantile_models,
     seed_grouped_split,
@@ -581,7 +582,7 @@ def make_performance_figure(
     scatter_seed: int = SCATTER_SEED,
 ) -> Figure:
     """Assemble the 2×2 performance figure from ``plot_data``."""
-    fig, axes = plt.subplots(2, 2, figsize=(FIG_WIDTH * 2, FIG_WIDTH * 1.5))
+    fig, axes = plt.subplots(2, 2, figsize=figsize(height=FIG_WIDTH * 0.75))
 
     for i, tgt in enumerate(targets):
         plot_pred_vs_true(
@@ -596,11 +597,6 @@ def make_performance_figure(
     for j, axx in enumerate(axes.flat):
         panel_letter(axx, string.ascii_lowercase[j])
 
-    fig.suptitle(
-        "QBM hold-out performance: predictive accuracy, calibration, and sharpness",
-        fontsize=11,
-        y=1.01,
-    )
     fig.tight_layout()
     return fig
 

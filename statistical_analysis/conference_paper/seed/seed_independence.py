@@ -13,7 +13,7 @@ import numpy as np
 from seiskit.plot_config import apply_style, get_crameri_cmap, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, FIG_DPI, REF_COLOR, load_channel50, target_color
+from config import FACTORS, FIG_DPI, FIG_WIDTH, REF_COLOR, figsize, load_channel50, target_color
 
 # ---------------------------------------------------------------------------
 # Data
@@ -27,7 +27,7 @@ d50["f_resid"] = d50["f_ratio"] - d50.groupby(FACTORS)["f_ratio"].transform("mea
 # Figure
 # ---------------------------------------------------------------------------
 apply_style(auto_format=True, font_size=10, frame="open")
-fig, axes = plt.subplots(2, 2, figsize=(11, 8.5))
+fig, axes = plt.subplots(2, 2, figsize=figsize(height=FIG_WIDTH * 0.75))
 
 # a: variance components stacked bar (between-seed vs within)
 ax = axes[0, 0]
@@ -98,11 +98,6 @@ ax.set_title("Ignoring seeds understates SE by √DEFF", loc="left")
 ax.set_ylim(0, 105)
 panel_letter(ax, "d")
 
-fig.suptitle(
-    "Seed independence diagnostic: seeds are NOT i.i.d. — a random-field realization effect is present",
-    fontsize=10,
-    y=0.98,
-)
 fig.tight_layout()
 fig.savefig(result_path("plots", "seed_independence.png"), dpi=FIG_DPI, bbox_inches="tight")
 print("saved seed_independence.png")

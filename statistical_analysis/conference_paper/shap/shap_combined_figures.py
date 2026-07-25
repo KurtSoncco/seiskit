@@ -149,7 +149,6 @@ def plot_importance_combined(q_imp: pd.DataFrame) -> None:
         ax.set_ylim(0, y_top)
         panel_letter(ax, string.ascii_lowercase[col], fontsize=FS)
     axes[0].set_ylabel("% of total mean |SHAP|", fontsize=FS, labelpad=2)
-    fig.suptitle("Quantile |SHAP| share (seed hold-out)", fontsize=FS, y=0.98)
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(
         handles,
@@ -162,7 +161,7 @@ def plot_importance_combined(q_imp: pd.DataFrame) -> None:
         columnspacing=1.0,
         handlelength=1.6,
     )
-    fig.subplots_adjust(top=0.88, bottom=0.22, left=0.11, right=0.98, wspace=0.18)
+    fig.subplots_adjust(top=0.92, bottom=0.22, left=0.11, right=0.98, wspace=0.12)
     _save(fig, "quantile_importance_combined.png")
 
 
@@ -220,12 +219,11 @@ def plot_beeswarm_combined(
 
     sm = mpl_cm.ScalarMappable(cmap=beeswarm_cmap)
     sm.set_array([0, 1])
-    fig.subplots_adjust(top=0.90, bottom=0.09, left=0.13, right=0.88, hspace=0.14, wspace=0.06)
+    fig.subplots_adjust(top=0.94, bottom=0.09, left=0.13, right=0.88, hspace=0.12, wspace=0.05)
     cbar = fig.colorbar(sm, ax=axes, ticks=[0, 1], fraction=0.035, pad=0.015, shrink=0.90)
     cbar.set_ticklabels(["Low", "High"])
     cbar.set_label("Feature value", fontsize=FS_DENSE)
     cbar.ax.tick_params(length=0, labelsize=FS_DENSE)
-    fig.suptitle("Quantile SHAP beeswarm (seed hold-out)", fontsize=FS, y=0.98)
     _save(fig, "quantile_beeswarm_combined.png")
 
 
@@ -239,9 +237,9 @@ def plot_interval_delta_combined(
         3,
         2,
         height_ratios=[1.05, 1.0, 0.09],
-        hspace=0.28,
-        wspace=0.26,
-        top=0.93,
+        hspace=0.22,
+        wspace=0.20,
+        top=0.96,
         bottom=0.04,
         left=0.14,
         right=0.98,
@@ -325,11 +323,6 @@ def plot_interval_delta_combined(
         bbox_to_anchor=(0.555, 0.035),
         columnspacing=1.2,
         handlelength=1.4,
-    )
-    fig.suptitle(
-        r"Interval $\Delta$SHAP and SHAP change across $\tau$ (seed hold-out)",
-        fontsize=fs,
-        y=0.98,
     )
     _save(fig, "shap_interval_delta_combined.png")
 

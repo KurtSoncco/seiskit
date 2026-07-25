@@ -87,13 +87,13 @@ def generate_panel_fields() -> list[np.ndarray]:
 
 
 def _param_annotation(ax: plt.Axes, rH: float, aHV: float) -> None:
-    """Parameter box in the upper-right corner (sentence case, ≤7 pt)."""
+    """Parameter box in the upper-left corner (sentence case, ≤7 pt)."""
     ax.text(
-        0.98,
+        0.02,
         0.98,
         rf"$r_h = {rH:.0f}\,\mathrm{{m}}$" + "\n" + rf"$a_{{hv}} = {aHV:.0f}$",
         transform=ax.transAxes,
-        ha="right",
+        ha="left",
         va="top",
         fontsize=ANNOTATION_FONTSIZE,
         color="black",

@@ -35,9 +35,11 @@ from config import (  # noqa: E402
     DEFAULT_TAUS,
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     MODEL_TARGETS,
     MODELS_DIR,
     REF_COLOR,
+    figsize,
     load_channel50,
     mean_model_stem,
     quantile_model_stem,
@@ -199,7 +201,10 @@ def main() -> None:
     # Focus figure on primary comparison: ln amplitude vs frequency (+ raw row)
     apply_style(auto_format=True, font_size=9, frame="open")
     fig, axes = plt.subplots(
-        len(TARGETS), 4, figsize=(14, 3.2 * len(TARGETS)), layout="constrained"
+        len(TARGETS),
+        4,
+        figsize=figsize(height=FIG_WIDTH * 0.25 * len(TARGETS)),
+        layout="constrained",
     )
     if len(TARGETS) == 1:
         axes = np.array([axes])
@@ -265,10 +270,6 @@ def main() -> None:
     for i, ax in enumerate(axes.ravel()):
         panel_letter(ax, letters[i])
 
-    fig.suptitle(
-        f"Quantile Boosting Models — center recorder ({label} test set)",
-        fontsize=11,
-    )
     fname = result_path("plots", "quantile_channel_model.png")
     fig.savefig(fname, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)

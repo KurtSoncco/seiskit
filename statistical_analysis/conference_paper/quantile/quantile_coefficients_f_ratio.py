@@ -19,7 +19,7 @@ from seiskit.plot_config import apply_style, panel_letter, result_path
 warnings.filterwarnings("ignore")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, FIG_DPI, factor_color, load_channel50  # noqa: E402
+from config import FACTORS, FIG_DPI, FIG_WIDTH, factor_color, figsize, load_channel50  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Data
@@ -152,7 +152,7 @@ factor_col = {f"{f}_z": factor_color(f) for f in FACTORS}
 
 
 def qr_figure(target, qr_pts, ref, fname, ttl):
-    fig, axes = plt.subplots(2, 3, figsize=(13, 7.5))
+    fig, axes = plt.subplots(2, 3, figsize=figsize(height=FIG_WIDTH * 0.75))
     axes = axes.ravel()
     for k, fc in enumerate(zcols):
         ax = axes[k]
@@ -190,7 +190,6 @@ def qr_figure(target, qr_pts, ref, fname, ttl):
         fontsize=8.5,
         family="DejaVu Sans",
     )
-    fig.suptitle(ttl, fontsize=10, y=0.99)
     fig.tight_layout()
     fig.savefig(fname, dpi=FIG_DPI, bbox_inches="tight")
     print("saved", fname)

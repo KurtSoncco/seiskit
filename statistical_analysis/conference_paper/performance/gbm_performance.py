@@ -20,8 +20,10 @@ import pandas as pd
 from config import (  # noqa: E402
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     MODEL_TARGETS,
     REF_COLOR,
+    figsize,
     load_channel50,
     load_mean_models,
     load_quantile_models,
@@ -131,7 +133,7 @@ def main() -> None:
     imp_df = (imp_df / imp_df.sum() * 100).round(1)
 
     apply_style(auto_format=True, font_size=10, frame="open")
-    fig, axes = plt.subplots(2, 3, figsize=(13, 8))
+    fig, axes = plt.subplots(2, 3, figsize=figsize(height=FIG_WIDTH * 0.75))
 
     # Native-scale predicted vs actual for the two amplitude models.
     plot_tgts = ["abs_TF_ratio", "log_abs"]
@@ -235,12 +237,6 @@ def main() -> None:
     for i, ax in enumerate(axes.ravel()):
         panel_letter(ax, chr(97 + i))
 
-    fig.suptitle(
-        "Mean GBM benchmarks + QBM calibration (seed hold-out): "
-        "raw vs ln amplitude are complementary, not competitors",
-        fontsize=10,
-        y=0.99,
-    )
     fig.tight_layout()
     out = result_path("plots", "gbm_performance.png")
     fig.savefig(out, dpi=FIG_DPI, bbox_inches="tight")

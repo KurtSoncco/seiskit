@@ -16,7 +16,7 @@ from scipy.stats import boxcox, boxcox_normmax
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, FIG_DPI, load_channel50, target_color
+from config import FACTORS, FIG_DPI, FIG_WIDTH, figsize, load_channel50, target_color
 
 # Load data
 d50 = load_channel50()
@@ -59,7 +59,7 @@ d50["f_bc"] = f_bc
 
 # Apply style
 apply_style(auto_format=True, font_size=10, frame="open")
-fig, axes = plt.subplots(2, 3, figsize=(12, 7.5))
+fig, axes = plt.subplots(2, 3, figsize=figsize(height=FIG_WIDTH * 0.75))
 
 
 # Define QQ plot function
@@ -148,13 +148,9 @@ qq(
     step=0.2,
 )
 
-# Add panel letters and title
+# Add panel letters
 for letter, ax in zip("abcdef", axes.ravel()):
     panel_letter(ax, letter)
-fig.suptitle(
-    "Normal QQ plots: raw, natural-log, and Box-Cox targets (center recorder)",
-    fontsize=10,
-)
 fig.tight_layout()
 # Save figure
 fig.savefig(result_path("plots", "normality_assessment.png"), dpi=FIG_DPI, bbox_inches="tight")

@@ -1,13 +1,14 @@
 """Central-tendency profile figures for χ ratios (abs_TF_ratio by default).
 
-Three Nature-width figure families under
+Two Nature-width figure families under
 ``figure_dir("chi_variables", "central_profiles")``, each as 3×3 panels
 matching the TF qualitative cross layout (vary rH / CoV / aHV; center column
 shared), one PDF per (Height, Vs1):
 
 1. Node profiles — geomean and median across seeds vs node
 2. Seed profiles — geomean and median across nodes vs seed
-3. Companion boxplots — distribution of seed-geomeans vs node-geomeans
+
+Factor-sweep geomean boxplots live in ``geomean_factor_cross.py``.
 """
 
 from __future__ import annotations
@@ -20,7 +21,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from config import (  # noqa: E402
@@ -141,26 +141,17 @@ def seed_profiles(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return geo, med
 
 
-def overall_geomean(arr: np.ndarray) -> float:
-    with np.errstate(invalid="ignore", divide="ignore"):
-        flat = arr[np.isfinite(arr) & (arr > 0)]
-    if flat.size == 0:
-        return float("nan")
-    return float(np.exp(np.mean(np.log(flat))))
-
-
 def _make_3x3_figure(
     *,
     h: float,
     vs1: float,
-    title: str,
     legend_handles: list,
 ) -> tuple[plt.Figure, np.ndarray]:
     fig = plt.figure(figsize=(DOC_WIDTH, FIG_HEIGHT))
     gs = fig.add_gridspec(
         2,
         1,
-        height_ratios=[0.08, 1.0],
+        height_ratios=[0.05, 1.0],
         hspace=0.02,
         left=0.08,
         right=0.995,
@@ -180,18 +171,7 @@ def _make_3x3_figure(
 
     header.text(
         0.5,
-        1.0,
-        title,
-        transform=header.transAxes,
-        ha="center",
-        va="top",
-        fontsize=LABEL_FONTSIZE,
-        fontweight="normal",
-        bbox=TEXT_BBOX,
-    )
-    header.text(
-        0.5,
-        0.55,
+        0.95,
         rf"($H = {h:.0f}$ m, $V_{{s1}} = {vs1:.0f}$ m/s; {metric_label(METRIC)})",
         transform=header.transAxes,
         ha="center",
@@ -217,11 +197,11 @@ def _make_3x3_figure(
 def _annotate_panel(ax: plt.Axes, i: int, rh: float, cov: float, ahv: float) -> None:
     add_panel_label(ax, i, alpha=0.75)
     ax.text(
-        0.98,
+        0.02,
         0.97,
         _panel_param_text(rh, cov, ahv),
         transform=ax.transAxes,
-        ha="right",
+        ha="left",
         va="top",
         fontsize=TICK_LABELSIZE,
         linespacing=1.15,
@@ -256,7 +236,6 @@ def plot_node_profiles(df: pd.DataFrame, *, h: float, vs1: float, out_dir: Path)
     fig, axes = _make_3x3_figure(
         h=h,
         vs1=vs1,
-        title="Central tendency across nodes",
         legend_handles=legend_handles,
     )
 
@@ -316,7 +295,6 @@ def plot_seed_profiles(df: pd.DataFrame, *, h: float, vs1: float, out_dir: Path)
     fig, axes = _make_3x3_figure(
         h=h,
         vs1=vs1,
-        title="Central tendency across seeds",
         legend_handles=legend_handles,
     )
 
@@ -349,123 +327,6 @@ def plot_seed_profiles(df: pd.DataFrame, *, h: float, vs1: float, out_dir: Path)
     return paths[0]
 
 
-def plot_geomean_boxplots(df: pd.DataFrame, *, h: float, vs1: float, out_dir: Path) -> Path:
-    out_dir = out_dir / "geomean_boxplots"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    color = metric_color(METRIC)
-    log_y = METRIC in LOG_Y_METRICS
-    df_hv = df[(df["Height"] == h) & (df["Vs1"] == vs1)]
-
-    legend_handles = [
-        Patch(
-            facecolor=color,
-            edgecolor=color,
-            alpha=0.45,
-            label=r"Seed geomeans $G^{\mathrm{seed}}_j$",
-        ),
-        Patch(
-            facecolor=color,
-            edgecolor=color,
-            alpha=0.25,
-            hatch="///",
-            label=r"Node geomeans $G^{\mathrm{node}}_i$",
-        ),
-        Line2D(
-            [0],
-            [0],
-            color="0.15",
-            marker="D",
-            ls="none",
-            markersize=4,
-            label=r"Overall geomean $G$",
-        ),
-    ]
-    fig, axes = _make_3x3_figure(
-        h=h,
-        vs1=vs1,
-        title="Distribution of seed and node geomeans",
-        legend_handles=legend_handles,
-    )
-
-    cell_data: list[tuple] = []
-    for rh, cov, ahv in PANELS:
-        _nodes, _seeds, arr = cell_matrix(df_hv, rh, cov, ahv)
-        g_seed, _ = seed_profiles(arr)
-        g_node, _ = node_profiles(arr)
-        g_all = overall_geomean(arr)
-        cell_data.append((g_seed, g_node, g_all))
-
-    positions = [0.0, 1.0]
-
-    for i, ((rh, cov, ahv), (g_seed, g_node, g_all)) in enumerate(zip(PANELS, cell_data)):
-        ax = axes.flat[i]
-        # Draw seed box, then node box with hatch via a second call styling
-        clean_seed = g_seed[np.isfinite(g_seed) & (g_seed > 0)]
-        clean_node = g_node[np.isfinite(g_node) & (g_node > 0)]
-        bp = ax.boxplot(
-            [clean_seed, clean_node],
-            positions=positions,
-            widths=0.5,
-            patch_artist=True,
-            showfliers=False,
-            whis=(10, 90),
-            manage_ticks=False,
-        )
-        for k, box in enumerate(bp["boxes"]):
-            box.set_facecolor(color)
-            box.set_edgecolor(color)
-            box.set_linewidth(0.8)
-            box.set_alpha(0.45 if k == 0 else 0.30)
-            if k == 1:
-                box.set_hatch("///")
-        for key in ("whiskers", "caps"):
-            for artist in bp[key]:
-                artist.set_color(color)
-                artist.set_linewidth(0.9)
-        for med in bp["medians"]:
-            med.set_color("0.15")
-            med.set_linewidth(1.0)
-
-        if np.isfinite(g_all):
-            ax.plot(
-                [positions[0], positions[1]],
-                [g_all, g_all],
-                color="0.4",
-                ls=":",
-                lw=0.7,
-                zorder=2,
-            )
-            ax.plot(
-                0.5,
-                g_all,
-                marker="D",
-                color="0.15",
-                markersize=4,
-                zorder=5,
-            )
-
-        ax.set_xticks(positions)
-        ax.set_xticklabels([r"$G^{\mathrm{seed}}$", r"$G^{\mathrm{node}}$"])
-        ax.set_xlim(-0.55, 1.55)
-        _annotate_panel(ax, i, rh, cov, ahv)
-
-        row, col = divmod(i, 3)
-        if row == 2:
-            ax.set_xlabel("Geomean type", fontsize=LABEL_FONTSIZE)
-        else:
-            ax.tick_params(labelbottom=False)
-        if col == 0:
-            ax.set_ylabel(metric_label(METRIC), fontsize=LABEL_FONTSIZE)
-        else:
-            ax.tick_params(labelleft=False)
-
-    _apply_shared_ylims(axes, log_y=log_y)
-
-    paths = save_figure(fig, _stem("geomean_boxplots", h, vs1), out_dir=out_dir)
-    plt.close(fig)
-    return paths[0]
-
-
 def main() -> None:
     out_dir = figure_dir("chi_variables", "central_profiles")
     print(f"Loading {DATA_PATH} …")
@@ -477,10 +338,8 @@ def main() -> None:
             print(f"  H={h:.0f}, Vs1={vs1:.0f} …")
             p1 = plot_node_profiles(df, h=h, vs1=vs1, out_dir=out_dir)
             p2 = plot_seed_profiles(df, h=h, vs1=vs1, out_dir=out_dir)
-            p3 = plot_geomean_boxplots(df, h=h, vs1=vs1, out_dir=out_dir)
             print(f"    {p1.name}")
             print(f"    {p2.name}")
-            print(f"    {p3.name}")
 
     print(f"Done → {out_dir}")
 

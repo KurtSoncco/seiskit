@@ -29,7 +29,7 @@ def main() -> None:
     apply_style(auto_format=True, font_size=10, frame="open")
 
     fig = plt.figure(figsize=(FIG_WIDTH, FIG_WIDTH * 0.5))
-    gs = fig.add_gridspec(1, 3, hspace=0.25, wspace=0.30)
+    gs = fig.add_gridspec(1, 3, hspace=0.25, wspace=0.22)
 
     # a) f_ratio
     ax = fig.add_subplot(gs[0, 0])
@@ -63,11 +63,6 @@ def main() -> None:
     ax.set_title(f"{target_label('log_abs')} — near symmetric", loc="left")
     panel_letter(ax, "c")
 
-    fig.suptitle(
-        "Fundamental Normalized Peak Parameter Histograms.",
-        fontsize=10,
-    )
-    # fig.tight_layout()
     out = result_path("plots", "eda_channel50.png")
     fig.savefig(out, dpi=FIG_DPI, bbox_inches="tight")
     print(f"saved {out}")

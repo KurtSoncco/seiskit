@@ -33,7 +33,9 @@ from calculation_r_2 import reliability_ceiling_from_replicates  # noqa: E402
 from config import (  # noqa: E402
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
     REF_COLOR,
+    figsize,
     load_channel50,
     load_mean_models,
     load_quantile_models,
@@ -215,7 +217,7 @@ def main() -> None:
     ceil_map = {r["target"]: r["R2_ceiling"] for r in mean_rows}
 
     n_tgt = len(EVAL_TARGETS)
-    fig, ax = plt.subplots(n_tgt, 3, figsize=(14, 4.2 * n_tgt))
+    fig, ax = plt.subplots(n_tgt, 3, figsize=figsize(height=FIG_WIDTH * 0.30 * n_tgt))
     if n_tgt == 1:
         ax = np.asarray([ax])
     for i, tgt in enumerate(EVAL_TARGETS):
@@ -297,12 +299,6 @@ def main() -> None:
     for j, axx in enumerate(ax.flat):
         panel_letter(axx, string.ascii_lowercase[j])
 
-    fig.suptitle(
-        "Reliability ceiling: variance capped by irreducible seed noise; "
-        "deterministic signal remains predictable",
-        fontsize=12.5,
-        y=1.005,
-    )
     fig.tight_layout()
     out = result_path("plots", "model_r2_ceiling.png")
     fig.savefig(out, dpi=FIG_DPI, bbox_inches="tight")

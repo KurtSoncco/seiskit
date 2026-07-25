@@ -102,7 +102,7 @@ SANS_FONTS = ["Arial", "Helvetica", "DejaVu Sans"]
 TICK_LABELSIZE = 6  # Nature: 5–7 pt
 LABEL_FONTSIZE = 7  # axes, legends, colorbar — Nature: 5–7 pt
 ANNOTATION_FONTSIZE = 6
-PANEL_LABEL_SIZE = 8  # Nature: 8 pt, lowercase, bold
+PANEL_LABEL_SIZE = 8  # bold parenthesized (a), (b), ...
 FIG_FONTSIZE = LABEL_FONTSIZE  # alias for older call sites
 
 # ---------------------------------------------------------------------------
@@ -318,19 +318,19 @@ def add_panel_label(
     ax: Axes,
     index: int,
     *,
-    x: float = 0.02,
+    x: float = 0.98,
     y: float = 0.98,
     alpha: float = 0.7,
 ) -> None:
-    """Nature panel letter: lowercase, bold, 8 pt (no parentheses)."""
+    """Panel letter: ``(a)``, ``(b)``, ... bold 8 pt, top-right by default."""
     label = _SUBFIG_LABELS[index % len(_SUBFIG_LABELS)]
     ax.text(
         x,
         y,
-        label,
+        f"({label})",
         transform=ax.transAxes,
         va="top",
-        ha="left",
+        ha="right",
         fontsize=PANEL_LABEL_SIZE,
         fontweight="bold",
         fontfamily="sans-serif",

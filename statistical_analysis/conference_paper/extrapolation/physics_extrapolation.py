@@ -26,6 +26,8 @@ from config import (  # noqa: E402
     FACTOR_COLORS,
     FACTORS,
     FIG_DPI,
+    FIG_WIDTH,
+    figsize,
     load_channel50,
     target_color,
 )
@@ -135,7 +137,7 @@ ext["label"] = ext.target + "\n" + ext.factor
 # ---------------------------------------------------------------------------
 # Figure
 # ---------------------------------------------------------------------------
-fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
+fig, axes = plt.subplots(1, 2, figsize=figsize(height=FIG_WIDTH * 0.45))
 
 # Panel a: extrapolation R2 by model
 ax = axes[0]
@@ -190,11 +192,6 @@ ax.set_title("Physics model: interpolation vs extrapolation", fontsize=10)
 ax.legend(fontsize=7, frameon=False)
 panel_letter(ax, "b")
 
-fig.suptitle(
-    "Physics-informed reparameterization closes the extrapolation gap (channel 50)",
-    fontsize=12,
-    y=1.02,
-)
 fig.tight_layout()
 fig.savefig(result_path("plots", "physics_extrapolation.png"), dpi=FIG_DPI, bbox_inches="tight")
 plt.close(fig)
