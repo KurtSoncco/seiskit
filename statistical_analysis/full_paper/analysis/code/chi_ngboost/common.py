@@ -54,6 +54,25 @@ def models_dir() -> Path:
     return path
 
 
+def surfaces_dir() -> Path:
+    path = figure_dir("chi_ngboost", "surfaces")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def factorial_grid(df: pd.DataFrame) -> pd.DataFrame:
+    """Unique design-cell × node grid (no seed replication).
+
+    Expects ``add_design_columns`` already applied so z-scored FEATURES match
+    the fitted NGBoost models (z-scoring uses the full-table means/sds).
+    """
+    keys = list(FACTORS) + ["node"]
+    keep = ["cell", "node", *FACTORS, *FEATURES]
+    keep = [c for c in keep if c in df.columns]
+    out = df.drop_duplicates(subset=keys, keep="first")[keep].copy()
+    return out.reset_index(drop=True)
+
+
 def fmt(x: float, digits: int = 4) -> str:
     if x is None or not np.isfinite(x):
         return "—"
@@ -187,7 +206,11 @@ def mean_abs_lag1_residuals(
     lags = np.asarray(lags, dtype=float)
     lags = lags[np.isfinite(lags)]
     if lags.size == 0:
-        return {"mean_abs_lag1": float("nan"), "frac_abs_lag1_gt_thresh": float("nan"), "n_blocks": 0}
+        return {
+            "mean_abs_lag1": float("nan"),
+            "frac_abs_lag1_gt_thresh": float("nan"),
+            "n_blocks": 0,
+        }
     return {
         "mean_abs_lag1": float(np.mean(np.abs(lags))),
         "frac_abs_lag1_gt_thresh": float(np.mean(np.abs(lags) > LAG1_FAIL_THRESH)),

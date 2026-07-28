@@ -9,7 +9,7 @@ Equation generators that emit matching markdown:
 - [`code/chi_qbm/`](code/chi_qbm/) (spatial GLS OLS, LightGBM QBM, three-way comparison)
 - [`code/chi_ngboost/`](code/chi_ngboost/) (Normal NGBoost predictive distribution)
 - [`code/chi_shap/`](code/chi_shap/) (SHAP on NGBoost + QBM; shortlist for SR)
-- [`code/chi_sr/`](code/chi_sr/) (symbolic regression of NGBoost \(\mu\) / \(\log\sigma\))
+- [`code/chi_sr/`](code/chi_sr/) (symbolic regression: engineering approximations of NGBoost \(\mu\) / \(\log\sigma\) / \(q_\tau\) on the factorial grid)
 
 Do **not** use bare \(n\)/\(m\) or \(N\)/\(S\) for node/seed counts in new math or prose.
 
@@ -182,9 +182,15 @@ QBM models \(q_\tau(Y\mid \mathbf{x}_k, x_{\mathrm{node}})\) by gradient boostin
 | \(\mu(\mathbf{x})\) | predictive mean (loc) | `mu`, NGBoost / SR |
 | \(\sigma(\mathbf{x})\) | predictive scale | `sigma`, NGBoost |
 | \(\log\sigma(\mathbf{x})\) | log-scale (dispersion surface) | `log_sigma` |
+| \(q_\tau(\mathbf{x})\) | Normal predictive quantile \(\mu+\sigma\,z_\tau\) | `q05` / `q50` / `q95` surfaces |
 | \(\phi_j\) | SHAP attribution for feature \(j\) (model-tagged) | `shap_*` CSVs |
 | \(\phi_{jk}\) | pairwise SHAP interaction | `shap_interactions_*` |
 | \(\hat\mu_{\mathrm{SR}}\) | symbolic approximation to NGBoost \(\mu\) | `sr_formulas.csv` |
 | \(\widehat{\log\sigma}_{\mathrm{SR}}\) | symbolic approximation to NGBoost \(\log\sigma\) | `sr_formulas.csv` |
+| \(\hat q_{0.05,\mathrm{SR}}\) | symbolic approximation to NGBoost \(q_{0.05}\) | `sr_formulas.csv` |
+| \(\hat q_{0.50,\mathrm{SR}}\) | symbolic approximation to NGBoost \(q_{0.50}\) (median) | `sr_formulas.csv` |
+| \(\hat q_{0.95,\mathrm{SR}}\) | symbolic approximation to NGBoost \(q_{0.95}\) | `sr_formulas.csv` |
 
-NGBoost learns \(Y\mid\mathbf{x}\sim\mathcal{N}(\mu(\mathbf{x}),\sigma^2(\mathbf{x}))\) by natural-gradient boosting. SHAP decomposes \(\mu\) / \(\log\sigma\) (and QBM quantiles) without whitening residual spatial dependence. Symbolic regression compresses SHAP-shortlisted features into explicit formulas.
+NGBoost learns \(Y\mid\mathbf{x}\sim\mathcal{N}(\mu(\mathbf{x}),\sigma^2(\mathbf{x}))\) by natural-gradient boosting. SHAP decomposes \(\mu\) / \(\log\sigma\) (and QBM quantiles) without whitening residual spatial dependence.
+
+**Symbolic regression** fits closed-form **engineering approximations distilled from the NGBoost surrogate** on the unique factorial grid (cell × node; seed axis dropped). Under Normal NGBoost, median \(\equiv\mu\) and \(q_\tau=\mu+\sigma\,z_\tau\); SR still reports **separate** formulas for \(\tau\in\{0.05,0.50,0.95\}\) for practitioner use. These compressions are **not** the primary model: fidelity is \(R^2\) versus NGBoost surfaces, not versus observed \(\ln\chi\). Primary inference remains NGBoost (and QBM where relevant).

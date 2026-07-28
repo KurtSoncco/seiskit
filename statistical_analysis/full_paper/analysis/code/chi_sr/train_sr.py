@@ -1,7 +1,8 @@
-"""gplearn symbolic regression for NGBoost μ and log σ surfaces.
+"""gplearn symbolic regression for NGBoost factorial-grid surfaces.
 
-Fits GP on standardized targets; always fits shortlist OLS; reports OLS when
-GP collapses. Writes under figure_dir("chi_sr", "train_sr").
+Distills closed-form engineering approximations to NGBoost μ, log σ, and
+quantiles τ ∈ {0.05, 0.50, 0.95} on the unique cell × node design grid.
+GP collapses fall back to shortlist OLS. Writes under figure_dir("chi_sr", "train_sr").
 """
 
 from __future__ import annotations
@@ -15,24 +16,24 @@ import joblib
 import numpy as np
 import pandas as pd
 from gplearn.genetic import SymbolicRegressor
-from ngboost import NGBRegressor
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from common import (  # noqa: E402
+    CELL_SPLIT_SEED,
     FEATURES,
     GP_PARAMS,
     METRICS,
-    SR_SAMPLE_N,
-    SR_SAMPLE_SEED,
-    add_design_columns,
+    SHORTLIST_INTERACTION_SOURCE,
+    SHORTLIST_MAIN_SOURCES,
+    SR_TARGETS,
+    TEST_SIZE,
     build_design_matrix,
+    cell_grouped_split,
     destandardize,
     is_collapsed_program,
-    load_or_make_split,
-    load_ratios,
     load_shortlist,
-    ngboost_models_dir,
+    load_surface,
     ols_shortlist_fit,
     out_dir,
     r2_score,
@@ -45,52 +46,52 @@ from common import (  # noqa: E402
 warnings.filterwarnings("ignore")
 
 
-def _ngb_targets(model: NGBRegressor, X_full: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    dist = model.pred_dist(X_full)
-    mu = np.asarray(dist.loc, dtype=float).ravel()
-    sigma = np.maximum(np.asarray(dist.scale, dtype=float).ravel(), 1e-8)
-    return mu, np.log(sigma)
-
-
 def main() -> None:
     out = out_dir("train_sr")
     short = load_shortlist()
-    print("Loading data …")
-    df = add_design_columns(load_ratios())
-    tr, te = load_or_make_split(df)
-    rng = np.random.default_rng(SR_SAMPLE_SEED)
-    tr_s = rng.choice(tr, size=min(SR_SAMPLE_N, len(tr)), replace=False)
-    te_s = rng.choice(te, size=min(SR_SAMPLE_N, len(te)), replace=False)
 
     formula_rows = []
     fidelity_rows = []
     ols_rows = []
     meta = {
         "gp_params": GP_PARAMS,
-        "sr_sample_n": SR_SAMPLE_N,
         "standardize_target": True,
+        "design": "factorial_grid_cell_holdout",
+        "cell_test_size": TEST_SIZE,
+        "cell_split_seed": CELL_SPLIT_SEED,
+        "sr_targets": list(SR_TARGETS),
+        "shortlist_main_sources": {k: list(v) for k, v in SHORTLIST_MAIN_SOURCES.items()},
+        "shortlist_interaction_source": SHORTLIST_INTERACTION_SOURCE,
         "metrics": {},
+        "grid": {},
     }
 
     for metric in METRICS:
-        mpath = ngboost_models_dir() / f"ngboost_{metric}.pkl"
-        if not mpath.is_file():
-            raise FileNotFoundError(f"Missing {mpath}")
-        model: NGBRegressor = joblib.load(mpath)
-        X_full = df[FEATURES].to_numpy(dtype=float)
-        mu_all, logsig_all = _ngb_targets(model, X_full)
+        print(f"Loading surface {metric} …")
+        df = load_surface(metric)
+        tr, te = cell_grouped_split(df)
+        meta["grid"][metric] = {
+            "n_rows": int(len(df)),
+            "n_cells": int(df["cell"].nunique()),
+            "n_train": int(len(tr)),
+            "n_test": int(len(te)),
+            "n_train_cells": int(df.iloc[tr]["cell"].nunique()),
+            "n_test_cells": int(df.iloc[te]["cell"].nunique()),
+        }
 
-        for target, y_all in [("mu", mu_all), ("log_sigma", logsig_all)]:
+        for target in SR_TARGETS:
+            if target not in df.columns:
+                raise KeyError(f"Surface missing column {target!r} for {metric}")
+            y_all = df[target].to_numpy(dtype=float)
             feat_names = shortlist_features(short, metric, target)
             X_mat, colnames = build_design_matrix(df, feat_names, short, metric, target)
-            X_tr, y_tr = X_mat[tr_s], y_all[tr_s]
-            X_te, y_te = X_mat[te_s], y_all[te_s]
+            X_tr, y_tr = X_mat[tr], y_all[tr]
+            X_te, y_te = X_mat[te], y_all[te]
             m_tr = np.isfinite(y_tr) & np.all(np.isfinite(X_tr), axis=1)
             m_te = np.isfinite(y_te) & np.all(np.isfinite(X_te), axis=1)
             X_tr_f, y_tr_f = X_tr[m_tr], y_tr[m_tr]
             X_te_f, y_te_f = X_te[m_te], y_te[m_te]
 
-            # OLS baseline on original scale
             ols = ols_shortlist_fit(X_tr_f, y_tr_f, X_te_f, y_te_f, colnames)
             ols_row = {
                 "metric": metric,
@@ -108,9 +109,7 @@ def main() -> None:
                 ols_row[f"coef_{name}"] = float(ols["coef"][j + 1])
             ols_rows.append(ols_row)
 
-            # GP on standardized target
             z_tr, y_mean, y_std = standardize_y(y_tr_f)
-            z_te = (y_te_f - y_mean) / y_std
             print(f"SR {metric} {target} features={colnames}  y_std={y_std:.4g} …")
             est = SymbolicRegressor(
                 function_set=("add", "sub", "mul", "div"),
@@ -156,6 +155,8 @@ def main() -> None:
                     "features": ",".join(colnames),
                     "program_length": program_length,
                     "raw_fitness_": float(getattr(est._program, "raw_fitness_", np.nan)),
+                    "shortlist_mains": ",".join(SHORTLIST_MAIN_SOURCES.get(target, (target,))),
+                    "shortlist_interactions": SHORTLIST_INTERACTION_SOURCE.get(target) or "",
                 }
             )
             fidelity_rows.append(
@@ -187,6 +188,7 @@ def main() -> None:
                     "ols_coef": ols["coef"],
                     "colnames": colnames,
                     "formula_source": formula_source,
+                    "features": FEATURES,
                 },
                 out / f"sr_{metric}_{target}.pkl",
             )
@@ -211,13 +213,32 @@ def main() -> None:
     lines = [
         "# Symbolic regression training summary",
         "",
+        "## Positioning",
+        "",
+        "Symbolic formulas are **engineering approximations distilled from the "
+        "NGBoost probabilistic surrogate** "
+        r"\(p(Y\mid\mathbf{x})=\mathcal{N}(\mu(\mathbf{x}),\sigma^2(\mathbf{x}))\). "
+        r"They are **not** the primary model: fidelity is \(R^2\) versus NGBoost "
+        r"surfaces on the factorial grid, not versus observed \(\ln\chi\). "
+        "Primary inference remains NGBoost (and QBM where relevant).",
+        "",
         "## Definitions",
         "",
-        r"- Targets: NGBoost surfaces \(\mu(\mathbf{x})\) and \(\log\sigma(\mathbf{x})\) (still on \(Y=\ln\chi\)).",
-        r"- Standardization: GP fits \(z=(y-\bar y_{\mathrm{tr}})/s_{y,\mathrm{tr}}\); reported GP formulas wrap back to \(y\).",
-        r"- Features: SHAP shortlist mains + interaction products.",
+        r"- Design: unique cell × node factorial grid from `chi_ngboost` surfaces "
+        r"(seed axis dropped); train/test split holds out design **cells**.",
+        r"- Targets: NGBoost surfaces \(\mu\), \(\log\sigma\), and separate "
+        r"closed forms for \(q_{0.05}\), \(q_{0.50}\), \(q_{0.95}\) "
+        r"(still on \(Y=\ln\chi\)).",
+        r"- Under Normal NGBoost, median \(\equiv\mu\) and "
+        r"\(q_\tau=\mu+\sigma\,z_\tau\); SR nonetheless fits **separate** "
+        "quantile formulas for practitioner use.",
+        r"- Shortlist: `q50`→μ SHAP; `q05`/`q95`→union(μ, logσ) mains + μ interactions; "
+        r"`log_sigma`→logσ mains only.",
+        r"- Standardization: GP fits \(z=(y-\bar y_{\mathrm{tr}})/s_{y,\mathrm{tr}}\); "
+        r"reported GP formulas wrap back to \(y\).",
         r"- OLS baseline: intercept + shortlist columns (always computed).",
-        r"- Collapse guard: if GP test \(R^2<0.05\) or constant/short program → `formula_reported` = OLS.",
+        r"- Collapse guard: if GP test \(R^2<0.05\) or constant/short program → "
+        "`formula_reported` = OLS.",
         r"- Fidelity: \(R^2\) vs NGBoost surface on original scale (not raw \(Y\)).",
         "",
         "## Output files",
@@ -246,9 +267,11 @@ def main() -> None:
         "",
         "## Conclusions",
         "",
-        "- Prior μ collapses were search/parsimony artifacts on small absolute MSE, not flat NGBoost surfaces — OLS shortlist \(R^2\) documents recoverable linear structure.",
-        "- Reported formulas use GP when it beats the collapse threshold; otherwise the shortlist OLS formula is the readable compression.",
-        "- log-σ was already well recovered by GP; standardization + lower parsimony keeps that while making μ usable.",
+        "- Reported formulas compress NGBoost surfaces for engineering use; "
+        "they do not replace the probabilistic surrogate.",
+        "- Quantile formulas (q05/q50/q95) are fitted separately even though "
+        "Normal NGBoost implies \\(q_\\tau=\\mu+\\sigma z_\\tau\\).",
+        "- Collapse → OLS shortlist remains the readable fallback when GP fails.",
         "",
     ]
     (out / "summary.md").write_text("\n".join(lines), encoding="utf-8")
