@@ -17,6 +17,9 @@ OpenSees 2D data campaign under `neural-operator/data/ood_three_layer/`.
 
 Flat interfaces, no interlayer wave. Domain: 500 m variability + 500 m BC each side.
 
+**Total height:** `Lz = H1 + H2 + bedrock` with bedrock = 10 m and `H1+H2 ≤ 24` → **max `Lz ≈ 34 m`**.
+Runtime guide (OpenSees 2D): ~50 m → 3–4 h; ~100 m → 8–9 h; this campaign (~≤34 m) → ~2–3 h/case.
+
 ## Local
 
 ```bash
@@ -35,6 +38,7 @@ Outputs: `h5/run_{N}.h5`, raw under `results/run_{N}/`.
 ## Stampede3
 
 ```bash
+# Smoke uses 8 h walltime (max Lz≈34 m).
 bash neural-operator/data/ood_three_layer/submit_full.sh smoke
 bash neural-operator/data/ood_three_layer/submit_full.sh production
 sbatch neural-operator/data/ood_three_layer/stampede3_resume_run.slurm

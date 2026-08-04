@@ -7,7 +7,8 @@
 #SBATCH -p skx
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -t 10:00:00
+# Max Lz≈34 m → expect ~2–3 h; keep margin vs 50 m (~3–4 h) / 100 m (~8–9 h) timings.
+#SBATCH -t 12:00:00
 #SBATCH -A ECS24003
 
 set -euo pipefail

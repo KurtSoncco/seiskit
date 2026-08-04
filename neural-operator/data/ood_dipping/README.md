@@ -17,6 +17,8 @@ OpenSees 2D data campaign under `neural-operator/data/ood_dipping/`.
 
 `dip_span = 500 m`, no wave. Full-span drop at 3° ≈ 26.2 m. `Lz` = deepest interface + ≥20 m bedrock.
 
+**Total height:** deepest interface ≈ `H + 250·tan(|dip|)` (center pivot). Worst case `H=60`, `|dip|=3°` → deepest ≈ 73.1 m + ≥20 m bedrock → **`Lz ≈ 93–94 m`** (near the ~100 m / 8–9 h regime). Smoke walltime is **12 h**; single-index **16 h**.
+
 ## Local
 
 ```bash
