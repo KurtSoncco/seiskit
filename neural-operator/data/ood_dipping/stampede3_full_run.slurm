@@ -1,9 +1,9 @@
 #!/bin/bash
 # Tier B ood_dipping full run on TACC Stampede3 (pylauncher).
 #
-# Smoke:
+# Smoke (use 12 h — dipping idx 0/1 needed ~1–2k s past a 4 h wall):
 #   OOD_PHYSICS_COUNT=2 OOD_SEED_LEVELS=2 OOD_OVERWRITE_MANIFEST=1 FORCE_RERUN=1 \
-#     sbatch -N 1 --ntasks-per-node=4 -t 4:00:00 \
+#     sbatch -N 1 --ntasks-per-node=4 -t 12:00:00 \
 #     neural-operator/data/ood_dipping/stampede3_full_run.slurm
 #
 # Production (960 tasks):

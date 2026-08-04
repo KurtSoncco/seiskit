@@ -29,10 +29,18 @@ Outputs: `h5/run_{N}.h5`.
 ## Stampede3
 
 ```bash
+# Smoke uses 12 h walltime (dipping OpenSees is slower than flat 3-layer).
 bash neural-operator/data/ood_dipping/submit_full.sh smoke
 bash neural-operator/data/ood_dipping/submit_full.sh production
 sbatch neural-operator/data/ood_dipping/stampede3_resume_run.slurm
 INDEX=0 sbatch neural-operator/data/ood_dipping/stampede3_single_index.sh
+```
+
+To finish only missing smoke indices without regenerating the manifest:
+```bash
+FORCE_RERUN=1 OOD_OVERWRITE_MANIFEST=0 \
+  sbatch -N 1 --ntasks-per-node=2 -t 12:00:00 \
+  neural-operator/data/ood_dipping/stampede3_resume_run.slurm
 ```
 
 Scratch default: `$SCRATCH/opensees_ood_dipping/{h5,raw_runs}`.

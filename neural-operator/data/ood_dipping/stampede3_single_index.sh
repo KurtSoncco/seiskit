@@ -7,7 +7,8 @@
 #SBATCH -p skx
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -t 12:00:00
+# Dipping cases can exceed ~3–4 h; keep a comfortable single-index budget.
+#SBATCH -t 16:00:00
 #SBATCH -A ECS24003
 
 set -euo pipefail
