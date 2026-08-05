@@ -13,7 +13,11 @@ if [ "${MODE}" = "smoke" ]; then
   sbatch -N 1 --ntasks-per-node=4 -t 12:00:00 \
     "${SCRIPT_DIR}/stampede3_full_run.slurm"
 elif [ "${MODE}" = "production" ]; then
-  # Extra walltime vs flat 3-layer: dipping Lz grows with |dip|.
+  # Always rebuild the full 32×30 manifest (smoke leaves a 4-row CSV otherwise).
+  OOD_PHYSICS_COUNT="${OOD_PHYSICS_COUNT:-32}" \
+  OOD_SEED_LEVELS="${OOD_SEED_LEVELS:-30}" \
+  OOD_OVERWRITE_MANIFEST="${OOD_OVERWRITE_MANIFEST:-1}" \
+  FORCE_RERUN="${FORCE_RERUN:-0}" \
   sbatch -N 4 --ntasks-per-node=48 -t 48:00:00 \
     "${SCRIPT_DIR}/stampede3_full_run.slurm"
 else

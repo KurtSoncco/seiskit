@@ -33,6 +33,7 @@ Outputs: `h5/run_{N}.h5`.
 ```bash
 # Smoke uses 12 h walltime (dipping OpenSees is slower than flat 3-layer).
 bash neural-operator/data/ood_dipping/submit_full.sh smoke
+# Production rebuilds a full 32×30=960-row manifest (does not reuse smoke's 4 rows).
 bash neural-operator/data/ood_dipping/submit_full.sh production
 sbatch neural-operator/data/ood_dipping/stampede3_resume_run.slurm
 INDEX=0 sbatch neural-operator/data/ood_dipping/stampede3_single_index.sh

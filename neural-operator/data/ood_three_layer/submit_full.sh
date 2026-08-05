@@ -14,7 +14,12 @@ if [ "${MODE}" = "smoke" ]; then
   sbatch -N 1 --ntasks-per-node=4 -t 08:00:00 \
     "${SCRIPT_DIR}/stampede3_full_run.slurm"
 elif [ "${MODE}" = "production" ]; then
-  # ~3 h/case × ~5 launcher waves on 4×48 cores → well under 48 h.
+  # Always rebuild the full 32×30 manifest. Smoke leaves a 4-row CSV; without
+  # OOD_OVERWRITE_MANIFEST=1 production would reuse those 4 tasks only.
+  OOD_PHYSICS_COUNT="${OOD_PHYSICS_COUNT:-32}" \
+  OOD_SEED_LEVELS="${OOD_SEED_LEVELS:-30}" \
+  OOD_OVERWRITE_MANIFEST="${OOD_OVERWRITE_MANIFEST:-1}" \
+  FORCE_RERUN="${FORCE_RERUN:-0}" \
   sbatch -N 4 --ntasks-per-node=48 -t 48:00:00 \
     "${SCRIPT_DIR}/stampede3_full_run.slurm"
 else

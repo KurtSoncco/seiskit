@@ -40,6 +40,7 @@ Outputs: `h5/run_{N}.h5`, raw under `results/run_{N}/`.
 ```bash
 # Smoke uses 8 h walltime (max Lz≈34 m).
 bash neural-operator/data/ood_three_layer/submit_full.sh smoke
+# Production rebuilds a full 32×30=960-row manifest (does not reuse smoke's 4 rows).
 bash neural-operator/data/ood_three_layer/submit_full.sh production
 sbatch neural-operator/data/ood_three_layer/stampede3_resume_run.slurm
 INDEX=0 sbatch neural-operator/data/ood_three_layer/stampede3_single_index.sh
