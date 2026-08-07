@@ -1,4 +1,4 @@
-"""Naive OLS vs heteroscedasticity / cluster-robust contrast for χ ratios.
+r"""Naive OLS vs heteroscedasticity / cluster-robust contrast for χ ratios.
 
 Breusch–Pagan, Levene by factor, SE inflation, and a cell-level variance
 regression \(\log s^2_k \sim \mathbf{z}_k\) (descriptor; full CosWM-whitened
@@ -61,12 +61,8 @@ def assess_metric(df: pd.DataFrame, metric: str) -> dict[str, pd.DataFrame | dic
     formula = f"y ~ {formula_rhs_main()}"
 
     m = smf.ols(formula, data=work).fit()
-    m_seed = smf.ols(formula, data=work).fit(
-        cov_type="cluster", cov_kwds={"groups": work["seed"]}
-    )
-    m_cell = smf.ols(formula, data=work).fit(
-        cov_type="cluster", cov_kwds={"groups": work["cell"]}
-    )
+    m_seed = smf.ols(formula, data=work).fit(cov_type="cluster", cov_kwds={"groups": work["seed"]})
+    m_cell = smf.ols(formula, data=work).fit(cov_type="cluster", cov_kwds={"groups": work["cell"]})
 
     # Breusch–Pagan on Stage-1 residuals vs design
     X = sm.add_constant(work[ZCOLS])
@@ -109,8 +105,7 @@ def assess_metric(df: pd.DataFrame, metric: str) -> dict[str, pd.DataFrame | dic
     lev_rows = []
     for fac in FACTORS:
         groups = [
-            work.loc[work[fac] == lv, "resid"].to_numpy()
-            for lv in sorted(work[fac].unique())
+            work.loc[work[fac] == lv, "resid"].to_numpy() for lv in sorted(work[fac].unique())
         ]
         W, p = _levene_groups(groups)
         lev_rows.append(
@@ -185,11 +180,10 @@ def build_summary_md(
         "# Naive OLS vs heteroscedasticity-aware inference",
         "",
         "Contrasts classical (naive) OLS standard errors with cluster-robust "
-        "SEs and documents factor-dependent residual variance on \(Y = \\ln\\chi\).",
+        "SEs and documents factor-dependent residual variance on \\(Y = \\ln\\chi\\).",
         "",
-        f"- Design: **{N_CELLS}** cells × \(N_x = {N_NODES}\) × "
-        f"\(N_s = {N_SEEDS}\)",
-        f"- Homoscedasticity tests at \(\\alpha = {ALPHA}\)",
+        rf"- Design: **{N_CELLS}** cells × \(N_x = {N_NODES}\) × \(N_s = {N_SEEDS}\)",
+        f"- Homoscedasticity tests at \\(\\alpha = {ALPHA}\\)",
         "- Variance regression uses **unwhitened** Stage-1 residuals "
         "(descriptor). Prefer CosWM whitening before Stage-3 variance in the "
         "full hierarchical pipeline (`mixed_model`).",
@@ -201,20 +195,19 @@ def build_summary_md(
         "| `breusch_pagan.csv` | BP LM / F tests of residual hetero vs design |",
         "| `levene_by_factor.csv` | Brown–Forsythe / Levene on residuals by factor |",
         "| `se_inflation.csv` | Naive vs seed- and cell-cluster SE |",
-        "| `variance_effects.csv` | \(\\hat\\gamma\) from "
-        "\(\\log s^2_k \\sim \\mathbf{z}_k\) |",
-        "| `variance_fit_metrics.csv` | Cell-level \(R^2\) of log-variance model |",
+        "| `variance_effects.csv` | \\(\\hat\\gamma\\) from \\(\\log s^2_k \\sim \\mathbf{z}_k\\) |",
+        r"| `variance_fit_metrics.csv` | Cell-level \(R^2\) of log-variance model |",
         "| `summary.md` | this file |",
         "",
         "## Notation",
         "",
-        "**Homoscedastic OLS** assumes \(\\mathrm{Var}(\\varepsilon) = "
-        "\\sigma^2 I\). **Cluster-robust** SEs allow arbitrary correlation "
+        "**Homoscedastic OLS** assumes \\(\\mathrm{Var}(\\varepsilon) = "
+        "\\sigma^2 I\\). **Cluster-robust** SEs allow arbitrary correlation "
         "within seed or cell clusters. **Heteroscedasticity** means "
-        "\(\\mathrm{Var}(\\varepsilon\\mid \\mathbf{x})\) depends on design.",
+        "\\(\\mathrm{Var}(\\varepsilon\\mid \\mathbf{x})\\) depends on design.",
         "",
         "Breusch–Pagan regresses squared OLS residuals on the design; reject "
-        "homoscedasticity when LM \(p < \\alpha\).",
+        "homoscedasticity when LM \\(p < \\alpha\\).",
         "",
         "Cell variance model (descriptor):",
         "",
@@ -222,13 +215,13 @@ def build_summary_md(
         r"\log s^2_k = \mathbf{z}_k^\top\boldsymbol{\gamma} + u_k,",
         r"$$",
         "",
-        "with \(s^2_k\) the sample variance of Stage-1 residuals in cell \(k\). "
+        r"with \(s^2_k\) the sample variance of Stage-1 residuals in cell \(k\). "
         "Fit variance **after** absorbing spatial structure when doing "
         "formal Stage-3 inference.",
         "",
         "## Breusch–Pagan",
         "",
-        "| Metric | LM | \(p\) | Reject homo? |",
+        r"| Metric | LM | \(p\) | Reject homo? |",
         "|--------|---:|------:|:------------:|",
     ]
     for _, r in bp.iterrows():
@@ -258,22 +251,20 @@ def build_summary_md(
     lines.extend(
         [
             "",
-            "## Variance model \(R^2\) (\(\\log s^2_k\))",
+            "## Variance model \\(R^2\\) (\\(\\log s^2_k\\))",
             "",
-            "| Metric | \(n_{\\mathrm{cells}}\) | \(R^2\) |",
+            "| Metric | \\(n_{\\mathrm{cells}}\\) | \\(R^2\\) |",
             "|--------|------------------------:|--------:|",
         ]
     )
     for _, r in var_meta.iterrows():
-        lines.append(
-            f"| {r['metric']} | {int(r['n_cells'])} | {fmt(r['r2_log_s2'])} |"
-        )
+        lines.append(f"| {r['metric']} | {int(r['n_cells'])} | {fmt(r['r2_log_s2'])} |")
 
     lines.extend(["", "## Conclusions", ""])
     n_rej = int(bp["reject_homo_alpha"].sum())
     lines.append(
         f"- Breusch–Pagan rejects homoscedasticity for **{n_rej}/{len(bp)}** "
-        f"metrics at \(\\alpha = {ALPHA}\)."
+        f"metrics at \\(\\alpha = {ALPHA}\\)."
     )
     for metric in METRICS:
         sub = main[main["metric"] == metric]
@@ -287,13 +278,13 @@ def build_summary_md(
         lines.append(
             f"- **{metric}**: median seed-cluster SE inflation "
             f"{fmt(sub['se_infl_seed'].median())}×; "
-            f"log-variance \(R^2 = {fmt(vm['r2_log_s2'])}\); "
+            rf"log-variance \(R^2 = {fmt(vm['r2_log_s2'])}\); "
             f"largest |γ| factor **{top['factor']}** ({fmt(top['gamma'])})."
         )
     lines.extend(
         [
             "",
-            "Practical difference vs naive OLS: point estimates \(\\hat\\beta\) "
+            "Practical difference vs naive OLS: point estimates \\(\\hat\\beta\\) "
             "are unchanged under a correct mean, but naive SEs and constant-width "
             "intervals are misleading under clustering and heteroscedasticity. "
             "Report cluster-robust SEs for mean inference and a variance model "
@@ -322,10 +313,7 @@ def main() -> None:
         se_parts.append(res["se"])
         var_parts.append(res["variance_effects"])
         var_meta_rows.append(res["variance_meta"])
-        print(
-            f"  BP p={res['bp']['lm_p']:.2e}, "
-            f"var R²={res['variance_meta']['r2_log_s2']:.4f}"
-        )
+        print(f"  BP p={res['bp']['lm_p']:.2e}, var R²={res['variance_meta']['r2_log_s2']:.4f}")
 
     bp_df = pd.DataFrame(bp_rows)
     lev_df = pd.concat(lev_parts, ignore_index=True)

@@ -560,18 +560,31 @@ def main() -> None:
     n_cells = int(df["cell"].nunique())
     print(f"Design cells: {n_cells} (expected {N_CELLS})")
 
-    emp_records: list[dict] = []
-    fit_records: list[dict] = []
-    grouped = df.groupby("cell", sort=True)
-    for i, (_, g) in enumerate(grouped):
+    _CODE = Path(__file__).resolve().parent.parent
+    if str(_CODE) not in sys.path:
+        sys.path.insert(0, str(_CODE))
+    from _shared import parallel_map  # noqa: E402
+
+    grouped = list(df.groupby("cell", sort=True))
+
+    def _one(item):
+        _, g = item
         cell_keys = {f: g[f].iloc[0] for f in FACTORS}
         cell_keys["cell"] = int(g["cell"].iloc[0])
+        emp_rows: list[dict] = []
+        fit_rows: list[dict] = []
         for metric in METRICS:
-            emp_rows, fit_row = assess_cell_metric(g, metric, cell_keys)
-            emp_records.extend(emp_rows)
-            fit_records.append(fit_row)
-        if (i + 1) % 20 == 0 or i == 0:
-            print(f"  assessed cell {i} ({i + 1}/{n_cells})")
+            e, frow = assess_cell_metric(g, metric, cell_keys)
+            emp_rows.extend(e)
+            fit_rows.append(frow)
+        return emp_rows, fit_rows
+
+    results = parallel_map(_one, grouped, desc="spatial_acf cells")
+    emp_records: list[dict] = []
+    fit_records: list[dict] = []
+    for emp_rows, fit_rows in results:
+        emp_records.extend(emp_rows)
+        fit_records.extend(fit_rows)
 
     emp = pd.DataFrame(emp_records)
     fits = pd.DataFrame(fit_records)

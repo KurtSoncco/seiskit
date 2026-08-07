@@ -46,12 +46,8 @@ def fit_metric(df: pd.DataFrame, metric: str) -> tuple[pd.DataFrame, dict]:
     formula = f"y ~ {rhs}"
 
     m = smf.ols(formula, data=work).fit()
-    m_seed = smf.ols(formula, data=work).fit(
-        cov_type="cluster", cov_kwds={"groups": work["seed"]}
-    )
-    m_cell = smf.ols(formula, data=work).fit(
-        cov_type="cluster", cov_kwds={"groups": work["cell"]}
-    )
+    m_seed = smf.ols(formula, data=work).fit(cov_type="cluster", cov_kwds={"groups": work["seed"]})
+    m_cell = smf.ols(formula, data=work).fit(cov_type="cluster", cov_kwds={"groups": work["cell"]})
 
     terms = ["Intercept"] + ZCOLS
     rows = []
@@ -115,9 +111,8 @@ def build_summary_md(effects: pd.DataFrame, fit: pd.DataFrame) -> str:
         "Ordinary least squares for 1D-normalized ratios on the log scale, "
         f"standardized main effects (`{'`, `'.join(FACTORS)}`).",
         "",
-        f"- Design cells: **{N_CELLS}**; nodes \(N_x = {N_NODES}\); "
-        f"seeds \(N_s = {N_SEEDS}\)",
-        "- Working scale: \(Y = \\ln\\chi\) (non-positive / non-finite dropped)",
+        rf"- Design cells: **{N_CELLS}**; nodes \(N_x = {N_NODES}\); seeds \(N_s = {N_SEEDS}\)",
+        "- Working scale: \\(Y = \\ln\\chi\\) (non-positive / non-finite dropped)",
         "- Predictors: z-scored main effects only (no interactions)",
         "- Official uncertainty: report **cluster-robust** SEs "
         "(seed and cell); naive SEs are for inflation diagnostics only",
@@ -127,9 +122,9 @@ def build_summary_md(effects: pd.DataFrame, fit: pd.DataFrame) -> str:
         "| File | Contents |",
         "|------|----------|",
         "| `mean_effects.csv` | Coefficient, naive / seed-cluster / cell-cluster "
-        "SE, SE inflation, \(t\)/\(p\) |",
-        "| `mean_fit_metrics.csv` | In-sample \(R^2\), adjusted \(R^2\), "
-        f"cell-grouped {N_CV_SPLITS}-fold CV \(R^2\), RMSE |",
+        r"SE, SE inflation, \(t\)/\(p\) |",
+        r"| `mean_fit_metrics.csv` | In-sample \(R^2\), adjusted \(R^2\), "
+        rf"cell-grouped {N_CV_SPLITS}-fold CV \(R^2\), RMSE |",
         "| `summary.md` | this file |",
         "",
         "## Notation",
@@ -137,29 +132,29 @@ def build_summary_md(effects: pd.DataFrame, fit: pd.DataFrame) -> str:
         "Canonical symbols: "
         "`statistical_analysis/full_paper/analysis/NOTATION.md` (`chi_ols` section).",
         "",
-        "Observation at design cell \(k\), seed \(j\), node \(i\):",
+        r"Observation at design cell \(k\), seed \(j\), node \(i\):",
         "",
         r"$$",
         r"Y_{kij} = \mathbf{x}_k^\top\boldsymbol{\beta} + \varepsilon_{kij}.",
         r"$$",
         "",
-        "Here \(\\mathbf{x}_k\) stacks an intercept and the five z-scored factors. "
+        "Here \\(\\mathbf{x}_k\\) stacks an intercept and the five z-scored factors. "
         "Cluster-robust variance estimators allow arbitrary within-cluster "
-        "correlation (seed \(j\) or cell \(k\)). SE inflation:",
+        r"correlation (seed \(j\) or cell \(k\)). SE inflation:",
         "",
         r"$$",
         r"\mathrm{SE\,infl.} = "
         r"\frac{\mathrm{SE}_{\mathrm{cluster}}}{\mathrm{SE}_{\mathrm{naive}}}.",
         r"$$",
         "",
-        "In-sample \(R^2 = 1 - \\mathrm{SS}_{\\mathrm{res}}/"
-        "\\mathrm{SS}_{\\mathrm{tot}}\). Cell-grouped CV \(R^2\) holds out "
+        "In-sample \\(R^2 = 1 - \\mathrm{SS}_{\\mathrm{res}}/"
+        "\\mathrm{SS}_{\\mathrm{tot}}\\). Cell-grouped CV \\(R^2\\) holds out "
         "entire design cells so that within-cell spatial/seed dependence does "
         "not leak into the held-out score.",
         "",
         "## Fit metrics",
         "",
-        "| Metric | \(n\) | \(R^2\) in-sample | \(R^2\) CV (cell) | RMSE |",
+        r"| Metric | \(n\) | \(R^2\) in-sample | \(R^2\) CV (cell) | RMSE |",
         "|--------|------:|------------------:|------------------:|-----:|",
     ]
     for _, r in fit.iterrows():
@@ -174,7 +169,7 @@ def build_summary_md(effects: pd.DataFrame, fit: pd.DataFrame) -> str:
             "",
             "## Main-effect coefficients (seed-cluster SE)",
             "",
-            "| Metric | Factor | \(\\hat\\beta\) | SE (seed) | SE infl. (seed) |",
+            "| Metric | Factor | \\(\\hat\\beta\\) | SE (seed) | SE infl. (seed) |",
             "|--------|--------|---------------:|----------:|----------------:|",
         ]
     )
@@ -189,18 +184,16 @@ def build_summary_md(effects: pd.DataFrame, fit: pd.DataFrame) -> str:
     lines.extend(["", "## Conclusions", ""])
     for _, r in fit.iterrows():
         m = r["metric"]
-        infl = effects.loc[
-            (effects["metric"] == m) & (effects["term"].isin(ZCOLS)), "se_infl_seed"
-        ]
+        infl = effects.loc[(effects["metric"] == m) & (effects["term"].isin(ZCOLS)), "se_infl_seed"]
         med_infl = float(infl.median()) if len(infl) else np.nan
-        abs_coef = effects.loc[
-            (effects["metric"] == m) & (effects["term"].isin(ZCOLS))
-        ].assign(abs_b=lambda d: d["coef"].abs())
+        abs_coef = effects.loc[(effects["metric"] == m) & (effects["term"].isin(ZCOLS))].assign(
+            abs_b=lambda d: d["coef"].abs()
+        )
         top = abs_coef.sort_values("abs_b", ascending=False).iloc[0]
         gap = abs(float(r["r2_insample"]) - float(r["r2_cv_cell"]))
         lines.append(
-            f"- **{m}**: in-sample \(R^2 = {fmt(r['r2_insample'])}\), "
-            f"cell-CV \(R^2 = {fmt(r['r2_cv_cell'])}\) "
+            rf"- **{m}**: in-sample \(R^2 = {fmt(r['r2_insample'])}\), "
+            rf"cell-CV \(R^2 = {fmt(r['r2_cv_cell'])}\) "
             f"(gap {fmt(gap)}); median seed-cluster SE inflation "
             f"{fmt(med_infl)}×; largest |β| among main effects is "
             f"**{top['factor']}** ({fmt(top['coef'])})."
@@ -208,7 +201,7 @@ def build_summary_md(effects: pd.DataFrame, fit: pd.DataFrame) -> str:
     lines.extend(
         [
             "",
-            "Low \(R^2\) with CV matching in-sample indicates design-driven "
+            r"Low \(R^2\) with CV matching in-sample indicates design-driven "
             "signal plus large seed/node stochasticity—not mean-model overfitting. "
             "Use cluster-robust SEs for inference; naive SEs understate uncertainty "
             "when seeds or cells induce residual dependence.",
@@ -230,10 +223,7 @@ def main() -> None:
         effects, met = fit_metric(df, metric)
         effect_parts.append(effects)
         metric_rows.append(met)
-        print(
-            f"  R²={met['r2_insample']:.4f}, "
-            f"CV R²={met['r2_cv_cell']:.4f}, n={met['n_obs']:,}"
-        )
+        print(f"  R²={met['r2_insample']:.4f}, CV R²={met['r2_cv_cell']:.4f}, n={met['n_obs']:,}")
 
     effects_df = pd.concat(effect_parts, ignore_index=True)
     fit_df = pd.DataFrame(metric_rows)

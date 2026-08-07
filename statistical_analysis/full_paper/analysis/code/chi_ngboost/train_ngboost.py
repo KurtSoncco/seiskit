@@ -40,7 +40,6 @@ from common import (  # noqa: E402
     VAL_FRAC,
     VAL_SEED,
     add_design_columns,
-    fmt,
     load_or_make_split,
     load_ratios,
     log_response,
@@ -141,7 +140,9 @@ def main() -> None:
     fit_rel, val_rel = next(gss.split(tr, groups=groups[tr]))
     fit_idx, val_idx = tr[fit_rel], tr[val_rel]
     fit_sub = _subsample_train(fit_idx, groups, TRAIN_SUBSAMPLE_FRAC, TRAIN_SUBSAMPLE_SEED)
-    val_sub = _subsample_train(val_idx, groups, min(1.0, TRAIN_SUBSAMPLE_FRAC * 2), TRAIN_SUBSAMPLE_SEED + 1)
+    val_sub = _subsample_train(
+        val_idx, groups, min(1.0, TRAIN_SUBSAMPLE_FRAC * 2), TRAIN_SUBSAMPLE_SEED + 1
+    )
 
     rows = []
     lag_rows = []
@@ -245,7 +246,7 @@ def main() -> None:
         "",
         "| File | Content |",
         "|------|---------|",
-        "| `holdout_metrics.csv` | NLL, \(R^2\), RMSE, PI90, pinball, trees |",
+        r"| `holdout_metrics.csv` | NLL, \(R^2\), RMSE, PI90, pinball, trees |",
         "| `residual_spatial_acf.csv` | residual spatial lag-1 diagnostics |",
         "| `train_meta.json` / `seed_split.json` | fit metadata and split |",
         "| `../models/ngboost_*.pkl` | fitted NGBoost models |",
@@ -262,7 +263,7 @@ def main() -> None:
         "",
         "- NGBoost provides a full parametric predictive distribution at each (cell, node), enabling likelihood-based evaluation of aleatoric variability.",
         "- Because residuals remain spatially correlated along the profile, these distributions are conditional emulators validated via held-out seeds and lag-1 diagnostics, not joint spatial process models.",
-        f"- Training used a {TRAIN_SUBSAMPLE_FRAC:.0%} subsample for tractability on ~2.45M rows; interpret absolute NLL/\(R^2\) with that caveat, but the seed holdout protocol matches `chi_qbm`.",
+        rf"- Training used a {TRAIN_SUBSAMPLE_FRAC:.0%} subsample for tractability on ~2.45M rows; interpret absolute NLL/\(R^2\) with that caveat, but the seed holdout protocol matches `chi_qbm`.",
         "",
     ]
     (out / "summary.md").write_text("\n".join(lines), encoding="utf-8")

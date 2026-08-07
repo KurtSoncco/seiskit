@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import re
 import sys
 from pathlib import Path
@@ -11,28 +10,35 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import GroupShuffleSplit
 
-# Load chi_ngboost/common by path to avoid shadowing this package's `common`.
-_ngb_common_path = Path(__file__).resolve().parent.parent / "chi_ngboost" / "common.py"
-_spec = importlib.util.spec_from_file_location("chi_ngboost_common", _ngb_common_path)
-assert _spec is not None and _spec.loader is not None
-_ngb = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_ngb)
+_CODE = Path(__file__).resolve().parent.parent
+if str(_CODE) not in sys.path:
+    sys.path.insert(0, str(_CODE))
 
-FEATURES = _ngb.FEATURES
-METRICS = _ngb.METRICS
-TEST_SIZE = _ngb.TEST_SIZE
-add_design_columns = _ngb.add_design_columns
-load_or_make_split = _ngb.load_or_make_split
-load_ratios = _ngb.load_ratios
-log_response = _ngb.log_response
-ngboost_models_dir = _ngb.models_dir
-ngboost_surfaces_dir = _ngb.surfaces_dir
-pinball_loss = _ngb.pinball_loss
-r2_score = _ngb.r2_score
-rmse = _ngb.rmse
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from _shared import (  # noqa: E402,F401
+    FEATURES,
+    METRICS,
+    TEST_SIZE,
+    add_design_columns,
+    load_or_make_split,
+    load_ratios,
+    log_response,
+    pinball_loss,
+    r2_score,
+    rmse,
+)
 from config import figure_dir  # noqa: E402
+
+
+def ngboost_models_dir() -> Path:
+    path = figure_dir("chi_ngboost", "models")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def ngboost_surfaces_dir() -> Path:
+    path = figure_dir("chi_ngboost", "surfaces")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 SHAP_COMPARE = figure_dir("chi_shap", "shap_compare")
 COLLAPSE_R2_THRESH = 0.05

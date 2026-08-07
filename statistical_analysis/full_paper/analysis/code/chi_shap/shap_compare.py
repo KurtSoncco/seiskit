@@ -47,8 +47,16 @@ def main() -> None:
     qbm_mean = _load_imp(qbm_dir / "shap_importance_mean.csv")
     qbm_q05 = _load_imp(qbm_dir / "shap_importance_q05.csv")
     qbm_q95 = _load_imp(qbm_dir / "shap_importance_q95.csv")
-    ngb_int = pd.read_csv(ngb_dir / "shap_interactions_top.csv") if (ngb_dir / "shap_interactions_top.csv").is_file() else pd.DataFrame()
-    qbm_int = pd.read_csv(qbm_dir / "shap_interactions_top.csv") if (qbm_dir / "shap_interactions_top.csv").is_file() else pd.DataFrame()
+    ngb_int = (
+        pd.read_csv(ngb_dir / "shap_interactions_top.csv")
+        if (ngb_dir / "shap_interactions_top.csv").is_file()
+        else pd.DataFrame()
+    )
+    qbm_int = (
+        pd.read_csv(qbm_dir / "shap_interactions_top.csv")
+        if (qbm_dir / "shap_interactions_top.csv").is_file()
+        else pd.DataFrame()
+    )
 
     compare_rows = []
     short_rows = []
@@ -125,7 +133,9 @@ def main() -> None:
                         "rank": rank,
                         "mean_abs_shap": vals[f],
                         "also_top_in_qbm_mean": int(f in top_qm) if target == "mu" else "",
-                        "also_top_in_qbm_tail": int(f in top_tail) if target == "log_sigma" else int(f in top_tail),
+                        "also_top_in_qbm_tail": int(f in top_tail)
+                        if target == "log_sigma"
+                        else int(f in top_tail),
                     }
                 )
 
@@ -137,8 +147,7 @@ def main() -> None:
             qbm_pairs = set()
             if len(qbm_int):
                 qsub = qbm_int[
-                    (qbm_int["metric"] == metric)
-                    & (qbm_int["target"].isin(["mean", "q50"]))
+                    (qbm_int["metric"] == metric) & (qbm_int["target"].isin(["mean", "q50"]))
                 ].head(10)
                 for _, r in qsub.iterrows():
                     qbm_pairs.add(tuple(sorted([r["feature_i"], r["feature_j"]])))

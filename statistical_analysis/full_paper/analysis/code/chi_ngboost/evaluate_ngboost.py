@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import CHI_QBM_COMPARE, CHI_OLS_CEILING, METRICS, out_dir  # noqa: E402
+from common import CHI_OLS_CEILING, CHI_QBM_COMPARE, METRICS, out_dir  # noqa: E402
 
 
 def main() -> None:
@@ -89,7 +89,7 @@ def main() -> None:
         "",
         "## Conclusions",
         "",
-        "- Compare NGBoost and QBM on the **stated target**: mean \(R^2\) vs distributional scores (NLL, PI coverage, pinball).",
+        r"- Compare NGBoost and QBM on the **stated target**: mean \(R^2\) vs distributional scores (NLL, PI coverage, pinball).",
         "- High residual lag-1 for NGBoost (as for QBM) means neither model whitened spatial dependence; both remain conditional emulators.",
         "",
     ]

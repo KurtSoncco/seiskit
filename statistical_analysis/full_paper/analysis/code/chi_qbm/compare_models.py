@@ -37,7 +37,7 @@ from common import (  # noqa: E402
     pinball_loss,
     r2_score,
     rmse,
-    seed_grouped_split_indices,
+    load_or_make_split,
 )
 
 warnings.filterwarnings("ignore")
@@ -145,7 +145,7 @@ def build_summary_md(
         "# Naive OLS vs spatial GLS vs QBM",
         "",
         "Full-array three-way comparison on the shared **seed-grouped** holdout "
-        f"(\(Y = \\ln\\chi\); factors `{'`, `'.join(FACTORS)}`).",
+        f"(\\(Y = \\ln\\chi\\); factors `{'`, `'.join(FACTORS)}`).",
         "",
         "| Model | Role |",
         "|-------|------|",
@@ -158,24 +158,22 @@ def build_summary_md(
         "",
         "| File | Contents |",
         "|------|----------|",
-        "| `comparison_metrics.csv` | \(R^2\), RMSE, efficiency, pinball, "
-        "pseudo-\(R^2\) |",
+        r"| `comparison_metrics.csv` | \(R^2\), RMSE, efficiency, pinball, pseudo-\(R^2\) |",
         "| `pi_hetero.csv` | 90% PI coverage / width / max÷min by model |",
-        "| `residual_spatial_acf.csv` | Holdout residual \|lag-1\| by model |",
+        r"| `residual_spatial_acf.csv` | Holdout residual \|lag-1\| by model |",
         "| `summary.md` | this file |",
         "",
         "## Notation",
         "",
-        "Pinball loss \(\\rho_\\tau\); Koenker \(R^1(\\tau) = "
-        "1 - \\rho_\\tau(\\mathrm{model}) / \\rho_\\tau(\\mathrm{null})\). "
-        "Naive OLS intervals use \(\\hat y + z_\\tau \\hat\\sigma\) with "
-        "constant \(\\hat\\sigma\) from train residuals. QBM intervals use "
-        "\(q_{0.05}, q_{0.95}\) (sorted across τ to fix crossings).",
+        "Pinball loss \\(\\rho_\\tau\\); Koenker \\(R^1(\\tau) = "
+        "1 - \\rho_\\tau(\\mathrm{model}) / \\rho_\\tau(\\mathrm{null})\\). "
+        "Naive OLS intervals use \\(\\hat y + z_\\tau \\hat\\sigma\\) with "
+        "constant \\(\\hat\\sigma\\) from train residuals. QBM intervals use "
+        r"\(q_{0.05}, q_{0.95}\) (sorted across τ to fix crossings).",
         "",
-        "## Point prediction (\(R^2\))",
+        r"## Point prediction (\(R^2\))",
         "",
-        "| Metric | Naive OLS | Spatial GLS | Mean GBM | Ceiling | "
-        "Eff. GBM |",
+        "| Metric | Naive OLS | Spatial GLS | Mean GBM | Ceiling | Eff. GBM |",
         "|--------|----------:|------------:|---------:|--------:|--------:|",
     ]
     for metric in METRICS:
@@ -240,9 +238,9 @@ def build_summary_md(
         r_gbm = rows.get("mean_gbm", {}).get("r2", np.nan)
         wr = p.get("qbm", {}).get("width_ratio", np.nan)
         lines.append(
-            f"- **{metric}**: mean \(R^2\) OLS {fmt(r_ols)} / GLS {fmt(r_gls)} / "
+            rf"- **{metric}**: mean \(R^2\) OLS {fmt(r_ols)} / GLS {fmt(r_gls)} / "
             f"GBM {fmt(r_gbm)}; QBM 90% PI width ratio {fmt(wr)} "
-            f"(hetero signal); residual \|lag-1\| "
+            rf"(hetero signal); residual \|lag-1\| "
             f"OLS {fmt(s.get('naive_ols', {}).get('median_abs_lag1', np.nan))} → "
             f"QBM {fmt(s.get('qbm', {}).get('median_abs_lag1', np.nan))}."
         )
@@ -252,7 +250,7 @@ def build_summary_md(
             "**Takeaways.** QBM improves distributional calibration and "
             "factor-dependent spread without claiming a parametric variance "
             "model. Spatial GLS corrects residual correlation for linear "
-            "estimation but typically does not raise holdout \(R^2\) much over "
+            r"estimation but typically does not raise holdout \(R^2\) much over "
             "naive OLS. Residual lag-1 after QBM may remain elevated because "
             "`node_z` is a smooth spatial feature, not a full CosWM whitening "
             "of RF dependence—report it honestly alongside pinball/PI metrics.",
@@ -265,7 +263,7 @@ def build_summary_md(
 def main() -> None:
     print("Loading data …")
     df = add_design_columns(load_ratios())
-    tr, te = seed_grouped_split_indices(df)
+    tr, te = load_or_make_split(df)
     df_tr, df_te = df.iloc[tr], df.iloc[te]
     print(f"  holdout n={len(df_te):,}")
 

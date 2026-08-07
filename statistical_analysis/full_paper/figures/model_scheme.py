@@ -5,10 +5,10 @@ with dimension arrows for Lx,var and L_array. Panel (b): zoom with spike
 geophones (center-only or full array).
 
 Paper targets:
-  - Full paper → array receivers (FIG_WIDTH = 7 in from config)
-  - Conference paper → center receiver (6.5 in)
+  - Full paper → array receivers (FIG_WIDTH = 7 in, 600 dpi)
+  - Conference paper → center receiver (6.5 in, 600 dpi)
 
-Produces: model_scheme_{center,array}.pdf under
+Produces: ``model_scheme_{center,array}.{pdf,svg}`` under
 ``complete/full_paper/figures/model_scheme/``.
 """
 
@@ -20,6 +20,7 @@ from typing import Literal
 
 import h5py
 import hdf5plugin  # noqa: F401 — registers Blosc2 filter
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Rectangle
@@ -28,7 +29,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import (  # noqa: E402
     ANNOTATION_FONTSIZE,
     DATA_LINEWIDTH,
+    FIG_WIDTH,
     LABEL_FONTSIZE,
+    PANEL_LABEL_SIZE,
     TICK_LABELSIZE,
     add_panel_label,
     apply_full_paper_style,
@@ -49,8 +52,16 @@ H5_PATH = Path(
 )
 OUT_DIR = figure_dir("model_scheme")
 
-# Conference paper still uses 6.5 in (see conference_paper/config.py)
-CONF_FIGSIZE = (6.5, 6.5 * 0.75)
+# Conference paper column width; both targets use 600 dpi for embedded imshow.
+CONF_FIG_WIDTH = 6.5
+SAVE_DPI = 600
+CONF_FIGSIZE = (CONF_FIG_WIDTH, CONF_FIG_WIDTH * 0.75)
+EXPORT_FORMATS = ("pdf", "svg")
+
+# Conference paper isn't Nature-constrained; all text there is a flat 10 pt
+# (overrides the full paper's LABEL_FONTSIZE/TICK_LABELSIZE/ANNOTATION_FONTSIZE/
+# PANEL_LABEL_SIZE, which stay 7/6/6/8 pt for the "full" target).
+CONFERENCE_FONTSIZE = 10
 
 VMIN, VMAX = 140.0, 340.0
 LX_VAR = 500.0
@@ -82,6 +93,34 @@ PAPER_SIZE: dict[PaperTarget, tuple[float, float]] = {
     "full": figsize(),
     "conference": CONF_FIGSIZE,
 }
+PAPER_DPI: dict[PaperTarget, int] = {
+    "full": SAVE_DPI,
+    "conference": SAVE_DPI,
+}
+PAPER_WIDTH: dict[PaperTarget, float] = {
+    "full": FIG_WIDTH,
+    "conference": CONF_FIG_WIDTH,
+}
+
+# Matches the serif/STIX stack every other statistical_analysis/conference_paper/
+# script gets from seiskit.plot_config.apply_style()'s defaults — this file uses
+# apply_full_paper_style()'s Nature sans-serif style instead, so the conference
+# target needs an explicit override to stay visually consistent with the rest
+# of that paper's figures.
+CONFERENCE_SERIF_FONTS = ["Times New Roman", "Times", "STIXGeneral", "DejaVu Serif"]
+
+
+def _set_paper_font(paper: PaperTarget) -> None:
+    """Switch the active font family to match *paper*'s figures elsewhere."""
+    apply_full_paper_style(auto_format=True, frame="open", grid=False)
+    if paper == "conference":
+        mpl.rcParams.update(
+            {
+                "font.family": "serif",
+                "font.serif": CONFERENCE_SERIF_FONTS,
+                "mathtext.fontset": "stix",
+            }
+        )
 
 
 def load_vs(path: Path) -> tuple[np.ndarray, float, float, float, float]:
@@ -164,6 +203,7 @@ def _dimension_arrow(
     label: str,
     *,
     color: str = "black",
+    fontsize: float = ANNOTATION_FONTSIZE,
 ) -> None:
     """Horizontal <-> dimension with centered label."""
     ax.annotate(
@@ -185,7 +225,7 @@ def _dimension_arrow(
         label,
         ha="center",
         va="center",
-        fontsize=ANNOTATION_FONTSIZE,
+        fontsize=fontsize,
         color=color,
         zorder=9,
         bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.9, "pad": 0.8},
@@ -227,8 +267,20 @@ def plot_model_scheme(
     *,
     receivers: ReceiverMode = "array",
     figsize: tuple[float, float] | None = None,
+    paper: PaperTarget = "full",
 ) -> plt.Figure:
     """Build the two-panel model-scheme figure."""
+    _set_paper_font(paper)
+    if paper == "conference":
+        fs_label = fs_tick = fs_annot = fs_panel = CONFERENCE_FONTSIZE
+    else:
+        fs_label, fs_tick, fs_annot, fs_panel = (
+            LABEL_FONTSIZE,
+            TICK_LABELSIZE,
+            ANNOTATION_FONTSIZE,
+            PANEL_LABEL_SIZE,
+        )
+
     _nz, nx = vs.shape
     x0 = -lx / 2.0
     x1 = x0 + nx * dx
@@ -291,11 +343,11 @@ def plot_model_scheme(
         ax_ff.set_xlim(0.0, dx)
         ax_ff.set_ylim(lz, 0.0)
         ax_ff.grid(False)
-        ax_ff.tick_params(labelsize=TICK_LABELSIZE)
+        ax_ff.tick_params(labelsize=fs_tick)
         _no_xaxis(ax_ff)
 
     ax_ff_l.set_yticks(yticks)
-    ax_ff_l.set_ylabel("Depth (m)", fontsize=LABEL_FONTSIZE)
+    ax_ff_l.set_ylabel("Depth (m)", fontsize=fs_label)
     ax_ff_r.tick_params(left=False, labelleft=False)
 
     # --- Domain flanks + main ---
@@ -306,7 +358,7 @@ def plot_model_scheme(
         ax.set_xlim(xa, xb)
         ax.set_ylim(lz, 0.0)
         ax.grid(False)
-        ax.tick_params(labelsize=TICK_LABELSIZE)
+        ax.tick_params(labelsize=fs_tick)
         _xaxis_on_top(ax)
 
     ax_fl.set_xticks([-750])
@@ -331,17 +383,9 @@ def plot_model_scheme(
         -LX_VAR / 2,
         LX_VAR / 2,
         52.0,
-        r"$L_{x,\mathrm{var}} = 500\,\mathrm{m}$",
+        r"$500\,\mathrm{m}$",
         color="black",
-    )
-
-    _dimension_arrow(
-        ax_main,
-        -ZOOM_HALF,
-        ZOOM_HALF,
-        58.0,
-        r"$L_{\mathrm{ROI}} = 200\,\mathrm{m}$",
-        color="red",
+        fontsize=fs_annot,
     )
 
     # Let's add "See (b). inside the red box"
@@ -352,7 +396,7 @@ def plot_model_scheme(
         ha="left",
         va="top",
         color="red",
-        fontsize=LABEL_FONTSIZE,
+        fontsize=fs_label,
         transform=ax_main.transData,
         bbox={
             "boxstyle": "round,pad=0.3",
@@ -363,7 +407,7 @@ def plot_model_scheme(
         },
     )
 
-    add_panel_label(ax_main, 0, x=0.02)
+    add_panel_label(ax_main, 0, fontsize=fs_panel)
 
     # Full-model label centered over domain columns (flanks + main), not FF
     pos_fl = ax_fl.get_position()
@@ -384,17 +428,17 @@ def plot_model_scheme(
     ax_b.set_ylim(lz, 0.0)
     ax_b.set_yticks(yticks)
     ax_b.grid(False)
-    ax_b.tick_params(labelsize=TICK_LABELSIZE)
+    ax_b.tick_params(labelsize=fs_tick)
     _xaxis_on_top(ax_b)
     ax_b.set_xticks([-100, -50, 0, 50, 100])
-    ax_b.set_ylabel("Depth (m)", fontsize=LABEL_FONTSIZE)
+    ax_b.set_ylabel("Depth (m)", fontsize=fs_label)
 
     if receivers == "center":
         rx = np.array([0.0])
     else:
         rx = np.linspace(-ZOOM_HALF, ZOOM_HALF, N_RECEIVERS)
     _draw_spike_geophones(ax_b, rx)
-    add_panel_label(ax_b, 1, x=0.02)
+    add_panel_label(ax_b, 1, fontsize=fs_panel)
 
     fig.text(
         0.5 * (pos_fl.x0 + pos_fr.x1),
@@ -402,14 +446,14 @@ def plot_model_scheme(
         "Distance from center (m)",
         ha="center",
         va="top",
-        fontsize=LABEL_FONTSIZE,
+        fontsize=fs_label,
         transform=fig.transFigure,
     )
 
     cbar = fig.colorbar(im, cax=cax, extend="max")
-    cbar.set_label(r"$V_{s1}$ (m/s)", fontsize=LABEL_FONTSIZE)
+    cbar.set_label(r"$V_{s1}$ (m/s)", fontsize=fs_label)
     cbar.set_ticks(np.arange(VMIN, VMAX + 1, 40))
-    cbar.ax.tick_params(labelsize=TICK_LABELSIZE)
+    cbar.ax.tick_params(labelsize=fs_tick)
 
     # Robust width match: pin panel (b) to the outer edges of the FF strips
     # (same total width as the 5-panel top row, including wspace gaps).
@@ -428,9 +472,24 @@ def main() -> None:
     # Full paper → array; conference paper → center (with matching page widths).
     for paper in ("full", "conference"):
         mode = PAPER_RECEIVERS[paper]
-        fig = plot_model_scheme(vs, lx, lz, dx, receivers=mode, figsize=PAPER_SIZE[paper])
-        save_figure(fig, f"model_scheme_{mode}", out_dir=OUT_DIR)
+        expect_w = PAPER_WIDTH[paper]
+        dpi = PAPER_DPI[paper]
+        fig = plot_model_scheme(
+            vs, lx, lz, dx, receivers=mode, figsize=PAPER_SIZE[paper], paper=paper
+        )
+        w, h = fig.get_size_inches()
+        if abs(w - expect_w) > 1e-6:
+            raise ValueError(f"{paper}: figsize width {w:.3f} != {expect_w}")
+        paths = save_figure(
+            fig,
+            f"model_scheme_{mode}",
+            out_dir=OUT_DIR,
+            formats=EXPORT_FORMATS,
+            dpi=dpi,
+        )
         plt.close(fig)
+        for p in paths:
+            print(f"  verified canvas {w:.2f}×{h:.2f} in @ {dpi} dpi → {p.name}")
 
 
 if __name__ == "__main__":

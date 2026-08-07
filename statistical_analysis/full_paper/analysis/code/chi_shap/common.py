@@ -2,41 +2,33 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-# Reuse NGBoost common for data / splits / features (load by path to avoid
-# shadowing this package's `common` when scripts insert chi_shap on sys.path).
-import importlib.util
+_CODE = Path(__file__).resolve().parent.parent
+if str(_CODE) not in sys.path:
+    sys.path.insert(0, str(_CODE))
 
-_ngb_common_path = Path(__file__).resolve().parent.parent / "chi_ngboost" / "common.py"
-_spec = importlib.util.spec_from_file_location("chi_ngboost_common", _ngb_common_path)
-assert _spec is not None and _spec.loader is not None
-_ngb = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_ngb)
-
-CHI_QBM_MODELS = _ngb.CHI_QBM_MODELS
-FEATURES = _ngb.FEATURES
-METRICS = _ngb.METRICS
-N_NODES = _ngb.N_NODES
-SPLIT_SEED = _ngb.SPLIT_SEED
-TAUS = _ngb.TAUS
-TEST_SIZE = _ngb.TEST_SIZE
-ZCOLS = _ngb.ZCOLS
-add_design_columns = _ngb.add_design_columns
-fmt = _ngb.fmt
-load_or_make_split = _ngb.load_or_make_split
-load_ratios = _ngb.load_ratios
-log_response = _ngb.log_response
-ngboost_models_dir = _ngb.models_dir
-r2_score = _ngb.r2_score
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from config import FACTORS, figure_dir  # noqa: E402
+from _shared import (  # noqa: E402,F401
+    CHI_QBM_MODELS,
+    FEATURES,
+    METRICS,
+    N_NODES,
+    SPLIT_SEED,
+    TAUS,
+    TEST_SIZE,
+    ZCOLS,
+    add_design_columns,
+    fmt,
+    load_or_make_split,
+    load_ratios,
+    log_response,
+    r2_score,
+)
+from config import figure_dir  # noqa: E402
 
 SHAP_BG_N = 200
 SHAP_EXPLAIN_N = 1500
@@ -48,6 +40,12 @@ TOP_K_INTERACTIONS = 3
 
 def out_dir(stem: str) -> Path:
     return figure_dir("chi_shap", stem)
+
+
+def ngboost_models_dir() -> Path:
+    path = figure_dir("chi_ngboost", "models")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def qbm_model_path(kind: str, metric: str) -> Path:
@@ -89,8 +87,8 @@ def importance_table(
     target: str,
 ) -> pd.DataFrame:
     sv = np.asarray(shap_values, dtype=float)
-    if sv.ndim == 3:  # interaction tensor unused here
-        sv = sv.sum(axis=2)  # unlikely
+    if sv.ndim == 3:
+        sv = sv.sum(axis=2)
     mean_abs = np.mean(np.abs(sv), axis=0)
     mean_signed = np.mean(sv, axis=0)
     rows = []
@@ -122,7 +120,6 @@ def top_pairwise_interactions(
 ) -> pd.DataFrame:
     """Mean |φ_jk| for j < k from TreeSHAP interaction values."""
     S = np.asarray(shap_interaction, dtype=float)
-    # S shape: (n, p, p)
     p = len(feature_names)
     rows = []
     for j in range(p):

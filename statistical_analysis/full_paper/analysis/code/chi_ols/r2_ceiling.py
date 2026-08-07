@@ -92,14 +92,14 @@ def build_summary_md(ceil: pd.DataFrame) -> str:
         "# Reliability R² ceiling",
         "",
         "Population-information bound on how much of the variance of a single "
-        "draw \(Y = \\ln\\chi\) is attributable to design-cell means "
+        "draw \\(Y = \\ln\\chi\\) is attributable to design-cell means "
         f"(`{'`, `'.join(METRICS)}`).",
         "",
         f"- Design cells: **{N_CELLS}** (`{'`, `'.join(FACTORS)}`)",
-        f"- Scopes: **full** (\(N_x = {N_NODES}\) × \(N_s = {N_SEEDS}\) "
+        rf"- Scopes: **full** (\(N_x = {N_NODES}\) × \(N_s = {N_SEEDS}\) "
         f"replicates per cell) and **center** (node {CENTER_NODE}, "
-        f"\(N_s = {N_SEEDS}\) seeds)",
-        "- Efficiency uses Stage-1 in-sample \(R^2\) from "
+        rf"\(N_s = {N_SEEDS}\) seeds)",
+        r"- Efficiency uses Stage-1 in-sample \(R^2\) from "
         "`chi_ols/stage1_mean_ols/mean_fit_metrics.csv` when present",
         "",
         "## Output files",
@@ -107,12 +107,12 @@ def build_summary_md(ceil: pd.DataFrame) -> str:
         "| File | Contents |",
         "|------|----------|",
         "| `reliability_ceiling.csv` | Signal/noise variance, ceilings "
-        "(`_bc`, `_ss`), Stage-1 \(R^2\), efficiency |",
+        r"(`_bc`, `_ss`), Stage-1 \(R^2\), efficiency |",
         "| `summary.md` | this file |",
         "",
         "## Notation",
         "",
-        "For design cell \(k\) and replicate \(\\ell\) (seed×node or seed):",
+        "For design cell \\(k\\) and replicate \\(\\ell\\) (seed×node or seed):",
         "",
         r"$$",
         r"Y_{k\ell} = \mu_k + \varepsilon_{k\ell}.",
@@ -124,11 +124,11 @@ def build_summary_md(ceil: pd.DataFrame) -> str:
         r"{\widehat{\mathrm{Var}}(\bar Y_k) + \overline{s^2_k}},",
         r"$$",
         "",
-        "with \(\\widehat{\\mathrm{Var}}(\\bar Y_k)\) = sample variance of "
-        "cell means and \(\\overline{s^2_k}\) = average within-cell sample "
+        "with \\(\\widehat{\\mathrm{Var}}(\\bar Y_k)\\) = sample variance of "
+        "cell means and \\(\\overline{s^2_k}\\) = average within-cell sample "
         "variance. Noise-corrected (`_bc`) subtracts "
-        "\(\\mathrm{mean}(s^2_k / n_k)\) from the between-cell variance; "
-        "`_ss` is \(SS_{\\mathrm{between}} / SS_{\\mathrm{total}}\). "
+        "\\(\\mathrm{mean}(s^2_k / n_k)\\) from the between-cell variance; "
+        "`_ss` is \\(SS_{\\mathrm{between}} / SS_{\\mathrm{total}}\\). "
         "Efficiency:",
         "",
         r"$$",
@@ -136,16 +136,14 @@ def build_summary_md(ceil: pd.DataFrame) -> str:
         r" = \frac{R^2_{\mathrm{Stage\,1}}}{R^2_{\mathrm{ceiling}}}.",
         r"$$",
         "",
-        "Interpreting the ceiling as an upper bound on single-draw \(R^2\) "
+        r"Interpreting the ceiling as an upper bound on single-draw \(R^2\) "
         "requires seed/node noise to be irreducible and approximately "
         "additive (independent of design).",
         "",
         "## Results",
         "",
-        "| Metric | Scope | Ceiling | Ceiling (bc) | Ceiling (SS) | "
-        "Stage-1 \(R^2\) | Efficiency |",
-        "|--------|-------|--------:|-------------:|-------------:|"
-        "---------------:|-----------:|",
+        r"| Metric | Scope | Ceiling | Ceiling (bc) | Ceiling (SS) | Stage-1 \(R^2\) | Efficiency |",
+        "|--------|-------|--------:|-------------:|-------------:|---------------:|-----------:|",
     ]
     for _, r in ceil.iterrows():
         lines.append(
@@ -175,9 +173,7 @@ def build_summary_md(ceil: pd.DataFrame) -> str:
         )
         for _, r in center.iterrows():
             full_row = full[full["metric"] == r["metric"]]
-            full_c = (
-                float(full_row["reliability_ceiling"].iloc[0]) if len(full_row) else np.nan
-            )
+            full_c = float(full_row["reliability_ceiling"].iloc[0]) if len(full_row) else np.nan
             lines.append(
                 f"- **{r['metric']}** center ceiling {fmt(r['reliability_ceiling'])} "
                 f"vs full {fmt(full_c)}."
@@ -185,8 +181,8 @@ def build_summary_md(ceil: pd.DataFrame) -> str:
     lines.extend(
         [
             "",
-            "Report efficiency alongside absolute \(R^2\): a modest Stage-1 "
-            "\(R^2\) can still capture most of the **explainable design signal** "
+            r"Report efficiency alongside absolute \(R^2\): a modest Stage-1 "
+            r"\(R^2\) can still capture most of the **explainable design signal** "
             "when the ceiling is low.",
             "",
         ]

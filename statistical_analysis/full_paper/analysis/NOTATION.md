@@ -5,11 +5,9 @@ Equation generators that emit matching markdown:
 
 - [`code/chi_variables/central_variability.py`](code/chi_variables/central_variability.py)
 - [`code/chi_variables/mean_variance_adequacy.py`](code/chi_variables/mean_variance_adequacy.py)
-- [`code/chi_ols/`](code/chi_ols/) (Stage-1 OLS, R² ceiling, hetero contrast, spatial \(n_{\mathrm{eff}}\))
-- [`code/chi_qbm/`](code/chi_qbm/) (spatial GLS OLS, LightGBM QBM, three-way comparison)
+- [`code/chi_qbm/`](code/chi_qbm/) (LightGBM QBM / mean GBM)
 - [`code/chi_ngboost/`](code/chi_ngboost/) (Normal NGBoost predictive distribution)
-- [`code/chi_shap/`](code/chi_shap/) (SHAP on NGBoost + QBM; shortlist for SR)
-- [`code/chi_sr/`](code/chi_sr/) (symbolic regression: engineering approximations of NGBoost \(\mu\) / \(\log\sigma\) / \(q_\tau\) on the factorial grid)
+- [`code/chi_shap/`](code/chi_shap/) (SHAP on NGBoost + QBM)
 
 Do **not** use bare \(n\)/\(m\) or \(N\)/\(S\) for node/seed counts in new math or prose.
 
@@ -117,80 +115,89 @@ n_{\mathrm{eff}}
 
 Do **not** treat \(N_x N_s\) samples as iid. Keep \(n_{\mathrm{eff}}\) as written (effective sample size, not a node count \(N_x\)).
 
-## Stage-1 OLS and reliability ceiling (`chi_ols`)
+## Reliability ceiling (from variability)
 
-Across design cells \(k = 1,\ldots,K\) (\(K = 243\)), with observation \(Y_{kij}\) at cell \(k\), seed \(j\), node \(i\):
+Across design cells \(k = 1,\ldots,K\) (\(K = 243\)), let \(\bar Y_k\) be the cell mean of \(Y\) and \(s^2_k\) the within-cell sample variance (node×seed draws in cell \(k\)). Observation-level \(R^2\) for any design-only predictor of a single draw is limited by irreducible within-cell noise — the same seed/spatial variability decomposed above.
+
+| Symbol | Definition | CSV / code |
+|--------|------------|------------|
+| \(\mu_k\) | cell mean \(E[Y\mid k]\) | cell mean of \(Y\) |
+| \(\sigma^{2}_{\mathrm{signal}}\) | \(\mathrm{Var}_k(\bar Y_k)\) | `sigma2_signal` |
+| \(\sigma^{2}_{\mathrm{noise}}\) | \(\mathrm{mean}_k(s^2_k)\) | `sigma2_noise` |
+| \(R^2_{\mathrm{ceiling}}\) | \(\sigma^{2}_{\mathrm{signal}}/(\sigma^{2}_{\mathrm{signal}}+\sigma^{2}_{\mathrm{noise}})\) | `reliability_ceiling` |
+| efficiency | \(R^2_{\mathrm{model}} / R^2_{\mathrm{ceiling}}\) | `efficiency` |
+
+Signal-to-total ceiling (population-information bound, not a fitted-model score):
+
+\[
+R^2_{\mathrm{ceiling}}
+= \frac{\widehat{\mathrm{Var}}_k(\bar Y_k)}{\widehat{\mathrm{Var}}_k(\bar Y_k) + \overline{s^2_k}}.
+\]
+
+Interpretation: fraction of variance that lives *between* design cells. Within-cell \(s^2_k\) is the cell-level counterpart of \(\sigma^{2}_{\mathrm{total}}\) from the variability section — design factors cannot remove it. Efficiency compares a mean model’s hold-out \(R^2\) (mean GBM or NGBoost \(\mu\)) to this ceiling:
+
+\[
+\mathrm{efficiency}
+= \frac{R^2_{\mathrm{model}}}{R^2_{\mathrm{ceiling}}}.
+\]
+
+Optional cross-checks (same as conference paper): noise-corrected signal \(\sigma^{2}_{\mathrm{signal,bc}}=\max\bigl(0,\sigma^{2}_{\mathrm{signal}}-\overline{s^2_k/n_k}\bigr)\) and between-cell SS fraction \(R^2_{\mathrm{ceiling,SS}}\).
+
+## QBM (`chi_qbm`)
 
 | Symbol | Definition | CSV / code |
 |--------|------------|------------|
 | \(\mathbf{x}_k\) | standardized main-effect design vector for cell \(k\) | `*_z` columns |
-| \(\boldsymbol{\beta}\) | Stage-1 OLS mean coefficients | `coef` in `mean_effects.csv` |
-| \(\mathrm{SE}_{\mathrm{naive}}\) | classical OLS standard error | `se_naive` |
-| \(\mathrm{SE}_{\mathrm{seed}}\) | cluster-robust SE (cluster = seed) | `se_seed_cluster` |
-| \(\mathrm{SE}_{\mathrm{cell}}\) | cluster-robust SE (cluster = cell) | `se_cell_cluster` |
-| \(\mathrm{SE\,infl.}\) | \(\mathrm{SE}_{\mathrm{cluster}} / \mathrm{SE}_{\mathrm{naive}}\) | `se_infl_seed`, `se_infl_cell` |
-| \(R^2\) | in-sample coefficient of determination | `r2_insample` |
-| \(R^2_{\mathrm{CV}}\) | cell-grouped cross-validated \(R^2\) | `r2_cv_cell` |
-| \(\mu_k\) | cell mean \(E[Y\mid k]\) (oracle / for ceiling) | cell mean of \(Y\) |
-| \(\sigma^2_{\mathrm{signal}}\) | \(\mathrm{Var}_k(\bar Y_k)\) | `sigma2_signal` |
-| \(\sigma^2_{\mathrm{noise}}\) | \(\mathrm{mean}_k(s^2_k)\) within-cell variance | `sigma2_noise` |
-| \(R^2_{\mathrm{ceiling}}\) | \(\sigma^2_{\mathrm{signal}}/(\sigma^2_{\mathrm{signal}}+\sigma^2_{\mathrm{noise}})\) | `reliability_ceiling` |
-| efficiency | \(R^2 / R^2_{\mathrm{ceiling}}\) | `efficiency` |
-| \(\boldsymbol{\gamma}\) | coefficients in \(\log s^2_k = \mathbf{z}_k^\top\boldsymbol{\gamma}\) | `variance_effects.csv` |
-
-Mean model:
-
-\[
-Y_{kij} = \mathbf{x}_k^\top\boldsymbol{\beta} + \varepsilon_{kij}.
-\]
-
-Reliability (signal-to-total) ceiling for predicting a single draw given design only:
-
-\[
-R^2_{\mathrm{ceiling}}
-= \frac{\widehat{\mathrm{Var}}(\bar Y_k)}{\widehat{\mathrm{Var}}(\bar Y_k) + \overline{s^2_k}}.
-\]
-
-## Spatial GLS and QBM (`chi_qbm`)
-
-| Symbol | Definition | CSV / code |
-|--------|------------|------------|
-| \(R_k\) | CosWM (or Exp/Gauss) correlation on the \(N_x\)-node array for cell \(k\) | from `acf_fit_params.csv` |
-| \(\boldsymbol{\beta}_{\mathrm{GLS}}\) | feasible GLS mean coefs under block-diagonal \(R\) | `spatial_mean_effects.csv` |
-| \(\tilde y\) | whitened response \(L^{-1} y\) with \(R = LL^\top\) | whitening QA |
 | \(q_\tau(Y\mid\mathbf{x})\) | conditional \(\tau\)-quantile (LightGBM QBM) | quantile models |
 | \(\rho_\tau\) | pinball / check loss at level \(\tau\) | `pinball` columns |
 | \(R^1(\tau)\) | Koenker–Machado pseudo-\(R^2\): \(1-\rho_\tau(\mathrm{model})/\rho_\tau(\mathrm{null})\) | `pseudo_r2` |
 | \(x_{\mathrm{node}}\) | standardized node index (spatial feature for QBM) | `node_z` |
 
-Feasible GLS (correlation known up to scale) with cell-constant design rows \(\mathbf{x}_k\):
+QBM models \(q_\tau(Y\mid \mathbf{x}_k, x_{\mathrm{node}})\) by gradient boosting; trees encode interactions. Prediction intervals use quantile pairs (e.g. \(\tau=0.05,0.95\)). Mean GBM \(E[Y\mid\mathbf{x}]\) is the mean-prediction benchmark scored against \(R^2_{\mathrm{ceiling}}\); QBM is the distributional model (pinball, calibration, quantile SHAP).
 
-\[
-\hat{\boldsymbol{\beta}}_{\mathrm{GLS}}
-= \Bigl(\sum_{k,j} (\mathbf{1}^\top R_k^{-1}\mathbf{1})\,
-\mathbf{x}_k\mathbf{x}_k^\top\Bigr)^{-1}
-\sum_{k,j} (\mathbf{1}^\top R_k^{-1}\mathbf{y}_{kj})\,\mathbf{x}_k.
-\]
-
-QBM models \(q_\tau(Y\mid \mathbf{x}_k, x_{\mathrm{node}})\) by gradient boosting; trees encode interactions. Prediction intervals use quantile pairs (e.g. \(\tau=0.05,0.95\)).
-
-## NGBoost, SHAP, and symbolic regression
+## NGBoost and SHAP
 
 | Symbol | Definition | CSV / code |
 |--------|------------|------------|
 | \(p(Y\mid\mathbf{x})\) | parametric predictive density (Normal NGBoost on \(Y=\ln\chi\)) | `chi_ngboost` |
-| \(\mu(\mathbf{x})\) | predictive mean (loc) | `mu`, NGBoost / SR |
-| \(\sigma(\mathbf{x})\) | predictive scale | `sigma`, NGBoost |
+| \(\mu(\mathbf{x})\) | predictive mean (loc) | `mu` |
+| \(\sigma(\mathbf{x})\) | predictive scale | `sigma` |
 | \(\log\sigma(\mathbf{x})\) | log-scale (dispersion surface) | `log_sigma` |
 | \(q_\tau(\mathbf{x})\) | Normal predictive quantile \(\mu+\sigma\,z_\tau\) | `q05` / `q50` / `q95` surfaces |
 | \(\phi_j\) | SHAP attribution for feature \(j\) (model-tagged) | `shap_*` CSVs |
 | \(\phi_{jk}\) | pairwise SHAP interaction | `shap_interactions_*` |
-| \(\hat\mu_{\mathrm{SR}}\) | symbolic approximation to NGBoost \(\mu\) | `sr_formulas.csv` |
-| \(\widehat{\log\sigma}_{\mathrm{SR}}\) | symbolic approximation to NGBoost \(\log\sigma\) | `sr_formulas.csv` |
-| \(\hat q_{0.05,\mathrm{SR}}\) | symbolic approximation to NGBoost \(q_{0.05}\) | `sr_formulas.csv` |
-| \(\hat q_{0.50,\mathrm{SR}}\) | symbolic approximation to NGBoost \(q_{0.50}\) (median) | `sr_formulas.csv` |
-| \(\hat q_{0.95,\mathrm{SR}}\) | symbolic approximation to NGBoost \(q_{0.95}\) | `sr_formulas.csv` |
 
-NGBoost learns \(Y\mid\mathbf{x}\sim\mathcal{N}(\mu(\mathbf{x}),\sigma^2(\mathbf{x}))\) by natural-gradient boosting. SHAP decomposes \(\mu\) / \(\log\sigma\) (and QBM quantiles) without whitening residual spatial dependence.
+NGBoost learns \(Y\mid\mathbf{x}\sim\mathcal{N}(\mu(\mathbf{x}),\sigma^2(\mathbf{x}))\) by natural-gradient boosting. Mean \(R^2\) for \(\mu\) is likewise reported relative to \(R^2_{\mathrm{ceiling}}\). SHAP decomposes \(\mu\) / \(\log\sigma\) (and QBM quantiles) for design and spatial drivers.
 
-**Symbolic regression** fits closed-form **engineering approximations distilled from the NGBoost surrogate** on the unique factorial grid (cell × node; seed axis dropped). Under Normal NGBoost, median \(\equiv\mu\) and \(q_\tau=\mu+\sigma\,z_\tau\); SR still reports **separate** formulas for \(\tau\in\{0.05,0.50,0.95\}\) for practitioner use. These compressions are **not** the primary model: fidelity is \(R^2\) versus NGBoost surfaces, not versus observed \(\ln\chi\). Primary inference remains NGBoost (and QBM where relevant).
+## Intensity measures and design cells
+
+| Symbol | Meaning |
+|--------|---------|
+| \(\boldsymbol{\theta}_k\) | design-factor vector for cell \(k\) (Vs1, Height, CoV, \(r_H\), \(a_{HV}\)) |
+| \(\chi_{ij}(\boldsymbol{\theta}_k)\) | peak TF or IM at node \(i\), seed \(j\) in cell \(k\) |
+| \(\chi^{\mathrm{1D}}\) | 1D reference (same \(H\), \(V_{s1}\)) |
+| \(\chi^N_{ij}\) | \(\chi_{ij}/\chi^{\mathrm{1D}}\) (CSV columns `*_ratio`) |
+
+PSA in this campaign is evaluated at the 1D fundamental (\(T_0=4H/V_{s1}\)). Peak picking and Appendix 2 live under [`appendix_im/`](appendix_im/).
+
+## Between-seed spatial coherence (`chi_spatial/spatial_coherence.py`)
+
+Distinct from lag-ACF in `spatial_acf.py` (within-seed spatial structure of one realization).
+
+| Symbol | Definition |
+|--------|------------|
+| \(C_{ik}\) | \(\frac{1}{N_s}\sum_j (Y_{ij}-\nu_i)(Y_{kj}-\nu_k)\) |
+| \(\rho_{ik}\) | \(C_{ik}/(s_{B,i}\,s_{B,k})\) |
+| \(R\) | \([\rho_{ik}]\in\mathbb{R}^{N_x\times N_x}\) |
+
+## Calibration and explainability
+
+| Symbol / tool | Role | Code |
+|---------------|------|------|
+| CRPS | sharpness of predictive Normal | `chi_ngboost/calibration_crps_pit.py` |
+| PIT | calibration histogram of \(\Phi((Y-\mu)/\sigma)\) | same |
+| ALE | accumulated local effects (marginal) | `chi_shap/ale_effects.py` |
+| Friedman \(H\) | pairwise interaction strength | `chi_ngboost/exceedance_friedman.py` |
+| \(\Delta\)SHAP | median vs upper-tail attributions | `chi_shap/shap_median_vs_tail.py` |
+
+Optional symbolic regression of NGBoost surfaces: `chi_sr/` (not required for the main outline).

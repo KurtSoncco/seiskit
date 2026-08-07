@@ -1,4 +1,4 @@
-"""LightGBM QBM (+ mean GBM) on the full-array χ ratios.
+r"""LightGBM QBM (+ mean GBM) on the full-array χ ratios.
 
 Fits mean and quantile models for all five metrics on \(Y=\ln\chi\) with
 features = z-scored factors + ``node_z``. Seed-grouped holdout matches
@@ -23,13 +23,11 @@ from sklearn.model_selection import GroupShuffleSplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
-    FACTORS,
     METRICS,
     N_CELLS,
     N_NODES,
     N_SEEDS,
     QBM_FEATURES,
-    SPLIT_SEED,
     TAUS,
     TEST_SIZE,
     VAL_FRAC,
@@ -115,13 +113,12 @@ def build_summary_md(meta: pd.DataFrame) -> str:
     lines = [
         "# Full-array LightGBM QBM training",
         "",
-        "Mean GBM and quantile boosting models for \(Y = \\ln\\chi\) on the "
-        "full node×seed array.",
+        "Mean GBM and quantile boosting models for \\(Y = \\ln\\chi\\) on the full node×seed array.",
         "",
-        f"- Design cells: **{N_CELLS}**; \(N_x = {N_NODES}\); \(N_s = {N_SEEDS}\)",
+        rf"- Design cells: **{N_CELLS}**; \(N_x = {N_NODES}\); \(N_s = {N_SEEDS}\)",
         f"- Features: `{'`, `'.join(QBM_FEATURES)}` "
         "(z-scored factors + spatial `node_z`; seed is **not** a predictor)",
-        f"- Quantiles \(\\tau \\in \\{{{', '.join(str(t) for t in TAUS)}\\}}\)",
+        f"- Quantiles \\(\\tau \\in \\{{{', '.join(str(t) for t in TAUS)}\\}}\\)",
         f"- Split: seed-grouped holdout ({TEST_SIZE:.0%}), "
         f"early-stop val = {VAL_FRAC:.0%} of train seeds",
         "- Trees encode **interactions**; separate τ models capture "
@@ -131,24 +128,21 @@ def build_summary_md(meta: pd.DataFrame) -> str:
         "",
         "| File | Contents |",
         "|------|----------|",
-        "| `qbm_train_meta.csv` | Best iteration, holdout RMSE / pinball / "
-        "coverage per model |",
+        "| `qbm_train_meta.csv` | Best iteration, holdout RMSE / pinball / coverage per model |",
         "| `seed_split.json` | Holdout seed lists (aligned with spatial OLS) |",
         "| `../models/lgbm_*.pkl` | Serialized LightGBM boosters |",
         "| `summary.md` | this file |",
         "",
         "## Notation",
         "",
-        "Conditional quantile \(q_\\tau(Y\\mid \\mathbf{x}_k, x_{\\mathrm{node}})\) "
+        "Conditional quantile \\(q_\\tau(Y\\mid \\mathbf{x}_k, x_{\\mathrm{node}})\\) "
         "estimated by LightGBM with pinball loss. Mean GBM minimizes RMSE for "
         "point-prediction parity with OLS.",
         "",
         "## Holdout metrics",
         "",
-        "| Metric | Mean \(R^2\) | Mean RMSE | "
-        "Pinball \(\\tau=0.5\) | 90% PI cov |",
-        "|--------|-------------:|----------:|"
-        "---------------------:|-----------:|",
+        "| Metric | Mean \\(R^2\\) | Mean RMSE | Pinball \\(\\tau=0.5\\) | 90% PI cov |",
+        "|--------|-------------:|----------:|---------------------:|-----------:|",
     ]
     for metric in METRICS:
         sub = meta[meta["metric"] == metric]
@@ -159,15 +153,14 @@ def build_summary_md(meta: pd.DataFrame) -> str:
         cov_row = sub[sub["kind"] == "pi90"]
         cov = float(cov_row["coverage"].iloc[0]) if len(cov_row) else np.nan
         lines.append(
-            f"| {metric} | {fmt(mean['r2'])} | {fmt(mean['rmse'])} | "
-            f"{fmt(pin)} | {fmt(cov)} |"
+            f"| {metric} | {fmt(mean['r2'])} | {fmt(mean['rmse'])} | {fmt(pin)} | {fmt(cov)} |"
         )
 
     lines.extend(["", "## Conclusions", ""])
     for metric in METRICS:
         mean = meta[(meta["metric"] == metric) & (meta["kind"] == "mean")].iloc[0]
         lines.append(
-            f"- **{metric}**: mean GBM holdout \(R^2 = {fmt(mean['r2'])}\) "
+            rf"- **{metric}**: mean GBM holdout \(R^2 = {fmt(mean['r2'])}\) "
             f"(RMSE {fmt(mean['rmse'])}); QBM models saved for all τ."
         )
     lines.extend(

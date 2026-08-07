@@ -213,8 +213,7 @@ def accumulate_gls(
         ),
         lag1_fail_thresh=LAG1_FAIL_THRESH,
         spatial_ok=(
-            bool(lag1_post)
-            and float(np.mean(np.asarray(lag1_post) > LAG1_FAIL_THRESH)) <= 0.25
+            bool(lag1_post) and float(np.mean(np.asarray(lag1_post) > LAG1_FAIL_THRESH)) <= 0.25
         ),
     )
     return XtWX, XtWy, qa
@@ -246,23 +245,23 @@ def build_summary_md(
     lines = [
         "# Spatial OLS (CosWM feasible GLS)",
         "",
-        "Full-array mean model for \(Y = \\ln\\chi\) with block-diagonal "
+        "Full-array mean model for \\(Y = \\ln\\chi\\) with block-diagonal "
         "CosWM correlation within each `(cell, seed)` node strip.",
         "",
-        f"- Design cells: **{N_CELLS}**; \(N_x = {N_NODES}\); \(N_s = {N_SEEDS}\)",
+        rf"- Design cells: **{N_CELLS}**; \(N_x = {N_NODES}\); \(N_s = {N_SEEDS}\)",
         "- Predictors: intercept + z-scored main effects "
         f"(`{'`, `'.join(FACTORS)}`) — same mean as naive OLS",
-        "- Correlation \(R_k\) from `chi_spatial/spatial_acf` "
+        r"- Correlation \(R_k\) from `chi_spatial/spatial_acf` "
         "(CosWM preferred; Gauss/Exp fallback)",
         "- Unstable Cholesky / incomplete node blocks are **skipped** "
-        "(never replaced by identity \(R\))",
+        r"(never replaced by identity \(R\))",
         "",
         "## Output files",
         "",
         "| File | Contents |",
         "|------|----------|",
-        "| `spatial_mean_effects.csv` | GLS \(\\hat\\beta\) by metric / term |",
-        "| `spatial_fit_metrics.csv` | Train / seed-holdout \(R^2\), RMSE; "
+        "| `spatial_mean_effects.csv` | GLS \\(\\hat\\beta\\) by metric / term |",
+        r"| `spatial_fit_metrics.csv` | Train / seed-holdout \(R^2\), RMSE; "
         "naive OLS holdout for reference |",
         "| `whitening_qa.csv` | Pre/post lag-1, skip counts, `spatial_ok` |",
         "| `seed_split.json` | Shared seed holdout used here and by QBM |",
@@ -270,8 +269,7 @@ def build_summary_md(
         "",
         "## Notation",
         "",
-        "See `NOTATION.md` (`chi_qbm`). Feasible GLS with cell-constant "
-        "design rows:",
+        "See `NOTATION.md` (`chi_qbm`). Feasible GLS with cell-constant design rows:",
         "",
         r"$$",
         r"\hat{\boldsymbol{\beta}}_{\mathrm{GLS}}"
@@ -282,8 +280,8 @@ def build_summary_md(
         "",
         "## Whitening QA",
         "",
-        "| Metric | Blocks OK | Median \|lag1\| pre | post | "
-        f"Frac post>\({LAG1_FAIL_THRESH}\) | spatial_ok |",
+        r"| Metric | Blocks OK | Median \|lag1\| pre | post | "
+        rf"Frac post>\({LAG1_FAIL_THRESH}\) | spatial_ok |",
         "|--------|----------:|--------------------:|-----:|"
         "---------------------------:|:----------:|",
     ]
@@ -300,8 +298,7 @@ def build_summary_md(
             "",
             "## Holdout fit (seed-grouped)",
             "",
-            "| Metric | GLS \(R^2\) | GLS RMSE | Naive OLS \(R^2\) | "
-            "Δ\(R^2\) (GLS−OLS) |",
+            r"| Metric | GLS \(R^2\) | GLS RMSE | Naive OLS \(R^2\) | Δ\(R^2\) (GLS−OLS) |",
             "|--------|------------:|---------:|------------------:|------------------:|",
         ]
     )
@@ -324,17 +321,17 @@ def build_summary_md(
         d = float(r["delta_r2_gls_minus_ols"])
         verb = "improves" if d > 0.005 else ("worsens" if d < -0.005 else "matches")
         lines.append(
-            f"- **{r['metric']}**: GLS holdout \(R^2 = {fmt(r['r2_holdout_gls'])}\) "
+            rf"- **{r['metric']}**: GLS holdout \(R^2 = {fmt(r['r2_holdout_gls'])}\) "
             f"{verb} naive OLS ({fmt(r['r2_holdout_ols'])}); "
             f"Δ = {fmt(d)}."
         )
     lines.extend(
         [
             "",
-            "Point-prediction \(R^2\) need not rise under GLS when the mean "
+            r"Point-prediction \(R^2\) need not rise under GLS when the mean "
             "is already nearly BLUE under OLS; the scientific gain is "
             "correcting for lateral correlation when interpreting "
-            "\(\boldsymbol{\beta}\) and residual structure. Compare both "
+            "\\(\boldsymbol{\beta}\\) and residual structure. Compare both "
             "baselines to QBM in `compare_models`.",
             "",
         ]
@@ -440,9 +437,7 @@ def main() -> None:
     effects.to_csv(dest / "spatial_mean_effects.csv", index=False)
     fit.to_csv(dest / "spatial_fit_metrics.csv", index=False)
     qa_df.to_csv(dest / "whitening_qa.csv", index=False)
-    (dest / "summary.md").write_text(
-        build_summary_md(effects, fit, qa_df), encoding="utf-8"
-    )
+    (dest / "summary.md").write_text(build_summary_md(effects, fit, qa_df), encoding="utf-8")
     print(f"Wrote {dest}")
 
 

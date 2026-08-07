@@ -321,8 +321,9 @@ def add_panel_label(
     x: float = 0.98,
     y: float = 0.98,
     alpha: float = 0.7,
+    fontsize: float | None = None,
 ) -> None:
-    """Panel letter: ``(a)``, ``(b)``, ... bold 8 pt, top-right by default."""
+    """Panel letter: ``(a)``, ``(b)``, ... bold 8 pt, top-right corner by default."""
     label = _SUBFIG_LABELS[index % len(_SUBFIG_LABELS)]
     ax.text(
         x,
@@ -331,7 +332,7 @@ def add_panel_label(
         transform=ax.transAxes,
         va="top",
         ha="right",
-        fontsize=PANEL_LABEL_SIZE,
+        fontsize=fontsize if fontsize is not None else PANEL_LABEL_SIZE,
         fontweight="bold",
         fontfamily="sans-serif",
         bbox={

@@ -546,21 +546,32 @@ def main() -> None:
     df = load_ratios()
     print(f"Loaded {len(df):,} rows")
 
-    cell_rows: list[dict] = []
-    within_rows: list[dict] = []
-    between_rows: list[dict] = []
+    _CODE = Path(__file__).resolve().parent.parent
+    if str(_CODE) not in sys.path:
+        sys.path.insert(0, str(_CODE))
+    from _shared import parallel_map  # noqa: E402
 
-    grouped = df.groupby(FACTORS, sort=True)
-    n_groups = grouped.ngroups
-    for i, (keys, df_cell) in enumerate(grouped):
+    grouped = list(df.groupby(FACTORS, sort=True))
+
+    def _one(item):
+        keys, df_cell = item
         cell_keys = dict(zip(FACTORS, keys if isinstance(keys, tuple) else (keys,)))
+        cell_rows, within_rows, between_rows = [], [], []
         for metric in METRICS:
             summary, within, between = assess_cell_metric(df_cell, metric, cell_keys)
             cell_rows.append(summary)
             within_rows.extend(within)
             between_rows.extend(between)
-        if (i + 1) % 25 == 0 or i == 0 or (i + 1) == n_groups:
-            print(f"  assessed cell {i + 1}/{n_groups}")
+        return cell_rows, within_rows, between_rows
+
+    results = parallel_map(_one, grouped, desc="central_variability cells")
+    cell_rows: list[dict] = []
+    within_rows: list[dict] = []
+    between_rows: list[dict] = []
+    for c, w, b in results:
+        cell_rows.extend(c)
+        within_rows.extend(w)
+        between_rows.extend(b)
 
     cell_df = pd.DataFrame.from_records(cell_rows)
     within_df = pd.DataFrame.from_records(within_rows)

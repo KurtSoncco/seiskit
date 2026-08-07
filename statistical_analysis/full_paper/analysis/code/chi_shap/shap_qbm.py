@@ -76,16 +76,22 @@ def main() -> None:
         booster = _as_booster(joblib.load(path))
         print(f"SHAP mean {metric} …")
         sv, sint, n_int = _tree_shap(booster, X_bg, X_ex)
-        imp_rows.append(importance_table(sv, FEATURES, metric=metric, model="qbm_mean", target="mean"))
+        imp_rows.append(
+            importance_table(sv, FEATURES, metric=metric, model="qbm_mean", target="mean")
+        )
         int_rows.append(
             top_pairwise_interactions(
                 sint, FEATURES, metric=metric, model="qbm_mean", target="mean", top_k=15
             )
         )
         node_rows.append(
-            shap_by_node_table(df, ex_idx, sv, FEATURES, metric=metric, model="qbm_mean", target="mean")
+            shap_by_node_table(
+                df, ex_idx, sv, FEATURES, metric=metric, model="qbm_mean", target="mean"
+            )
         )
-        meta["models"].append({"metric": metric, "kind": "mean", "path": path.name, "n_interaction": n_int})
+        meta["models"].append(
+            {"metric": metric, "kind": "mean", "path": path.name, "n_interaction": n_int}
+        )
 
         for tau in SHAP_TAUS:
             kind = f"q{int(tau * 100):02d}"
@@ -136,8 +142,7 @@ def main() -> None:
 
     # Compact mean-abs table for summary
     pivot = (
-        imp.groupby(["metric", "target", "feature"], as_index=False)["mean_abs_shap"]
-        .mean()
+        imp.groupby(["metric", "target", "feature"], as_index=False)["mean_abs_shap"].mean()
         if len(imp)
         else pd.DataFrame()
     )
@@ -176,7 +181,7 @@ def main() -> None:
         "",
         "## Conclusions",
         "",
-        "- Quantile-specific SHAP ranks show how design and `node_z` reshape the center vs tails of \(Y=\\ln\\chi\).",
+        "- Quantile-specific SHAP ranks show how design and `node_z` reshape the center vs tails of \\(Y=\\ln\\chi\\).",
         "- Large `node_z` attributions indicate the model uses the spatial coordinate for broad trends; high residual lag-1 (from QBM/NGBoost diagnostics) still implies unmodelled short-range dependence.",
         "",
     ]

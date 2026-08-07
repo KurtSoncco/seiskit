@@ -183,7 +183,7 @@ def main() -> None:
         "",
         "## Conclusions",
         "",
-        "- Feature ranks for \(\\mu\) vs \(\\log\\sigma\) need not match: dispersion drivers can differ from mean drivers.",
+        "- Feature ranks for \\(\\mu\\) vs \\(\\log\\sigma\\) need not match: dispersion drivers can differ from mean drivers.",
         "- If `node_z` captures only a smooth spatial trend while residual lag-1 stays high, short-range RF/wave structure remains unmodelled.",
         "",
     ]

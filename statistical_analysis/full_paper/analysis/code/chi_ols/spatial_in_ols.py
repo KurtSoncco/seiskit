@@ -1,4 +1,4 @@
-"""Spatial ACF role in OLS inference for χ ratios.
+r"""Spatial ACF role in OLS inference for χ ratios.
 
 Loads CosWM / Exp / Gaussian ACF fits from ``chi_spatial/spatial_acf``,
 computes \(n_{\mathrm{eff}}\) per cell × metric, and documents how spatial
@@ -20,7 +20,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
     ACF_FIT_PATH,
     DX_M,
-    FACTORS,
     METRICS,
     N_CELLS,
     N_NODES,
@@ -105,23 +104,23 @@ def build_summary_md(neff: pd.DataFrame, summary: pd.DataFrame) -> str:
     lines = [
         "# Spatial ACF in OLS inference",
         "",
-        "How lateral spatial autocorrelation of \(\\ln\\chi\) along the "
+        "How lateral spatial autocorrelation of \\(\\ln\\chi\\) along the "
         f"{N_NODES}-node array enters Stage-1 OLS **uncertainty**, not the mean "
         "design matrix.",
         "",
         f"- ACF fits loaded from `{ACF_FIT_PATH}` "
         "(Exp / Gaussian / CosWM; CosWM preferred when available)",
-        f"- Node spacing \(\\Delta x = {DX_M:g}\) m; "
-        f"\(N_x = {N_NODES}\), \(N_s = {N_SEEDS}\), \(K = {N_CELLS}\) cells",
+        f"- Node spacing \\(\\Delta x = {DX_M:g}\\) m; "
+        rf"\(N_x = {N_NODES}\), \(N_s = {N_SEEDS}\), \(K = {N_CELLS}\) cells",
         "",
         "## Output files",
         "",
         "| File | Contents |",
         "|------|----------|",
-        "| `neff_by_cell.csv` | Per cell × metric \(n_{\\mathrm{eff}}\), "
-        "model used, spatial SE inflation \(\\sqrt{N_x / n_{\\mathrm{eff}}}\) |",
+        "| `neff_by_cell.csv` | Per cell × metric \\(n_{\\mathrm{eff}}\\), "
+        "model used, spatial SE inflation \\(\\sqrt{N_x / n_{\\mathrm{eff}}}\\) |",
         "| `spatial_inference_summary.csv` | Metric-level medians / IQR of "
-        "\(n_{\\mathrm{eff}}\) and lag-1 ρ |",
+        "\\(n_{\\mathrm{eff}}\\) and lag-1 ρ |",
         "| `summary.md` | this file |",
         "",
         "## Notation",
@@ -132,7 +131,7 @@ def build_summary_md(neff: pd.DataFrame, summary: pd.DataFrame) -> str:
         r"\rho(h) = (1-c_0)\,\rho_{\mathrm{WM}}(h;\nu,s)\,\cos(h/b).",
         r"$$",
         "",
-        "Effective sample size for the sample mean of \(N_x\) nodes:",
+        r"Effective sample size for the sample mean of \(N_x\) nodes:",
         "",
         r"$$",
         r"n_{\mathrm{eff}}"
@@ -142,25 +141,25 @@ def build_summary_md(neff: pd.DataFrame, summary: pd.DataFrame) -> str:
         r"$$",
         "",
         "Naive SE of a node-average that treats nodes as iid understates "
-        "uncertainty by about \(\\sqrt{N_x / n_{\\mathrm{eff}}}\) when "
-        "\(\\rho > 0\).",
+        "uncertainty by about \\(\\sqrt{N_x / n_{\\mathrm{eff}}}\\) when "
+        "\\(\\rho > 0\\).",
         "",
         "### Roles in OLS (do use / do not use)",
         "",
         "| Role | Use spatial ACF? |",
         "|------|------------------|",
-        "| Mean design matrix \(\\mathbf{x}_k\) | **No** — do not add lag "
-        "features as predictors of \(E[Y\\mid\\mathrm{design}]\) |",
-        "| SE of cell / seed geomean across nodes | **Yes** — \(n_{\\mathrm{eff}}\) |",
+        "| Mean design matrix \\(\\mathbf{x}_k\\) | **No** — do not add lag "
+        "features as predictors of \\(E[Y\\mid\\mathrm{design}]\\) |",
+        "| SE of cell / seed geomean across nodes | **Yes** — \\(n_{\\mathrm{eff}}\\) |",
         "| Stage-2 residual whitening before variance model | **Yes** — CosWM "
-        "\(R(\\hat\\phi_k)\) (Box `mixed_model`) |",
+        "\\(R(\\hat\\phi_k)\\) (Box `mixed_model`) |",
         "| Cluster-robust SE (seed / cell) | **Yes** — robust alternative that "
-        "does not require estimating \(\\phi\) inside the mean |",
+        "does not require estimating \\(\\phi\\) inside the mean |",
         "",
         "## Metric summary",
         "",
-        "| Metric | Median \(n_{\\mathrm{eff}}\) | IQR | Median "
-        "\(\\sqrt{N_x/n_{\\mathrm{eff}}}\) | Median ρ̂(2 m) | "
+        "| Metric | Median \\(n_{\\mathrm{eff}}\\) | IQR | Median "
+        "\\(\\sqrt{N_x/n_{\\mathrm{eff}}}\\) | Median ρ̂(2 m) | "
         "Frac CosWM |",
         "|--------|---------------------------:|----:|------------------------------:|"
         "----------------:|-----------:|",
@@ -177,8 +176,8 @@ def build_summary_md(neff: pd.DataFrame, summary: pd.DataFrame) -> str:
     lines.extend(["", "## Conclusions", ""])
     for _, r in summary.iterrows():
         lines.append(
-            f"- **{r['metric']}**: median \(n_{{\\mathrm{{eff}}}} = "
-            f"{fmt(r['n_eff_median'], 1)}\) "
+            f"- **{r['metric']}**: median \\(n_{{\\mathrm{{eff}}}} = "
+            rf"{fmt(r['n_eff_median'], 1)}\) "
             f"(of {N_NODES} nodes) ⇒ spatial SE inflation "
             f"~{fmt(r['se_infl_spatial_median'])}× for node-averages; "
             f"CosWM used in {fmt(100 * r['frac_coswm'], 0)}% of cells."
@@ -187,7 +186,7 @@ def build_summary_md(neff: pd.DataFrame, summary: pd.DataFrame) -> str:
         [
             "",
             "Spatial ACF therefore belongs in **uncertainty** "
-            "(\(n_{\\mathrm{eff}}\), CosWM whitening, cluster SE), not as "
+            "(\\(n_{\\mathrm{eff}}\\), CosWM whitening, cluster SE), not as "
             "extra Stage-1 mean covariates. Pair these CSVs with "
             "`stage1_mean_ols` cluster SEs and `naive_vs_hetero` variance "
             "diagnostics.",
@@ -200,8 +199,7 @@ def build_summary_md(neff: pd.DataFrame, summary: pd.DataFrame) -> str:
 def main() -> None:
     if not ACF_FIT_PATH.is_file():
         raise FileNotFoundError(
-            f"Missing ACF fits at {ACF_FIT_PATH}. "
-            "Run chi_spatial/spatial_acf.py first."
+            f"Missing ACF fits at {ACF_FIT_PATH}. Run chi_spatial/spatial_acf.py first."
         )
     print(f"Loading {ACF_FIT_PATH} …")
     fits = pd.read_csv(ACF_FIT_PATH)
