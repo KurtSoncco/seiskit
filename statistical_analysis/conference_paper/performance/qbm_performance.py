@@ -32,7 +32,6 @@ import numpy as np
 import pandas as pd
 from config import (  # noqa: E402
     FACTORS,
-    FIG_DPI,
     FIG_WIDTH,
     REF_COLOR,
     figsize,
@@ -44,11 +43,27 @@ from config import (  # noqa: E402
 )
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from PIL import Image
 from sklearn.metrics import mean_absolute_error, mean_pinball_loss, mean_squared_error, r2_score
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 warnings.filterwarnings("ignore")
+
+SAVE_DPI = 600
+TIGHT_PAD_IN = 0.02
+
+
+def save_tight_exact_width(fig: Figure, out: str, *, fig_width: float = FIG_WIDTH) -> None:
+    """Save tight-cropped PNG at exactly fig_width inches and 600 dpi."""
+    target_px = int(round(fig_width * SAVE_DPI))
+    fig.savefig(out, dpi=SAVE_DPI, bbox_inches="tight", pad_inches=TIGHT_PAD_IN)
+    img = Image.open(out)
+    if img.width != target_px:
+        target_h = max(1, int(round(img.height * (target_px / img.width))))
+        img = img.resize((target_px, target_h), Image.Resampling.LANCZOS)
+    img.save(out, dpi=(SAVE_DPI, SAVE_DPI))
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -468,7 +483,7 @@ def plot_pred_vs_true(
         edgecolor="none",
         rasterized=True,
         zorder=3,
-        label="Test observations",
+        label="Test data",
     )
     ax.plot(
         [x_min, x_max], [x_min, x_max], "--", color=REF_COLOR, lw=1.2, label=r"$y=x$", zorder=4
@@ -485,8 +500,7 @@ def plot_pred_vs_true(
     ax.set_ylabel(label)
     ax.set_title(
         # Avoid the word "cov" — auto_format maps it to CoV (coeff. of variation).
-        f"{label}: PI$_{{90}}$ coverage={payload['pi90_cov']:.2f}, "
-        f"$R^2$={payload['r2']:.2f}, MAE={payload['mae']:.3g}",
+        f"{label}",
         loc="left",
     )
     ax.legend(
@@ -495,7 +509,19 @@ def plot_pred_vs_true(
         frameon=True,
         facecolor="white",
         edgecolor="none",
-        framealpha=0.5,
+        framealpha=0.75,
+    )
+
+    # Text in the left upper corner
+    metrics = f"PI$_{{90}}$ coverage={payload['pi90_cov']:.2f}, \n $R^2$={payload['r2']:.2f}, \n MAE={payload['mae']:.3g}"
+    ax.text(
+        0.05,
+        0.80,
+        metrics,
+        transform=ax.transAxes,
+        fontsize=10,
+        fontweight="normal",
+        bbox=dict(facecolor="white", alpha=0.75, edgecolor="none"),
     )
 
 
@@ -519,7 +545,7 @@ def plot_quantile_calibration(
             lw=1.5,
             label=target_label(tgt),
         )
-    ax.set_xlabel(r"nominal $\tau$")
+    ax.set_xlabel(r"Nominal $\tau$")
     ax.set_ylabel("Empirical Coverage")
     ax.set_title("Quantile calibration (Seed hold-out Test)", loc="left")
     ax.set_xlim(0, 1)
@@ -565,9 +591,10 @@ def plot_interval_sharpness(
     ax.set_ylabel("Relative PI90 width (vs Null)")
     ax.set_title("Interval sharpness across predicted median", loc="left")
     ax.set_xlim(0, 1)
+    ax.set_ylim(0.2, 1.6)
     ax.legend(
         fontsize=10,
-        loc="lower left",
+        loc="upper left",
         frameon=True,
         facecolor="white",
         edgecolor="none",
@@ -582,7 +609,7 @@ def make_performance_figure(
     scatter_seed: int = SCATTER_SEED,
 ) -> Figure:
     """Assemble the 2×2 performance figure from ``plot_data``."""
-    fig, axes = plt.subplots(2, 2, figsize=figsize(height=FIG_WIDTH * 0.75))
+    fig, axes = plt.subplots(2, 2, figsize=figsize(height=FIG_WIDTH * 1.1))
 
     for i, tgt in enumerate(targets):
         plot_pred_vs_true(
@@ -627,7 +654,7 @@ def main() -> None:
 
     fig = make_performance_figure(plot_data)
     out = result_path("plots", "qbm_performance.png")
-    fig.savefig(out, dpi=FIG_DPI, bbox_inches="tight")
+    save_tight_exact_width(fig, out, fig_width=FIG_WIDTH)
     print(f"saved {out}")
 
 

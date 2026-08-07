@@ -132,8 +132,8 @@ COMPARE_COLOR = TOL_BRIGHT["purple"]
 
 # Display labels (natural log is explicit; auto-format uses LABEL_MAP keys)
 TARGET_LABELS = {
-    "abs_TF_ratio": r"$TF_0^N$",
-    "log_abs": r"$\ln(TF_0^N)$",
+    "abs_TF_ratio": r"$\left| TF \right|_0^N$",
+    "log_abs": r"$\ln(\left| TF \right|_0^N)$",
     "f_ratio": r"$f_0^N$",
 }
 

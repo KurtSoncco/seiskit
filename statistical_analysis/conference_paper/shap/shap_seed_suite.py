@@ -397,7 +397,9 @@ def main() -> None:
             axis=0,
         )
         feature_order = np.argsort(-mean_abs)
-        fig, axes = plt.subplots(1, 3, figsize=figsize(height=FIG_WIDTH * 0.45), layout="constrained")
+        fig, axes = plt.subplots(
+            1, 3, figsize=figsize(height=FIG_WIDTH * 0.45), layout="constrained"
+        )
         for col, tau in enumerate(TAIL_TAUS):
             expl = shap.Explanation(
                 values=q_shap_tail[(tgt, tau)],

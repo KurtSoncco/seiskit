@@ -51,8 +51,8 @@ for tgt in ["log_abs", "f_ratio"]:
     for tau in taus:
         si = cached_shap(
             f"qshap_inter_{tgt}_ch50_tau{int(tau * 100):02d}",
-            lambda m=quant_models[tgt][tau], X=Xsub: (
-                shap.TreeExplainer(m).shap_interaction_values(X)
+            lambda m=quant_models[tgt][tau], X=Xsub: shap.TreeExplainer(m).shap_interaction_values(
+                X
             ),
         )
         inter_by_tau[tgt][tau] = np.abs(si).mean(0)

@@ -13,11 +13,28 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.lines import Line2D
+from PIL import Image
 
 from seiskit.plot_config import apply_style, panel_letter, result_path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import FACTORS, FIG_DPI, FIG_WIDTH, load_channel50, target_color, target_label
+from config import FACTORS, FIG_WIDTH, load_channel50, target_color, target_label
+
+SAVE_DPI = 600
+TIGHT_PAD_IN = 0.02
+
+
+def save_tight_exact_width(fig: plt.Figure, out: str, *, fig_width: float = FIG_WIDTH) -> None:
+    """Save tight-cropped PNG at exactly fig_width inches and 600 dpi."""
+    target_px = int(round(fig_width * SAVE_DPI))
+    fig.savefig(out, dpi=SAVE_DPI, bbox_inches="tight", pad_inches=TIGHT_PAD_IN)
+    img = Image.open(out)
+    if img.width != target_px:
+        target_h = max(1, int(round(img.height * (target_px / img.width))))
+        img = img.resize((target_px, target_h), Image.Resampling.LANCZOS)
+    img.save(out, dpi=(SAVE_DPI, SAVE_DPI))
+
 
 # Load data
 d50 = load_channel50()
@@ -29,6 +46,8 @@ apply_style(auto_format=True, font_size=10, frame="open")
 lines_color = [target_color("f_ratio"), target_color("log_abs")]
 markers = ["o", "s", "D"]
 linestyles = ["-", "--", "-."]
+LINE_LW = 1.4
+MARKER_MS = 5
 
 # X axis labels
 x_labels = {
@@ -52,7 +71,7 @@ y_limits = {
 }
 
 # Create figure and gridspec
-fig = plt.figure(figsize=(FIG_WIDTH, FIG_WIDTH * 0.75))
+fig = plt.figure(figsize=(FIG_WIDTH, FIG_WIDTH * 0.5))
 gs = fig.add_gridspec(2, 5, hspace=0.1, wspace=0.20)
 
 TARGETS_PLOT = [
@@ -61,6 +80,7 @@ TARGETS_PLOT = [
 ]
 QUANTILES = [0.05, 0.50, 0.95]
 Q_LABELS = ["p5", "p50", "p95"]
+Q_LABELS_SHORT = [r"$p_5$", r"$p_{50}$", r"$p_{95}$"]
 letters = "abcdefghij"
 
 for row, (tgt, ylabel) in enumerate(TARGETS_PLOT):
@@ -89,8 +109,8 @@ for row, (tgt, ylabel) in enumerate(TARGETS_PLOT):
                 color=lines_color[row],
                 marker=markers[k],
                 linestyle=linestyles[k],
-                ms=5,
-                label=qlbl,
+                ms=MARKER_MS,
+                lw=LINE_LW,
             )
 
         # Set limits on all axes
@@ -109,18 +129,30 @@ for row, (tgt, ylabel) in enumerate(TARGETS_PLOT):
 
         panel_letter(ax, letters[row * 5 + col])
 
-handles, labels = fig.axes[0].get_legend_handles_labels()
-leg = fig.legend(
-    handles,
-    labels,
+# Neutral black proxies: same marker/linestyle/size as the panels (shared across both metrics)
+legend_handles = [
+    Line2D(
+        [0],
+        [0],
+        color="black",
+        marker=markers[k],
+        linestyle=linestyles[k],
+        markersize=MARKER_MS,
+        linewidth=LINE_LW,
+    )
+    for k in range(len(Q_LABELS_SHORT))
+]
+fig.legend(
+    legend_handles,
+    Q_LABELS_SHORT,
     loc="upper center",
-    bbox_to_anchor=(0.5, 1.02),
+    bbox_to_anchor=(0.5, 1.0),
     ncol=3,
-    fontsize=8,
+    fontsize=10,
     frameon=False,
+    handlelength=3.5,
+    handletextpad=0.6,
+    markerscale=1.0,
 )
 
-for line in leg.get_lines():
-    line.set_linewidth(2.5)
-
-fig.savefig(result_path("plots", "quantile_eda.png"), dpi=FIG_DPI, bbox_inches="tight")
+save_tight_exact_width(fig, result_path("plots", "quantile_eda.png"), fig_width=FIG_WIDTH)

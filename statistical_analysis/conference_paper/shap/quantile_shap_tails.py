@@ -49,7 +49,7 @@ for tgt in ["log_abs", "f_ratio"]:
     for i, tau in enumerate(taus):
         sv = cached_shap(
             f"qshap_tails_{tgt}_ch50_tau{int(tau * 100):02d}",
-            lambda m=quant_models[tgt][tau], X=Xte_df: (shap.TreeExplainer(m).shap_values(X)),
+            lambda m=quant_models[tgt][tau], X=Xte_df: shap.TreeExplainer(m).shap_values(X),
         )
         mat[i] = np.abs(sv).mean(0)
         if tau in (0.05, 0.5, 0.95):
