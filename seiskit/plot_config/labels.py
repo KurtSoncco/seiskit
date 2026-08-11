@@ -17,28 +17,28 @@ import re
 _REPLACEMENTS: list[tuple[re.Pattern, str]] = [
     # Longest compound terms first to prevent partial matches.
     # Modeled amplitude uses natural log; display as \ln.
-    # Strip absolute-value bars from TF notation (|TF| → TF).
-    (re.compile(r"\\ln\(\s*\|TF\|_0\^N\s*\)"), r"\ln(TF_0^N)"),
-    (re.compile(r"\|TF\|_0\^N"), r"TF_0^N"),
-    (re.compile(r"\|TF\|"), r"TF"),
+    # Keep absolute-value bars on TF (|TF| → \left| TF \right|).
+    (re.compile(r"\\ln\(\s*\|TF\|_0\^N\s*\)"), r"\ln(\left| TF \right|_0^N)"),
+    (re.compile(r"\|TF\|_0\^N"), r"\left| TF \right|_0^N"),
+    (re.compile(r"\|TF\|"), r"\left| TF \right|"),
     (
         re.compile(r"\bln\s*\(\s*abs[_ ]?TF[_ ]?(?:ratio)?\s*\)", re.IGNORECASE),
-        r"$\ln(TF_0^N)$",
+        r"$\ln(\left| TF \right|_0^N)$",
     ),
     (
         re.compile(r"\blog\s*\(\s*abs[_ ]?TF[_ ]?(?:ratio)?\s*\)", re.IGNORECASE),
-        r"$\ln(TF_0^N)$",
+        r"$\ln(\left| TF \right|_0^N)$",
     ),
     (
         re.compile(r"\blog[_ \s]+abs[_ \s]+TF(?:[_ \s]+ratio)?\b", re.IGNORECASE),
-        r"$\ln(TF_0^N)$",
+        r"$\ln(\left| TF \right|_0^N)$",
     ),
-    (re.compile(r"\blog[_ ]?abs\b", re.IGNORECASE), r"$\ln(TF_0^N)$"),
-    (re.compile(r"\babs[_ \s]?TF[_ \s]?ratio\b", re.IGNORECASE), r"$TF_0^N$"),
-    (re.compile(r"\babs[_ \s]?TF\b", re.IGNORECASE), r"$TF_0^N$"),
+    (re.compile(r"\blog[_ ]?abs\b", re.IGNORECASE), r"$\ln(\left| TF \right|_0^N)$"),
+    (re.compile(r"\babs[_ \s]?TF[_ \s]?ratio\b", re.IGNORECASE), r"$\left| TF \right|_0^N$"),
+    (re.compile(r"\babs[_ \s]?TF\b", re.IGNORECASE), r"$\left| TF \right|_0^N$"),
     # 1D-normalized IM ratios (χ family)
     (re.compile(r"\bPGA[_ ]?ratio\b", re.IGNORECASE), r"$\mathrm{PGA}^N$"),
-    (re.compile(r"\bPSA[_ ]?ratio\b", re.IGNORECASE), r"$\mathrm{PSA}^N$"),
+    (re.compile(r"\bPSA[_ ]?ratio\b", re.IGNORECASE), r"$\mathrm{SA}^N$"),
     (re.compile(r"\bI[_ ]?a[_ ]?ratio\b", re.IGNORECASE), r"$I_a^N$"),
     # Handle variants where $f$ is already partially LaTeX-ified
     (re.compile(r"\$f\$\s*ratio", re.IGNORECASE), r"$f_0^N$"),
@@ -46,27 +46,27 @@ _REPLACEMENTS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\ba[_ ]?HV\b", re.IGNORECASE), r"$a_{hv}$"),
     (re.compile(r"\bHeight\b"), r"$H$ (m)"),
     (re.compile(r"\br[_ ]?H\b"), r"$r_{h}$ (m)"),
-    (re.compile(r"\bCoV\b", re.IGNORECASE), r"$\mathrm{CoV}$"),
-    (re.compile(r"\bCV\b"), r"$\mathrm{CoV}$"),
+    (re.compile(r"\bCoV\b", re.IGNORECASE), r"$CoV$"),
+    (re.compile(r"\bCV\b"), r"$CoV$"),
     (re.compile(r"\bVs[_ ]?1\b"), r"$V_{s1}$ (m/s)"),
     (re.compile(r"\bChannel\b", re.IGNORECASE), "Recorder"),
 ]
 
 # Simple key map kept for direct lookups (e.g. df column names)
 LABEL_MAP: dict[str, str] = {
-    "log_abs": r"$\ln(TF_0^N)$",
-    "log(abs_TF)": r"$\ln(TF_0^N)$",
-    "ln(abs_TF)": r"$\ln(TF_0^N)$",
-    "abs_TF_ratio": r"$TF_0^N$",
-    "abs_TF": r"$TF_0^N$",
+    "log_abs": r"$\ln(\left| TF \right|_0^N)$",
+    "log(abs_TF)": r"$\ln(\left| TF \right|_0^N)$",
+    "ln(abs_TF)": r"$\ln(\left| TF \right|_0^N)$",
+    "abs_TF_ratio": r"$\left| TF \right|_0^N$",
+    "abs_TF": r"$\left| TF \right|_0^N$",
     "f_ratio": r"$f_0^N$",
     "PGA_ratio": r"$\mathrm{PGA}^N$",
-    "PSA_ratio": r"$\mathrm{PSA}^N$",
+    "PSA_ratio": r"$\mathrm{SA}^N$",
     "Ia_ratio": r"$I_a^N$",
     "ln_f_ratio": r"$\ln(f_0^N)$",
-    "ln_abs_TF_ratio": r"$\ln(TF_0^N)$",
+    "ln_abs_TF_ratio": r"$\ln(\left| TF \right|_0^N)$",
     "ln_PGA_ratio": r"$\ln(\mathrm{PGA}^N)$",
-    "ln_PSA_ratio": r"$\ln(\mathrm{PSA}^N)$",
+    "ln_PSA_ratio": r"$\ln(\mathrm{SA}^N)$",
     "ln_Ia_ratio": r"$\ln(I_a^N)$",
     "a_HV": r"$a_{hv}$",
     "aHV": r"$a_{hv}$",

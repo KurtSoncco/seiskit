@@ -17,6 +17,7 @@ TOPIC_BY_SCRIPT = {
     "normality_assessment": "diagnostics",
     "eda_channel50": "diagnostics",
     "quantile_eda": "diagnostics",
+    "tf_cov_grid": "diagnostics",
     # performance
     "gbm_performance": "performance",
     "model_r2_ceiling": "performance",

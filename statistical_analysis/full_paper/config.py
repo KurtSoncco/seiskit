@@ -162,12 +162,12 @@ METRIC_COLORS = {
     "Ia_ratio": TOL_MUTED["olive"],
 }
 
-# 1D-normalized ratios χ; superscript N matches conference LABEL_MAP convention.
+# 1D-normalized ratios χ; keep in sync with seiskit.plot_config.labels.LABEL_MAP.
 METRIC_LABELS = {
     "f_ratio": r"$f_0^N$",
-    "abs_TF_ratio": r"$TF_0^N$",
+    "abs_TF_ratio": r"$\left| TF \right|_0^N$",
     "PGA_ratio": r"$\mathrm{PGA}^N$",
-    "PSA_ratio": r"$\mathrm{PSA}^N$",
+    "PSA_ratio": r"$\mathrm{SA}^N$",
     "Ia_ratio": r"$I_a^N$",
 }
 
@@ -189,11 +189,14 @@ def metric_color(name: str) -> str:
 def metric_label(name: str, *, log: bool = False) -> str:
     """Return the display LaTeX label for a χ metric column.
 
+    Prefers ``seiskit.plot_config.labels.LABEL_MAP`` so nomenclature stays
+    shared with the package; falls back to local ``METRIC_LABELS``.
+
     When *log* is True, wrap as ``$\\ln(...)$`` (e.g. ``$\\ln(f_0^N)$``).
     """
-    from seiskit.plot_config.labels import as_ln_label
+    from seiskit.plot_config.labels import LABEL_MAP, as_ln_label
 
-    label = METRIC_LABELS[name]
+    label = LABEL_MAP.get(name, METRIC_LABELS[name])
     return as_ln_label(label) if log else label
 
 

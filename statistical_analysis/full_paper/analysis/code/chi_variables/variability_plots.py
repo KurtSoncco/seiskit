@@ -86,12 +86,13 @@ LEGEND_FRAME = {
 }
 
 # Component line styles (rms σ_ln)
+# Bars stay s (̄s_W, ̄s_B). Former σ² terms display as σ (rms), not s.
 COMP_STYLES = {
     "s_W_bar": {"ls": "-", "marker": "o", "label": r"$\overline{s}_W$"},
-    "s_mu": {"ls": "--", "marker": "s", "label": r"$s_\mu$"},
+    "s_mu": {"ls": "--", "marker": "s", "label": r"$\sigma_\mu$"},
     "s_B_bar": {"ls": ":", "marker": "^", "label": r"$\overline{s}_B$"},
-    "s_total": {"ls": "-", "marker": "D", "label": r"$s_{\mathrm{total}}$", "lw": 1.2},
-    "s_nu": {"ls": "-.", "marker": "x", "label": r"$s_\nu$", "alpha": 0.45},
+    "s_total": {"ls": "-", "marker": "D", "label": r"$\sigma_{\mathrm{total}}$", "lw": 1.2},
+    "s_nu": {"ls": "-.", "marker": "x", "label": r"$\sigma_\nu$", "alpha": 0.45},
 }
 
 # Seed/node fraction colors (neutral, not metric-specific)
@@ -240,7 +241,7 @@ def _plot_stacked_split(
         ax0.text(
             min(b + t + 0.02, 1.02),
             i,
-            rf"$s_{{\mathrm{{total}}}}={st:.3f}$",
+            rf"$\sigma_{{\mathrm{{total}}}}={st:.3f}$",
             va="center",
             ha="left",
             fontsize=TICK_LABELSIZE,
@@ -295,7 +296,7 @@ def _plot_stacked_split(
 
     ax1.set_xticks(y_pos)
     ax1.set_xticklabels([metric_label(m) for m in METRICS], fontsize=LABEL_FONTSIZE)
-    ax1.set_ylabel(r"$s_{\mathrm{total}}$", fontsize=LABEL_FONTSIZE)
+    ax1.set_ylabel(r"$\sigma_{\mathrm{total}}$", fontsize=LABEL_FONTSIZE)
     ax1.set_xlim(-0.6, len(METRICS) - 0.4)
     ax1.grid(True, axis="y", alpha=GRID_ALPHA, lw=0.6)
     ax1.set_axisbelow(True)
@@ -677,7 +678,7 @@ def _plot_s_total_cross(
         add_panel_label(ax, panel_i, alpha=0.75)
         panel_i += 1
         if c == 0:
-            ax.set_ylabel(r"$s_{\mathrm{total}}$", fontsize=LABEL_FONTSIZE)
+            ax.set_ylabel(r"$\sigma_{\mathrm{total}}$", fontsize=LABEL_FONTSIZE)
         else:
             ax.tick_params(labelleft=False)
 

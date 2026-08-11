@@ -1,10 +1,14 @@
 """Shared helpers for qualitative |TF| sensitivity figures.
 
-Three sampling modes (gray curves + geomean±1σ over that pool)::
+Three sampling modes (samples + geomean±1σ over that pool)::
 
   center_node_all_seeds  — node 50 × all seeds
   one_seed_all_nodes     — seed 0 × all nodes
   all_seeds_all_nodes    — all seeds × all nodes (flattened)
+
+Each 3×3 figure is an \\(r_h \\times a_{hv}\\) grid. Within a panel, all CoV
+levels are overlaid (Paul Tol Bright color + linestyle); the homogeneous 1D
+baseline is a thick black line.
 """
 
 from __future__ import annotations
@@ -29,6 +33,7 @@ from config import (  # noqa: E402
     FIG_DPI,
     LABEL_FONTSIZE,
     TICK_LABELSIZE,
+    TOL_BRIGHT,
     add_panel_label,
     apply_full_paper_style,
     figsize,
@@ -61,27 +66,22 @@ MODE_SUBTITLE: dict[Mode, str] = {
     "all_seeds_all_nodes": f"all {N_SEEDS} seeds × all {N_NODES} nodes",
 }
 
-# (rH, CoV, aHV) for 3×3 panels (a)–(i), row-major
-PANELS: list[tuple[float, float, float]] = [
-    (10.0, 0.2, 10.0),
-    (30.0, 0.2, 10.0),
-    (50.0, 0.2, 10.0),
-    (30.0, 0.1, 10.0),
-    (30.0, 0.2, 10.0),
-    (30.0, 0.3, 10.0),
-    (30.0, 0.2, 1.0),
-    (30.0, 0.2, 10.0),
-    (30.0, 0.2, 50.0),
-]
+# 3×3 panels (a)–(i): rows = r_h, cols = a_hv (CoV overlaid in each panel)
+PANELS: list[tuple[float, float]] = [(rh, ahv) for rh in RH_LIST for ahv in AHV_LIST]
 
 DOC_WIDTH_3X3, FIG_HEIGHT_3X3 = figsize(aspect=0.95)
 
 FREQ_LIM = (1e-1, 1e1)
-TF_LIM = (1e-1, 1e3)
+TF_LIM = (5e-1, 5e2)
 
-COLOR_SAMPLES = "0.55"
-COLOR_GEO = "#D55E00"
+# Paul Tol Bright: colorblind-safe blue / green / vermillion (plus linestyle)
+COV_STYLE: dict[float, dict[str, str]] = {
+    0.1: {"color": TOL_BRIGHT["blue"], "ls": "-", "label": "CoV = 0.1"},
+    0.2: {"color": TOL_BRIGHT["green"], "ls": "--", "label": "CoV = 0.2"},
+    0.3: {"color": TOL_BRIGHT["red"], "ls": "-.", "label": "CoV = 0.3"},
+}
 COLOR_1D = "#000000"
+LW_1D = 1.75
 
 
 def case_figure_dir(case: Mode, layout: str = "3x3") -> Path:
@@ -114,7 +114,8 @@ def cell_start(vs1: float, cov: float, rh: float, ahv: float) -> int:
     return (((i * len(COV_LIST) + j) * len(RH_LIST) + k) * len(AHV_LIST) + m) * N_SEEDS
 
 
-# Cap gray sample curves so all_seeds_all_nodes (~10k) does not OOM matplotlib.
+# Cap sample curves per panel (split across CoV overlays) so all_seeds_all_nodes
+# (~10k/cell) does not OOM matplotlib.
 MAX_PLOT_CURVES = 200
 
 
@@ -133,12 +134,8 @@ def stack_for_case(tf_all: np.ndarray, i0: int, mode: Mode) -> np.ndarray:
     raise ValueError(f"unknown mode: {mode!r}")
 
 
-def _panel_param_text(rh: float, cov: float, ahv: float) -> str:
-    return (
-        rf"$r_h = {rh:.0f}$ m" + "\n"
-        rf"$\mathrm{{CoV}} = {cov:g}$" + "\n"
-        rf"$a_{{hv}} = {ahv:.0f}$"
-    )
+def _panel_param_text(rh: float, ahv: float) -> str:
+    return rf"$r_h = {rh:.0f}$ m" + "\n" + rf"$a_{{hv}} = {ahv:.0f}$"
 
 
 def _geomean_band(stack: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -149,6 +146,15 @@ def _geomean_band(stack: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray
     lo = geo * np.exp(-sigma_ln)
     hi = geo * np.exp(sigma_ln)
     return geo, lo, hi
+
+
+def _subsample_stack(stack: np.ndarray, n_max: int, *, seed: int) -> np.ndarray:
+    """Subsample curves for display; full *stack* still feeds the geomean band."""
+    n = int(stack.shape[0])
+    if n <= n_max:
+        return stack
+    rng = np.random.default_rng(seed)
+    return stack[rng.choice(n, size=n_max, replace=False)]
 
 
 def _load_freq(h: float) -> np.ndarray:
@@ -177,45 +183,50 @@ def load_data(h: float, vs1: float) -> tuple[np.ndarray, np.ndarray, np.ndarray,
 def plot_tf_panel(
     ax: plt.Axes,
     freq: np.ndarray,
-    stack: np.ndarray,
+    tf_all: np.ndarray,
     freq_1d: np.ndarray,
     tf_1d: np.ndarray,
+    *,
+    vs1: float,
+    rh: float,
+    ahv: float,
+    mode: Mode,
 ) -> None:
-    """Draw 2D samples, geomean±1σ (log|TF|), and 1D baseline on *ax*."""
-    geo, lo, hi = _geomean_band(stack)
+    """Overlay CoV samples + geomean±1σ (log|TF|) and the 1D baseline on *ax*."""
+    n_max = max(1, MAX_PLOT_CURVES // len(COV_LIST))
+    for i_cov, cov in enumerate(COV_LIST):
+        style = COV_STYLE[cov]
+        color = style["color"]
+        ls = style["ls"]
+        i0 = cell_start(vs1, cov, rh, ahv)
+        stack = stack_for_case(tf_all, i0, mode)
+        geo, lo, hi = _geomean_band(stack)
+        # plot_stack = _subsample_stack(stack, n_max, seed=i_cov)
 
-    # Subsample gray curves for plotting (full stack still used for geomean band)
-    n = int(stack.shape[0])
-    if n > MAX_PLOT_CURVES:
-        rng = np.random.default_rng(0)
-        idx = rng.choice(n, size=MAX_PLOT_CURVES, replace=False)
-        plot_stack = stack[idx]
-    else:
-        plot_stack = stack
-    ax.plot(
-        freq,
-        plot_stack.T,
-        color=COLOR_SAMPLES,
-        lw=0.35,
-        alpha=0.30,
-        zorder=1,
-    )
+        # ax.plot(
+        #    freq,
+        #    plot_stack.T,
+        #    color=color,
+        #    lw=0.35,
+        #    alpha=0.22,
+        #    zorder=2,
+        # )
 
-    ax.fill_between(
-        freq,
-        lo,
-        hi,
-        facecolor=COLOR_GEO,
-        alpha=0.28,
-        edgecolor="none",
-        zorder=3,
-        label="_nolegend_",
-    )
-    ax.plot(freq, geo, color=COLOR_GEO, ls="--", lw=DATA_LINEWIDTH, zorder=4)
-    ax.plot(freq, lo, color=COLOR_GEO, ls="--", lw=0.6, alpha=0.65, zorder=4)
-    ax.plot(freq, hi, color=COLOR_GEO, ls="--", lw=0.6, alpha=0.65, zorder=4)
+        ax.fill_between(
+            freq,
+            lo,
+            hi,
+            facecolor=color,
+            alpha=0.18,
+            edgecolor="none",
+            zorder=3,
+            label="_nolegend_",
+        )
+        ax.plot(freq, geo, color=color, ls=ls, lw=DATA_LINEWIDTH, zorder=4)
+        # ax.plot(freq, lo, color=color, ls=ls, lw=0.55, alpha=0.70, zorder=4)
+        # ax.plot(freq, hi, color=color, ls=ls, lw=0.55, alpha=0.70, zorder=4)
 
-    ax.plot(freq_1d, tf_1d, color=COLOR_1D, lw=DATA_LINEWIDTH, zorder=2, dashes=(1, 1.5))
+    ax.plot(freq_1d, tf_1d, color=COLOR_1D, ls="-", lw=LW_1D, zorder=1)
 
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -226,25 +237,37 @@ def plot_tf_panel(
 
 
 def _legend_handles() -> list:
-    return [
-        Line2D([0], [0], color=COLOR_SAMPLES, lw=DATA_LINEWIDTH, label="2D samples"),
+    """CoV encodes color+linestyle for samples and geomean±1σ; 1D is black."""
+    handles: list = [
+        Line2D(
+            [0],
+            [0],
+            color=COV_STYLE[cov]["color"],
+            ls=COV_STYLE[cov]["ls"],
+            lw=DATA_LINEWIDTH,
+            label=COV_STYLE[cov]["label"],
+        )
+        for cov in COV_LIST
+    ]
+    handles.append(
         Patch(
-            facecolor=COLOR_GEO,
-            edgecolor=COLOR_GEO,
-            alpha=0.35,
-            linestyle="--",
-            linewidth=DATA_LINEWIDTH,
-            label=r"Geomean $\pm 1\sigma$ ($\log\vert TF\vert$)",
-        ),
+            facecolor=TOL_BRIGHT["gray"],
+            edgecolor="none",
+            alpha=0.45,
+            label=r"Geomean $\pm 1\sigma$ ($\ln(\left| TF \right|)$)",
+        )
+    )
+    handles.append(
         Line2D(
             [0],
             [0],
             color=COLOR_1D,
-            ls=":",
-            lw=DATA_LINEWIDTH,
+            ls="-",
+            lw=LW_1D,
             label="1D (baseline model)",
-        ),
-    ]
+        )
+    )
+    return handles
 
 
 def _subtitle(h: float, vs1: float, mode: Mode) -> str:
@@ -267,12 +290,15 @@ def plot_3x3_figure(
     vs1: float,
     mode: Mode,
 ) -> plt.Figure:
-    """Build the 3×3 log–log |TF| figure for one (H, Vs1) and *mode*."""
+    r"""Build the 3×3 log–log |TF| figure for one (H, Vs1) and *mode*.
+
+    Rows vary \(r_h\), columns vary \(a_{hv}\); CoV levels share each panel.
+    """
     fig = plt.figure(figsize=(DOC_WIDTH_3X3, FIG_HEIGHT_3X3))
     gs = fig.add_gridspec(
         2,
         1,
-        height_ratios=[0.07, 1.0],
+        height_ratios=[0.09, 1.0],
         hspace=0.02,
         left=0.09,
         right=0.99,
@@ -291,17 +317,25 @@ def plot_3x3_figure(
 
     legend_handles: list | None = None
 
-    for i, (rh, cov, ahv) in enumerate(PANELS):
+    for i, (rh, ahv) in enumerate(PANELS):
         ax = axes.flat[i]
-        i0 = cell_start(vs1, cov, rh, ahv)
-        stack = stack_for_case(tf_all, i0, mode)
-        plot_tf_panel(ax, freq, stack, freq_1d, tf_1d)
+        plot_tf_panel(
+            ax,
+            freq,
+            tf_all,
+            freq_1d,
+            tf_1d,
+            vs1=vs1,
+            rh=rh,
+            ahv=ahv,
+            mode=mode,
+        )
 
         add_panel_label(ax, i)
         ax.text(
             0.02,
             0.97,
-            _panel_param_text(rh, cov, ahv),
+            _panel_param_text(rh, ahv),
             transform=ax.transAxes,
             ha="left",
             va="top",
@@ -318,7 +352,7 @@ def plot_3x3_figure(
         else:
             ax.tick_params(labelbottom=False)
         if col == 0:
-            ax.set_ylabel(r"$TF$", fontsize=LABEL_FONTSIZE)
+            ax.set_ylabel(r"$\left| TF \right|$", fontsize=LABEL_FONTSIZE)
         else:
             ax.tick_params(labelleft=False)
 
@@ -328,7 +362,7 @@ def plot_3x3_figure(
     assert legend_handles is not None
     header.text(
         0.5,
-        0.95,
+        0.98,
         _subtitle(h, vs1, mode),
         transform=header.transAxes,
         ha="center",
@@ -338,11 +372,11 @@ def plot_3x3_figure(
     header.legend(
         handles=legend_handles,
         loc="lower center",
-        ncol=3,
+        ncol=5,
         fontsize=TICK_LABELSIZE,
         frameon=False,
         handlelength=2.2,
-        columnspacing=1.2,
+        columnspacing=1.0,
         borderaxespad=0.0,
         labelspacing=0.15,
         bbox_to_anchor=(0.5, 0.0),
