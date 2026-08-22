@@ -152,10 +152,7 @@ model_data = build_model_data(config, vs_data, rho_data, nu_data)
 
 # Run analysis
 result = run_opensees_analysis(
-    config=config,
-    model_data=model_data,
-    run_id="example_run",
-    output_dir="results"
+    config=config, model_data=model_data, run_id="example_run", output_dir="results"
 )
 
 print(f"Analysis completed: {result}")
@@ -171,11 +168,9 @@ Seiskit provides two parallel processing approaches:
 from seiskit import run_analyses_parallel, load_material_properties
 
 # Load material data
-material_data = load_material_properties({
-    "vs": "vs_data.txt",
-    "rho": "rho_data.txt", 
-    "nu": "nu_data.txt"
-})
+material_data = load_material_properties(
+    {"vs": "vs_data.txt", "rho": "rho_data.txt", "nu": "nu_data.txt"}
+)
 
 # Define multiple analyses
 configs = [
@@ -198,13 +193,7 @@ for result in results:
 from seiskit.joblib_parallel import run_analyses_joblib_parallel
 
 # Run analyses with joblib
-results = run_analyses_joblib_parallel(
-    configs, 
-    material_data, 
-    n_jobs=4,
-    backend="loky",
-    verbose=1
-)
+results = run_analyses_joblib_parallel(configs, material_data, n_jobs=4, backend="loky", verbose=1)
 ```
 
 #### Parameter Studies
@@ -217,17 +206,12 @@ base_config = {"Ly": 140.0, "Lx": 260.0, "duration": 15.0}
 
 # Parameter variations
 variations = {
-    "hx": [2.5, 5.0, 10.0],           # 3 mesh sizes
+    "hx": [2.5, 5.0, 10.0],  # 3 mesh sizes
     "motion_freq": [0.5, 0.75, 1.0],  # 3 frequencies
 }
 
 # Run parameter study (9 combinations total)
-results = run_parameter_study(
-    base_config, 
-    variations, 
-    material_data,
-    max_workers=4
-)
+results = run_parameter_study(base_config, variations, material_data, max_workers=4)
 ```
 
 ## How Parallel Processing Works

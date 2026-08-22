@@ -17,7 +17,6 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import (  # noqa: E402
     ANNOTATION_FONTSIZE,
-    LABEL_FONTSIZE,
     add_panel_label,
     apply_full_paper_style,
     figsize,
@@ -94,7 +93,7 @@ def empirical_corr_length_h(vs: np.ndarray, max_lag_m: float = 100.0) -> float:
             n_pairs[lag - 1] += float(len(a))
     with np.errstate(invalid="ignore", divide="ignore"):
         # normalize by lag-0 energy proxy
-        rho0 = sum_prod  # will divide by n and by var proxy using lag products
+        pass  # will divide by n and by var proxy using lag products
         # Use Pearson per lag averaged: rebuild simply
     rhos = []
     for lag in range(1, max_lag + 1):

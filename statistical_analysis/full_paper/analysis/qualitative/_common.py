@@ -1,7 +1,8 @@
 """Shared helpers for qualitative |TF| sensitivity figures.
 
-Three sampling modes (samples + geomean±1σ over that pool)::
+Four sampling modes (samples + geomean±1σ over that pool)::
 
+  center_node_one_seed   — node 50 × seed 0 (single realization)
   center_node_all_seeds  — node 50 × all seeds
   one_seed_all_nodes     — seed 0 × all nodes
   all_seeds_all_nodes    — all seeds × all nodes (flattened)
@@ -58,9 +59,15 @@ N_SEEDS = 100
 N_NODES = 101
 SEED_IDX = 0
 
-Mode = Literal["center_node_all_seeds", "one_seed_all_nodes", "all_seeds_all_nodes"]
+Mode = Literal[
+    "center_node_one_seed",
+    "center_node_all_seeds",
+    "one_seed_all_nodes",
+    "all_seeds_all_nodes",
+]
 
 MODE_SUBTITLE: dict[Mode, str] = {
+    "center_node_one_seed": f"center node, seed {SEED_IDX}",
     "center_node_all_seeds": f"center node, {N_SEEDS} seeds per case",
     "one_seed_all_nodes": f"seed {SEED_IDX}, all {N_NODES} nodes",
     "all_seeds_all_nodes": f"all {N_SEEDS} seeds × all {N_NODES} nodes",
@@ -124,6 +131,12 @@ def stack_for_case(tf_all: np.ndarray, i0: int, mode: Mode) -> np.ndarray:
 
     ``all_seeds_all_nodes`` uses float32 to limit RAM (~3 GB mmap × full copy).
     """
+    if mode == "center_node_one_seed":
+        # Shape (1, n_freq) so geomean band collapses to the single curve.
+        return np.asarray(
+            tf_all[i0 + SEED_IDX : i0 + SEED_IDX + 1, CENTER_CH, :],
+            dtype=np.float64,
+        )
     if mode == "center_node_all_seeds":
         return np.asarray(tf_all[i0 : i0 + N_SEEDS, CENTER_CH, :], dtype=np.float64)
     if mode == "one_seed_all_nodes":
@@ -193,7 +206,7 @@ def plot_tf_panel(
     mode: Mode,
 ) -> None:
     """Overlay CoV samples + geomean±1σ (log|TF|) and the 1D baseline on *ax*."""
-    n_max = max(1, MAX_PLOT_CURVES // len(COV_LIST))
+    max(1, MAX_PLOT_CURVES // len(COV_LIST))
     for i_cov, cov in enumerate(COV_LIST):
         style = COV_STYLE[cov]
         color = style["color"]

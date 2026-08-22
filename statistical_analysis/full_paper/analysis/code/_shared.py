@@ -22,7 +22,7 @@ _FULL_PAPER = Path(__file__).resolve().parents[2]
 if str(_FULL_PAPER) not in sys.path:
     sys.path.insert(0, str(_FULL_PAPER))
 
-from config import BOX_ROOT, FACTORS, METRICS, figure_dir  # noqa: E402
+from config import BOX_ROOT, FACTORS, METRICS  # noqa: E402
 
 DATA_PATH = BOX_ROOT / "peak_analysis" / "join_master.h5"
 ACF_FIT_PATH = (
@@ -149,9 +149,7 @@ def pinball_loss(y_true: np.ndarray, y_pred: np.ndarray, tau: float) -> float:
     return float(np.mean(np.where(e >= 0, tau * e, (tau - 1) * e)))
 
 
-def koenker_pseudo_r2(
-    y_true: np.ndarray, y_pred: np.ndarray, tau: float, y_null: float
-) -> float:
+def koenker_pseudo_r2(y_true: np.ndarray, y_pred: np.ndarray, tau: float, y_null: float) -> float:
     v_model = pinball_loss(y_true, y_pred, tau)
     v_null = pinball_loss(y_true, np.full_like(y_true, y_null), tau)
     if v_null <= 0:

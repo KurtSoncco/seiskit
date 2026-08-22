@@ -75,9 +75,7 @@ def unit_to_physical(unit: np.ndarray) -> np.ndarray:
     phys[:, 2] = bounds_H2[0] + raw[:, 2] * (bounds_H2[1] - bounds_H2[0])
     phys[:, 3] = bounds_rH[0] + raw[:, 3] * (bounds_rH[1] - bounds_rH[0])
     phys[:, 4] = lognorm.ppf(raw[:, 4], s=sigma_aHV, scale=scale_aHV)
-    phys[:, 5] = bounds_Vs_contrast[0] + raw[:, 5] * (
-        bounds_Vs_contrast[1] - bounds_Vs_contrast[0]
-    )
+    phys[:, 5] = bounds_Vs_contrast[0] + raw[:, 5] * (bounds_Vs_contrast[1] - bounds_Vs_contrast[0])
     phys[:, 6] = bounds_CoV[0] + raw[:, 6] * (bounds_CoV[1] - bounds_CoV[0])
     phys[:, 7] = lognorm.ppf(raw[:, 7], s=sigma_Vs2, scale=scale_Vs2)
     return phys

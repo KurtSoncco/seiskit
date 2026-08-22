@@ -18,11 +18,9 @@ The refactored seiskit package now supports true parallel execution of seismic a
 from seiskit import run_analyses_parallel, load_material_properties
 
 # Load material data
-material_data = load_material_properties({
-    "vs": "vs_data.txt",
-    "rho": "rho_data.txt", 
-    "nu": "nu_data.txt"
-})
+material_data = load_material_properties(
+    {"vs": "vs_data.txt", "rho": "rho_data.txt", "nu": "nu_data.txt"}
+)
 
 # Define multiple analyses
 configs = [
@@ -49,42 +47,30 @@ base_config = {"Ly": 140.0, "Lx": 260.0, "duration": 15.0}
 
 # Parameter variations
 variations = {
-    "hx": [2.5, 5.0, 10.0],           # 3 mesh sizes
+    "hx": [2.5, 5.0, 10.0],  # 3 mesh sizes
     "motion_freq": [0.5, 0.75, 1.0],  # 3 frequencies
 }
 
 # Run parameter study (9 combinations total)
-results = run_parameter_study(
-    base_config, 
-    variations, 
-    material_data,
-    max_workers=4
-)
+results = run_parameter_study(base_config, variations, material_data, max_workers=4)
 ```
 
 ### Advanced Usage
 
 ```python
-from seiskit import (
-    prepare_analysis_tasks, 
-    run_parallel_analyses, 
-    collect_results,
-    AnalysisResult
-)
+from seiskit import prepare_analysis_tasks, run_parallel_analyses, collect_results, AnalysisResult
 
 # Prepare tasks
 tasks = prepare_analysis_tasks(configs, material_data)
+
 
 # Custom progress tracking
 def progress_callback(result: AnalysisResult):
     print(f"✓ {result.task_id} completed in {result.execution_time:.1f}s")
 
+
 # Run with progress tracking
-results = run_parallel_analyses(
-    tasks, 
-    max_workers=4,
-    progress_callback=progress_callback
-)
+results = run_parallel_analyses(tasks, max_workers=4, progress_callback=progress_callback)
 
 # Collect and analyze results
 summary = collect_results(results, "summary")
@@ -158,11 +144,7 @@ from seiskit import perform_analysis_spatial
 
 for config in configs:
     result = perform_analysis_spatial(
-        run_id=config["task_id"],
-        vs_data=vs_data,
-        rho_data=rho_data,
-        nu_data=nu_data,
-        **config
+        run_id=config["task_id"], vs_data=vs_data, rho_data=rho_data, nu_data=nu_data, **config
     )
 ```
 

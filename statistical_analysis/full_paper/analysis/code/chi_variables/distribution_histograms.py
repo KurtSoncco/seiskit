@@ -1,4 +1,4 @@
-"""Histograms of \(Y_{ij}=\\ln\\chi_{ij}\) (no Q–Q plots).
+"""Histograms of \\(Y_{ij}=\\ln\\chi_{ij}\\) (no Q–Q plots).
 
 Per metric:
 
@@ -28,6 +28,15 @@ _CODE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_FULL))
 sys.path.insert(0, str(_CODE))
 
+from _shared import (  # noqa: E402
+    METRICS,
+    N_CELLS,
+    N_NODES,
+    N_SEEDS,
+    add_design_columns,
+    load_ratios,
+    log_response,
+)
 from config import (  # noqa: E402
     DATA_LINEWIDTH,
     FACTORS,
@@ -41,15 +50,6 @@ from config import (  # noqa: E402
     metric_color,
     metric_label,
     save_figure,
-)
-from _shared import (  # noqa: E402
-    METRICS,
-    N_CELLS,
-    N_NODES,
-    N_SEEDS,
-    add_design_columns,
-    load_ratios,
-    log_response,
 )
 
 apply_full_paper_style(auto_format=True, frame="open", grid=False)
@@ -169,9 +169,7 @@ def plot_pooled_and_residual(df: pd.DataFrame) -> None:
                 mu, sd = float(np.mean(series)), float(np.std(series, ddof=0))
                 if sd > 0:
                     xs = np.linspace(mu - 4 * sd, mu + 4 * sd, 200)
-                    pdf = (1.0 / (sd * np.sqrt(2 * np.pi))) * np.exp(
-                        -0.5 * ((xs - mu) / sd) ** 2
-                    )
+                    pdf = (1.0 / (sd * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((xs - mu) / sd) ** 2)
                     ax.plot(xs, pdf, color="0.15", lw=DATA_LINEWIDTH * 0.9, ls="--")
             ax.set_title(
                 metric_label(metric, log=True) if row == 0 else "",
@@ -237,8 +235,7 @@ def plot_by_cov(df: pd.DataFrame) -> None:
         add_panel_label(ax, i, alpha=0.75)
 
     handles = [
-        Line2D([0], [0], color=COV_COLORS[c], lw=DATA_LINEWIDTH, label=f"{c:g}")
-        for c in COV_LEVELS
+        Line2D([0], [0], color=COV_COLORS[c], lw=DATA_LINEWIDTH, label=f"{c:g}") for c in COV_LEVELS
     ]
     fig.legend(
         handles=handles,
@@ -289,9 +286,7 @@ def plot_metric_groups(df: pd.DataFrame) -> None:
                 mu, sd = float(np.mean(y)), float(np.std(y, ddof=0))
                 if sd > 0:
                     xs = np.linspace(mu - 4 * sd, mu + 4 * sd, 200)
-                    pdf = (1.0 / (sd * np.sqrt(2 * np.pi))) * np.exp(
-                        -0.5 * ((xs - mu) / sd) ** 2
-                    )
+                    pdf = (1.0 / (sd * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((xs - mu) / sd) ** 2)
                     ax.plot(xs, pdf, color="0.15", lw=DATA_LINEWIDTH, ls="--")
             ax.set_xlabel(metric_label(metric, log=True), fontsize=LABEL_FONTSIZE)
             if i == 0:
@@ -331,13 +326,13 @@ def _descriptive_table(df: pd.DataFrame) -> pd.DataFrame:
 
 def build_summary_md(desc: pd.DataFrame, shapiro: pd.DataFrame | None) -> str:
     lines = [
-        "# Distribution histograms of \(Y=\\ln\\chi\)",
+        "# Distribution histograms of \\(Y=\\ln\\chi\\)",
         "",
-        "Histograms of the working scale \(Y_{ij}=\\ln\\chi_{ij}\) "
+        "Histograms of the working scale \\(Y_{ij}=\\ln\\chi_{ij}\\) "
         "(pooled and within-cell residual). **No Q–Q plots** — formal "
         "normality tests live in `node_ratio_normality.py`.",
         "",
-        f"- Design: \(N_x={N_NODES}\), \(N_s={N_SEEDS}\), "
+        rf"- Design: \(N_x={N_NODES}\), \(N_s={N_SEEDS}\), "
         f"{N_CELLS} cells; factors `{', '.join(FACTORS)}`",
         "- Dashed curves: Normal density matched to sample mean / SD",
         "",
@@ -364,8 +359,7 @@ def build_summary_md(desc: pd.DataFrame, shapiro: pd.DataFrame | None) -> str:
             [
                 "From `normality_results.csv` (per-node residual ln transform):",
                 "",
-                "| Metric | med Shapiro p | frac p>0.05 | med |skew| | "
-                "frac verdict=lognormal |",
+                "| Metric | med Shapiro p | frac p>0.05 | med |skew| | frac verdict=lognormal |",
                 "| --- | ---: | ---: | ---: | ---: |",
             ]
         )

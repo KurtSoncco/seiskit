@@ -3,7 +3,7 @@
 Reads ``cell_summary.csv`` from ``figure_dir("chi_variables", "central_variability")``
 when present; otherwise computes a minimal fraction table from ``join_master.h5``.
 
-Annotates \(R^2_{\\mathrm{ceiling}}\) from
+Annotates \\(R^2_{\\mathrm{ceiling}}\\) from
 ``figure_dir("chi_ols", "r2_ceiling")/reliability_ceiling.csv`` when available.
 
 Writes Nature PDFs + ``summary.md`` under
@@ -25,6 +25,13 @@ _CODE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_FULL))
 sys.path.insert(0, str(_CODE))
 
+from _shared import (  # noqa: E402
+    CHI_OLS_CEILING,
+    FACTORS,
+    METRICS,
+    N_CELLS,
+    load_ratios,
+)
 from config import (  # noqa: E402
     LABEL_FONTSIZE,
     TICK_LABELSIZE,
@@ -34,14 +41,6 @@ from config import (  # noqa: E402
     figure_dir,
     metric_label,
     save_figure,
-)
-from _shared import (  # noqa: E402
-    CHI_OLS_CEILING,
-    FACTORS,
-    METRICS,
-    N_CELLS,
-    load_ratios,
-    log_response,
 )
 
 apply_full_paper_style(auto_format=True, frame="open", grid=False)
@@ -77,7 +76,7 @@ def compute_minimal_fracs(df: pd.DataFrame) -> pd.DataFrame:
     work = df.copy()
     work["cell"] = work.groupby(list(FACTORS), sort=False).ngroup()
     rows: list[dict] = []
-    for (_, g) in work.groupby("cell", sort=True):
+    for _, g in work.groupby("cell", sort=True):
         keys = {f: g[f].iloc[0] for f in FACTORS}
         for metric in METRICS:
             chi = g.pivot(index="node", columns="seed", values=metric)
@@ -152,8 +151,7 @@ def _matrix(
     for i, cov in enumerate(COV_LEVELS):
         for j, rh in enumerate(RH_LEVELS):
             hit = sub[
-                np.isclose(sub["CoV"].astype(float), cov)
-                & np.isclose(sub["rH"].astype(float), rh)
+                np.isclose(sub["CoV"].astype(float), cov) & np.isclose(sub["rH"].astype(float), rh)
             ]
             if len(hit):
                 out[i, j] = float(hit[col].iloc[0])
@@ -183,7 +181,9 @@ def plot_frac_heatmaps(
         mats = []
         for r, h in enumerate(H_LIST):
             for c, vs1 in enumerate(VS1_LIST):
-                mats.append(_matrix(df, metric=metric, height=h, vs1=vs1, ahv=CENTER_AHV, col=frac_col))
+                mats.append(
+                    _matrix(df, metric=metric, height=h, vs1=vs1, ahv=CENTER_AHV, col=frac_col)
+                )
         finite = np.concatenate([m[np.isfinite(m)] for m in mats if np.isfinite(m).any()])
         if finite.size:
             vmin, vmax = float(np.min(finite)), float(np.max(finite))
@@ -357,8 +357,7 @@ def plot_seed_split_pair(df: pd.DataFrame, ceilings: dict[str, float]) -> None:
     )
     fig.suptitle(
         rf"Seed-split fractions at $H={_format_level(h_c)}$, "
-        rf"$V_{{s1}}={_format_level(vs_c)}$, $a_{{hv}}={_format_level(CENTER_AHV)}$. "
-        + ceil_line,
+        rf"$V_{{s1}}={_format_level(vs_c)}$, $a_{{hv}}={_format_level(CENTER_AHV)}$. " + ceil_line,
         fontsize=LABEL_FONTSIZE - 0.5,
         y=0.97,
     )
@@ -376,7 +375,7 @@ def build_summary_md(
         "",
         "Small-multiple heatmaps of law-of-total-variance fractions "
         r"(\(f_{W\mid\mathrm{seed}}\), \(f_\mu\), …) across CoV × \(r_h\) "
-        f"at fixed \(a_{{hv}}={CENTER_AHV:g}\).",
+        rf"at fixed \(a_{{hv}}={CENTER_AHV:g}\).",
         "",
         f"- Source: `{source}`",
         f"- Cells in table: **{df.groupby(list(FACTORS)).ngroup().nunique() if set(FACTORS).issubset(df.columns) else '—'}** "
@@ -390,7 +389,7 @@ def build_summary_md(
             [
                 "From `reliability_ceiling.csv` (scope=full):",
                 "",
-                "| Metric | \(R^2_{\\mathrm{ceiling}}\) |",
+                "| Metric | \\(R^2_{\\mathrm{ceiling}}\\) |",
                 "| --- | ---: |",
             ]
         )
@@ -400,7 +399,7 @@ def build_summary_md(
         lines.append("")
         lines.append(
             "Ceiling is the population-information bound on design-only "
-            "prediction of a single \(Y\) draw; within-cell noise "
+            r"prediction of a single \(Y\) draw; within-cell noise "
             r"(\(\approx f_{W\mid\mathrm{seed}}+f_\mu\) structure) is irreducible."
         )
     else:
@@ -413,9 +412,9 @@ def build_summary_md(
     lines.extend(
         [
             "",
-            f"## Center slice (\(H=50\), \(V_{{s1}}=230\), \(a_{{hv}}={CENTER_AHV:g}\))",
+            rf"## Center slice (\(H=50\), \(V_{{s1}}=230\), \(a_{{hv}}={CENTER_AHV:g}\))",
             "",
-            "| Metric | med \(f_W\) | med \(f_\\mu\) |",
+            "| Metric | med \\(f_W\\) | med \\(f_\\mu\\) |",
             "| --- | ---: | ---: |",
         ]
     )
@@ -442,7 +441,7 @@ def build_summary_md(
             "| File | Content |",
             "| --- | --- |",
             "| `heatmap_frac_W_seed_<metric>.pdf` | CoV×rH over Height×Vs1 |",
-            "| `heatmap_frac_mu_<metric>.pdf` | Same for \(f_\\mu\) |",
+            "| `heatmap_frac_mu_<metric>.pdf` | Same for \\(f_\\mu\\) |",
             "| `heatmap_frac_B_node_<metric>.pdf` / `frac_nu_*` | Node-split |",
             "| `frac_seed_split_center_HV.pdf` | Compact center H/Vs1 panel |",
             "",

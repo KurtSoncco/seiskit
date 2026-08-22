@@ -28,12 +28,12 @@ from sobol import (  # noqa: E402
     _discretize_length,
     bounds_CoV,
     bounds_rH,
+    scale_aHV,
     scale_Vs1,
     scale_Vs2,
-    scale_aHV,
+    sigma_aHV,
     sigma_Vs1,
     sigma_Vs2,
-    sigma_aHV,
 )
 
 DEFAULT_PHYSICS_COUNT = 32

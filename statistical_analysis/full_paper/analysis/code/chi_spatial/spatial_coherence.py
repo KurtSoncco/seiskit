@@ -1,15 +1,15 @@
 """Between-seed spatial coherence of χ ratios (distinct from lag-ACF).
 
-Per design cell × metric on \(Y_{ij}=\\ln\\chi_{ij}\):
+Per design cell × metric on \\(Y_{ij}=\\ln\\chi_{ij}\\):
 
-1. Node means \(\\nu_i\) and between-seed SDs \(s_{B,i}\)
+1. Node means \\(\\nu_i\\) and between-seed SDs \\(s_{B,i}\\)
 2. Cross-covariance / correlation across seeds:
-   \(C_{ik}=N_s^{-1}\\sum_j (Y_{ij}-\\nu_i)(Y_{kj}-\\nu_k)\),
-   \(\\rho_{ik}=C_{ik}/(s_{B,i}\,s_{B,k})\)
-3. Lag-distance binning of \(\\rho_{ik}\) (mean ρ vs lag)
+   \\(C_{ik}=N_s^{-1}\\sum_j (Y_{ij}-\\nu_i)(Y_{kj}-\\nu_k)\\),
+   \\(\\rho_{ik}=C_{ik}/(s_{B,i}\\,s_{B,k})\\)
+3. Lag-distance binning of \\(\\rho_{ik}\\) (mean ρ vs lag)
 
 This is **not** the within-seed lag ACF in ``spatial_acf.py``: here correlation
-is across realizations \(j\) at fixed node pairs \((i,k)\).
+is across realizations \\(j\\) at fixed node pairs \\((i,k)\\).
 
 Writes CSV + Nature PDFs + ``summary.md`` under
 ``figure_dir("chi_spatial", "spatial_coherence")``.
@@ -30,6 +30,16 @@ _CODE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_FULL))
 sys.path.insert(0, str(_CODE))
 
+from _shared import (  # noqa: E402
+    DX_M,
+    FACTORS,
+    METRICS,
+    N_CELLS,
+    N_NODES,
+    N_SEEDS,
+    load_ratios,
+    log_response,
+)
 from config import (  # noqa: E402
     DATA_LINEWIDTH,
     LABEL_FONTSIZE,
@@ -42,17 +52,6 @@ from config import (  # noqa: E402
     metric_color,
     metric_label,
     save_figure,
-)
-from _shared import (  # noqa: E402
-    CENTER_NODE,
-    DX_M,
-    FACTORS,
-    METRICS,
-    N_CELLS,
-    N_NODES,
-    N_SEEDS,
-    load_ratios,
-    log_response,
 )
 
 apply_full_paper_style(auto_format=True, frame="open", grid=False)
@@ -94,6 +93,8 @@ SWEEP_COLORS = [
     TOL_BRIGHT["red"],
     TOL_BRIGHT["green"],
 ]
+SWEEP_LEVEL_LABELS = ("Low", "Center", "High")
+SWEEP_YLIM = (-0.4, 1.05)
 
 GRID_ALPHA = 0.18
 LEGEND_FRAME = {
@@ -226,10 +227,7 @@ def assess_cell_metric(
         "ok": True,
     }
 
-    lag_rows = [
-        {**cell_keys, "metric": metric, **rec}
-        for rec in lag_df.to_dict(orient="records")
-    ]
+    lag_rows = [{**cell_keys, "metric": metric, **rec} for rec in lag_df.to_dict(orient="records")]
     return summary, lag_rows
 
 
@@ -239,31 +237,98 @@ def _format_level(value: float) -> str:
     return f"{value:g}"
 
 
-def plot_coherence_factor_sweeps(lag: pd.DataFrame) -> None:
-    """Mean ρ vs lag across CoV / rH / aHV at center Height, Vs1."""
-    out = _out()
-    for metric in METRICS:
-        fig, axes = plt.subplots(
-            1,
-            3,
-            figsize=figsize(aspect=0.38),
-            sharey=True,
-            constrained_layout=False,
-        )
-        fig.subplots_adjust(left=0.08, right=0.98, bottom=0.18, top=0.88, wspace=0.18)
+def _sweep_col_title(xlabel: str, levels: list[float]) -> str:
+    lv = " / ".join(_format_level(v) for v in levels)
+    return rf"{xlabel}: {lv}"
 
-        for ax_i, (factor, xlabel, _log_x, levels, fixed) in enumerate(FACTOR_SWEEPS):
-            ax = axes[ax_i]
+
+def _init_sweep_grid() -> tuple[plt.Figure, np.ndarray]:
+    """5 metrics × 3 heterogeneity factors, Nature-width, legend under title."""
+    fig, axes = plt.subplots(
+        len(METRICS),
+        len(FACTOR_SWEEPS),
+        figsize=figsize(height=6.5),
+        sharex=True,
+        sharey=True,
+        constrained_layout=False,
+    )
+    fig.subplots_adjust(
+        left=0.08,
+        right=0.99,
+        bottom=0.05,
+        top=0.88,
+        wspace=0.10,
+        hspace=0.16,
+    )
+    return fig, axes
+
+
+def _decorate_sweep_panel(ax: plt.Axes, panel_i: int) -> None:
+    ax.axhline(0.0, color="0.6", lw=0.4)
+    ax.set_xlim(0.0, H_MAX_M)
+    ax.set_ylim(*SWEEP_YLIM)
+    ax.grid(True, alpha=GRID_ALPHA, lw=0.5)
+    ax.set_axisbelow(True)
+    add_panel_label(ax, panel_i, alpha=0.75)
+
+
+def _finish_sweep_grid(
+    fig: plt.Figure,
+    axes: np.ndarray,
+    *,
+    suptitle: str,
+    legend_handles: list[Line2D],
+    stem: str,
+) -> None:
+    nrows, _ncols = axes.shape
+    for r, metric in enumerate(METRICS):
+        axes[r, 0].set_ylabel(metric_label(metric, log=True), fontsize=LABEL_FONTSIZE)
+    for c, (_factor, xlabel, _log_x, levels, _fixed) in enumerate(FACTOR_SWEEPS):
+        axes[0, c].set_title(_sweep_col_title(xlabel, levels), fontsize=LABEL_FONTSIZE)
+        axes[nrows - 1, c].set_xlabel("Lag (m)", fontsize=LABEL_FONTSIZE)
+
+    fig.suptitle(suptitle, fontsize=LABEL_FONTSIZE, y=0.995)
+    fig.legend(
+        handles=legend_handles,
+        loc="upper center",
+        ncol=len(legend_handles),
+        fontsize=TICK_LABELSIZE,
+        bbox_to_anchor=(0.5, 0.955),
+        **LEGEND_FRAME,
+    )
+    save_figure(fig, stem, out_dir=_out())
+    plt.close(fig)
+
+
+def _center_slice_mask(
+    lag: pd.DataFrame,
+    metric: str,
+    factor: str,
+    level: float,
+    fixed: dict[str, float],
+) -> pd.Series:
+    mask = (
+        (lag["metric"] == metric)
+        & np.isclose(lag["Height"].astype(float), REF_H)
+        & np.isclose(lag["Vs1"].astype(float), REF_VS1)
+        & np.isclose(lag[factor].astype(float), float(level))
+    )
+    for k, v in fixed.items():
+        mask &= np.isclose(lag[k].astype(float), float(v))
+    return mask
+
+
+def plot_coherence_factor_sweeps(lag: pd.DataFrame) -> None:
+    """5×3 center-slice sweeps: all IMs, CoV / rH / aHV at center H, Vs1."""
+    fig, axes = _init_sweep_grid()
+    panel_i = 0
+    for r, metric in enumerate(METRICS):
+        for c, (factor, _xlabel, _log_x, levels, fixed) in enumerate(FACTOR_SWEEPS):
+            ax = axes[r, c]
             for lv_i, lv in enumerate(levels):
-                mask = (
-                    (lag["metric"] == metric)
-                    & np.isclose(lag["Height"].astype(float), REF_H)
-                    & np.isclose(lag["Vs1"].astype(float), REF_VS1)
-                    & np.isclose(lag[factor].astype(float), float(lv))
+                sub = lag.loc[_center_slice_mask(lag, metric, factor, lv, fixed)].sort_values(
+                    "h_m"
                 )
-                for k, v in fixed.items():
-                    mask &= np.isclose(lag[k].astype(float), float(v))
-                sub = lag.loc[mask].sort_values("h_m")
                 if sub.empty:
                     continue
                 ax.plot(
@@ -271,34 +336,76 @@ def plot_coherence_factor_sweeps(lag: pd.DataFrame) -> None:
                     sub["rho_mean"].to_numpy(dtype=float),
                     color=SWEEP_COLORS[lv_i % len(SWEEP_COLORS)],
                     lw=DATA_LINEWIDTH,
-                    label=_format_level(lv),
                 )
-            ax.axhline(0.0, color="0.6", lw=0.4)
-            ax.set_xlim(0.0, H_MAX_M)
-            ax.set_ylim(-0.2, 1.05)
-            ax.set_xlabel("Lag distance (m)", fontsize=LABEL_FONTSIZE)
-            if ax_i == 0:
-                ax.set_ylabel(r"Mean $\rho_{ik}$", fontsize=LABEL_FONTSIZE)
-            ax.set_title(xlabel, fontsize=LABEL_FONTSIZE)
-            ax.grid(True, alpha=GRID_ALPHA, lw=0.5)
-            ax.set_axisbelow(True)
-            ax.legend(
-                title=xlabel,
-                fontsize=TICK_LABELSIZE,
-                title_fontsize=TICK_LABELSIZE,
-                loc="upper right",
-                **LEGEND_FRAME,
-            )
-            add_panel_label(ax, ax_i, alpha=0.75)
+            _decorate_sweep_panel(ax, panel_i)
+            panel_i += 1
 
-        fig.suptitle(
-            rf"Between-seed coherence — {metric_label(metric, log=True)} "
-            rf"($H={_format_level(REF_H)}$ m, $V_{{s1}}={_format_level(REF_VS1)}$ m/s)",
-            fontsize=LABEL_FONTSIZE,
-            y=0.98,
+    handles = [
+        Line2D(
+            [0],
+            [0],
+            color=SWEEP_COLORS[i],
+            lw=DATA_LINEWIDTH,
+            label=lab,
         )
-        save_figure(fig, f"coherence_vs_lag_{metric}", out_dir=out)
-        plt.close(fig)
+        for i, lab in enumerate(SWEEP_LEVEL_LABELS)
+    ]
+    _finish_sweep_grid(
+        fig,
+        axes,
+        suptitle=(
+            r"Between-seed coherence: center-slice factor sweeps "
+            rf"($H={_format_level(REF_H)}$ m, $V_{{s1}}={_format_level(REF_VS1)}$ m/s)"
+        ),
+        legend_handles=handles,
+        stem="coherence_factor_sweeps_center",
+    )
+
+
+def plot_coherence_factor_sweeps_marginal(lag: pd.DataFrame) -> None:
+    """5×3 factor-level median ± IQR of ρ̄(h), marginal over the other factors.
+
+    Each level uses all 81 cells with that CoV / rH / aHV (full 243-cell design).
+    """
+    fig, axes = _init_sweep_grid()
+    panel_i = 0
+    for r, metric in enumerate(METRICS):
+        sub_m = lag[lag["metric"] == metric]
+        for c, (factor, _xlabel, _log_x, levels, _fixed) in enumerate(FACTOR_SWEEPS):
+            ax = axes[r, c]
+            for lv_i, lv in enumerate(levels):
+                level_df = sub_m.loc[np.isclose(sub_m[factor].astype(float), float(lv))]
+                if level_df.empty:
+                    continue
+                g = level_df.groupby("h_m", sort=True)["rho_mean"]
+                h = g.median().index.to_numpy(dtype=float)
+                med = g.median().to_numpy(dtype=float)
+                q25 = g.quantile(0.25).to_numpy(dtype=float)
+                q75 = g.quantile(0.75).to_numpy(dtype=float)
+                color = SWEEP_COLORS[lv_i % len(SWEEP_COLORS)]
+                ax.fill_between(h, q25, q75, color=color, alpha=0.22, lw=0)
+                ax.plot(h, med, color=color, lw=DATA_LINEWIDTH)
+            _decorate_sweep_panel(ax, panel_i)
+            panel_i += 1
+
+    handles = [
+        Line2D(
+            [0],
+            [0],
+            color=SWEEP_COLORS[i],
+            lw=DATA_LINEWIDTH,
+            label=lab,
+        )
+        for i, lab in enumerate(SWEEP_LEVEL_LABELS)
+    ]
+    handles.append(Line2D([0], [0], color="0.35", lw=6, alpha=0.25, label="IQR"))
+    _finish_sweep_grid(
+        fig,
+        axes,
+        suptitle=r"Between-seed coherence: factor-level median / IQR over all design cells",
+        legend_handles=handles,
+        stem="coherence_factor_sweeps_marginal",
+    )
 
 
 def plot_coherence_overview(lag: pd.DataFrame) -> None:
@@ -402,28 +509,28 @@ def build_summary_md(cell: pd.DataFrame, lag: pd.DataFrame) -> str:
     lines = [
         "# Between-seed spatial coherence",
         "",
-        "Cross-seed spatial coherence of \(Y_{ij}=\\ln\\chi_{ij}\) "
+        "Cross-seed spatial coherence of \\(Y_{ij}=\\ln\\chi_{ij}\\) "
         f"for `{', '.join(METRICS)}` from `join_master.h5`.",
         "",
         "## Distinction from lag-ACF (`spatial_acf.py`)",
         "",
         "| Quantity | Indexing | Meaning |",
         "| --- | --- | --- |",
-        "| **Lag-ACF** (`spatial_acf.py`) | within seed \(j\), "
+        r"| **Lag-ACF** (`spatial_acf.py`) | within seed \(j\), "
         "along nodes | Pearson autocorrelation of the demeaned node series "
-        "vs lag \(h\) |",
-        "| **Coherence** (this script) | across seeds \(j\), "
-        "fixed node pair \((i,k)\) | "
+        r"vs lag \(h\) |",
+        r"| **Coherence** (this script) | across seeds \(j\), "
+        r"fixed node pair \((i,k)\) | "
         r"\(C_{ik}=\mathrm{mean}_j[(Y_{ij}-\nu_i)(Y_{kj}-\nu_k)]\), "
         r"\(\rho_{ik}=C_{ik}/(s_{B,i}\,s_{B,k})\) |",
         "",
         "Lag-ACF asks how similar neighbouring *nodes* are within one "
         "realization. Coherence asks whether *seed-to-seed* fluctuations "
-        "at node \(i\) track those at node \(k\).",
+        r"at node \(i\) track those at node \(k\).",
         "",
         f"- Design cells: **{int(cell['cell'].nunique())}** "
-        f"(expected {N_CELLS}); nodes \(N_x={N_NODES}\), "
-        f"seeds \(N_s={N_SEEDS}\); \(dx={DX_M:g}\) m",
+        rf"(expected {N_CELLS}); nodes \(N_x={N_NODES}\), "
+        rf"seeds \(N_s={N_SEEDS}\); \(dx={DX_M:g}\) m",
         r"- \(s_{B,i}=\sqrt{C_{ii}}\); lag bins use \(|i-k|\,dx\)",
         "",
         "## Short-lag coherence (median over cells)",
@@ -454,16 +561,12 @@ def build_summary_md(cell: pd.DataFrame, lag: pd.DataFrame) -> str:
     lines.extend(
         [
             "",
-            f"## Factor sweeps at \(H={REF_H:g}\) m, \(V_{{s1}}={REF_VS1:g}\) m/s",
+            rf"## Factor sweeps at \(H={REF_H:g}\) m, \(V_{{s1}}={REF_VS1:g}\) m/s",
             "",
             "Mean lag-ρ at 10 m for center-fixed companion factors:",
             "",
-            "| Sweep | Level | "
-            + " | ".join(METRICS)
-            + " |",
-            "| --- | ---: | "
-            + " | ".join(["---:" ] * len(METRICS))
-            + " |",
+            "| Sweep | Level | " + " | ".join(METRICS) + " |",
+            "| --- | ---: | " + " | ".join(["---:"] * len(METRICS)) + " |",
         ]
     )
     for factor, _xlabel, _log_x, levels, fixed in FACTOR_SWEEPS:
@@ -483,6 +586,31 @@ def build_summary_md(cell: pd.DataFrame, lag: pd.DataFrame) -> str:
                 vals.append(f"{float(sub.iloc[0]):.3f}" if len(sub) else "—")
             lines.append(f"| {factor} | {_format_level(lv)} | " + " | ".join(vals) + " |")
 
+    lines.extend(
+        [
+            "",
+            r"## Factor-level median $\bar\rho(10\,\mathrm{m})$ over all cells (marginal)",
+            "",
+            "Each level pools the 81 cells with that CoV / $r_h$ / $a_{hv}$ "
+            r"(marginal over $H$, $V_{s1}$, and the other two heterogeneity factors):",
+            "",
+            "| Sweep | Level | " + " | ".join(METRICS) + " |",
+            "| --- | ---: | " + " | ".join(["---:"] * len(METRICS)) + " |",
+        ]
+    )
+    for factor, _xlabel, _log_x, levels, _fixed in FACTOR_SWEEPS:
+        for lv in levels:
+            vals = []
+            for metric in METRICS:
+                mask = (
+                    (lag["metric"] == metric)
+                    & np.isclose(lag[factor].astype(float), float(lv))
+                    & np.isclose(lag["h_m"].astype(float), 10.0)
+                )
+                sub = lag.loc[mask, "rho_mean"]
+                vals.append(f"{float(sub.median()):.3f}" if len(sub) else "—")
+            lines.append(f"| {factor} | {_format_level(lv)} | " + " | ".join(vals) + " |")
+
     med_rho2 = float(cell["rho_h2m"].median())
     lines.extend(
         [
@@ -491,12 +619,12 @@ def build_summary_md(cell: pd.DataFrame, lag: pd.DataFrame) -> str:
             "",
             "| File | Content |",
             "| --- | --- |",
-            "| `coherence_cell_summary.csv` | Per cell×metric short-lag ρ "
-            "and off-diagonal means |",
-            "| `coherence_lag_binned.csv` | Mean / SD / median ρ vs lag "
-            "for every cell×metric |",
-            "| `coherence_vs_lag_*.pdf` | Nature figures (factor sweeps, "
-            "center overview, median/IQR) |",
+            "| `coherence_cell_summary.csv` | Per cell×metric short-lag ρ and off-diagonal means |",
+            "| `coherence_lag_binned.csv` | Mean / SD / median ρ vs lag for every cell×metric |",
+            "| `coherence_vs_lag_center_all_metrics.pdf` | All IMs at the center cell |",
+            "| `coherence_vs_lag_median_iqr.pdf` | Median / IQR of ρ̄(h) over 243 cells |",
+            "| `coherence_factor_sweeps_center.pdf` | 5×3 center-slice CoV / $r_h$ / $a_{hv}$ |",
+            "| `coherence_factor_sweeps_marginal.pdf` | 5×3 factor-level median / IQR (all cells) |",
             "",
             "## Conclusions",
             "",
@@ -505,13 +633,13 @@ def build_summary_md(cell: pd.DataFrame, lag: pd.DataFrame) -> str:
             f"**{med_rho2:.3f}**, so seed anomalies persist over many nodes.",
             "",
             "2. **Coherence ≠ lag-ACF.** Strong within-seed ACF "
-            "(`spatial_acf.py`) and strong between-seed \(\\rho_{ik}\) "
+            "(`spatial_acf.py`) and strong between-seed \\(\\rho_{ik}\\) "
             "are related but answer different questions; both caution "
             "against treating node×seed draws as iid.",
             "",
-            "3. **Design factors modulate the decay** of ρ̄(h) with lag "
-            "(see CoV / \(r_h\) / \(a_{hv}\) sweep figures at center "
-            f"\(H\), \(V_{{s1}}\)).",
+            "3. **Design factors modulate the decay** of ρ̄(h) with lag. "
+            r"Center-slice sweeps hold $H$, $V_{s1}$ and companion factors fixed; "
+            r"marginal envelopes use all 81 cells per CoV / \(r_h\) / \(a_{hv}\) level.",
             "",
         ]
     )
@@ -570,6 +698,7 @@ def main() -> None:
     print("Plotting …")
     plot_coherence_overview(lag)
     plot_coherence_factor_sweeps(lag)
+    plot_coherence_factor_sweeps_marginal(lag)
     plot_median_envelope(lag)
 
     summary = build_summary_md(cell, lag)

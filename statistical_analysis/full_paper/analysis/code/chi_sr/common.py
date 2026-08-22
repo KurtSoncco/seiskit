@@ -40,6 +40,7 @@ def ngboost_surfaces_dir() -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
 
+
 SHAP_COMPARE = figure_dir("chi_shap", "shap_compare")
 COLLAPSE_R2_THRESH = 0.05
 CELL_SPLIT_SEED = 4

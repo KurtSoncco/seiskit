@@ -30,6 +30,7 @@ from common import (  # noqa: E402
     fmt,
     koenker_pseudo_r2,
     lag1_pearson,
+    load_or_make_split,
     load_ratios,
     log_response,
     models_dir,
@@ -37,7 +38,6 @@ from common import (  # noqa: E402
     pinball_loss,
     r2_score,
     rmse,
-    load_or_make_split,
 )
 
 warnings.filterwarnings("ignore")

@@ -94,7 +94,7 @@ from analyze_statistics import (
     compute_tf_statistics,
     plot_tf_statistics,
     compute_time_history_statistics,
-    plot_time_history_statistics
+    plot_time_history_statistics,
 )
 from seiskit.plot_results import load_datasets
 from pathlib import Path

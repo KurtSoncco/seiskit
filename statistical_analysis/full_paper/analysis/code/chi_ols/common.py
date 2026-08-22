@@ -20,11 +20,13 @@ from _shared import (  # noqa: E402,F401
     N_NODES,
     N_SEEDS,
     ZCOLS,
-    add_design_columns as _add_design_columns,
-    formula_rhs_main,
     fmt,
+    formula_rhs_main,
     load_ratios,
     log_response,
+)
+from _shared import (
+    add_design_columns as _add_design_columns,
 )
 from config import figure_dir  # noqa: E402
 

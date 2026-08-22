@@ -44,21 +44,23 @@ Unless noted, CT/variability sums use population (ddof = 0) means and variances 
 | Symbol | Definition | CSV / code |
 |--------|------------|------------|
 | \(\mu_j\) | seed log-mean: \(N_x^{-1}\sum_{i=1}^{N_x} Y_{ij}\) | `mu_j` |
-| \(G^{\mathrm{seed}}_j\) | \(e^{\mu_j}\) | `chi_geom_j` |
+| \(G_{\mathrm{seed},j}\) (alias \(G^{\mathrm{seed}}_j\)) | \(e^{\mu_j}\) | `chi_geom_j` |
 | \(\nu_i\) | node log-mean: \(N_s^{-1}\sum_{j=1}^{N_s} Y_{ij}\) | `nu_i` |
-| \(G^{\mathrm{node}}_i\) | \(e^{\nu_i}\) | `chi_geom_i` |
+| \(G_{\mathrm{node},i}\) (alias \(G^{\mathrm{node}}_i\)) | \(e^{\nu_i}\) | `chi_geom_i` |
 | \(\bar Y\) | overall log-mean: \((N_x N_s)^{-1}\sum_{i,j} Y_{ij}\) | `ln_chi_bar` |
-| \(G\) | overall geomean \(e^{\bar Y}\) | `chi_geom` |
+| \(G_{\mathrm{global}}\) (alias \(G\)) | overall geomean \(e^{\bar Y}\) | `chi_geom` |
 | \(\overline{\chi}\) | arithmetic mean of \(\chi_{ij}\) | `chi_mean` |
 | \(\mathrm{median}_{ij}(\chi)\) | median of \(\chi_{ij}\) | `chi_median` |
-| \(G^{\mathrm{seed}}_{P10,P90}\), \(G^{\mathrm{node}}_{P10,P90}\) | percentiles of seed/node geomeans | `G_seed_p10`, … |
+| \(G_{\mathrm{seed},P10/P90}\), \(G_{\mathrm{node},P10/P90}\) | percentiles of seed/node geomeans | `G_seed_p10`, … |
+
+Prefer the subscript forms \(G_{\mathrm{seed}}\), \(G_{\mathrm{node}}\), \(G_{\mathrm{global}}\) in new figures (e.g. relative geomean strips). Superscript forms remain valid aliases in older CSV/markdown text.
 
 On a complete balanced grid,
 
 \[
-G =
-\Bigl(\prod_{j=1}^{N_s} G^{\mathrm{seed}}_j\Bigr)^{1/N_s} =
-\Bigl(\prod_{i=1}^{N_x} G^{\mathrm{node}}_i\Bigr)^{1/N_x}.
+G_{\mathrm{global}} =
+\Bigl(\prod_{j=1}^{N_s} G_{\mathrm{seed},j}\Bigr)^{1/N_s} =
+\Bigl(\prod_{i=1}^{N_x} G_{\mathrm{node},i}\Bigr)^{1/N_x}.
 \]
 
 ## Variability (law of total variance)
@@ -178,7 +180,7 @@ NGBoost learns \(Y\mid\mathbf{x}\sim\mathcal{N}(\mu(\mathbf{x}),\sigma^2(\mathbf
 | \(\chi^{\mathrm{1D}}\) | 1D reference (same \(H\), \(V_{s1}\)) |
 | \(\chi^N_{ij}\) | \(\chi_{ij}/\chi^{\mathrm{1D}}\) (CSV columns `*_ratio`) |
 
-PSA in this campaign is evaluated at the 1D fundamental (\(T_0=4H/V_{s1}\)). Peak picking and Appendix 2 live under [`appendix_im/`](appendix_im/).
+The spectral ordinate column is stored as `PSA_ratio` in HDF5 but labeled **SA** in figures/tables: SA at the 1D fundamental (\(T_0=4H/V_{s1}\)). Peak picking and Appendix 2 live under [`appendix_im/`](appendix_im/).
 
 ## Between-seed spatial coherence (`chi_spatial/spatial_coherence.py`)
 
@@ -198,6 +200,6 @@ Distinct from lag-ACF in `spatial_acf.py` (within-seed spatial structure of one 
 | PIT | calibration histogram of \(\Phi((Y-\mu)/\sigma)\) | same |
 | ALE | accumulated local effects (marginal) | `chi_shap/ale_effects.py` |
 | Friedman \(H\) | pairwise interaction strength | `chi_ngboost/exceedance_friedman.py` |
-| \(\Delta\)SHAP | median vs upper-tail attributions | `chi_shap/shap_median_vs_tail.py` |
+| \(\Delta\)SHAP | QBM and NGBoost median vs lower/upper-tail attributions (\(\tau=0.05,0.95\) vs \(0.50\)) | `chi_shap/shap_median_vs_tail.py` |
 
 Optional symbolic regression of NGBoost surfaces: `chi_sr/` (not required for the main outline).

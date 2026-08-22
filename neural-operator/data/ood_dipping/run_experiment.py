@@ -211,7 +211,9 @@ def run_case(entry: OodDippingEntry, manifest_path: Path) -> str:
         config=config,
     )
 
-    print(f"  Solver: {get_solver_info(config)['solver_type']}, Domain: {LX}m x {entry.Lz_discretized}m")
+    print(
+        f"  Solver: {get_solver_info(config)['solver_type']}, Domain: {LX}m x {entry.Lz_discretized}m"
+    )
     rho = np.ones_like(Vs_extended) * 2000.0
     nu = np.ones_like(Vs_extended) * 0.3
     model_data = build_model_data(config, Vs_extended, rho, nu, bedrock_mask=bedrock_mask)

@@ -2,8 +2,9 @@
 
 Usage
 -----
+python run_tf.py --mode center_node_one_seed
 python run_tf.py --mode center_node_all_seeds
-python run_tf.py --mode all  # all three modes
+python run_tf.py --mode all  # all four modes
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _common import Mode, run_3x3  # noqa: E402
 
 MODES: tuple[Mode, ...] = (
+    "center_node_one_seed",
     "center_node_all_seeds",
     "one_seed_all_nodes",
     "all_seeds_all_nodes",

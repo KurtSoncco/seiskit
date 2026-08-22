@@ -192,7 +192,7 @@ def friedman_h_pair(
     *,
     n_grid: int = H_GRID_N,
 ) -> float:
-    """Friedman \(H_{jk}\) from centered 1D/2D PDPs on a quantile grid."""
+    r"""Friedman \(H_{jk}\) from centered 1D/2D PDPs on a quantile grid."""
     xj = X[:, j]
     xk = X[:, k]
     gj = np.unique(np.quantile(xj, np.linspace(0.05, 0.95, n_grid)))
@@ -328,9 +328,7 @@ def main() -> None:
     exc = pd.concat(exc_rows, ignore_index=True)
     htab = pd.DataFrame(h_rows)
     if len(htab):
-        htab["rank"] = (
-            htab.groupby("metric")["H"].rank(ascending=False, method="min").astype(int)
-        )
+        htab["rank"] = htab.groupby("metric")["H"].rank(ascending=False, method="min").astype(int)
         htab = htab.sort_values(["metric", "rank"])
     exc.to_csv(out / "exceedance_summary.csv", index=False)
     htab.to_csv(out / "friedman_H_pairs.csv", index=False)
@@ -360,10 +358,10 @@ def main() -> None:
         "## Conclusions",
         "",
         "- Exceedance maps summarize where the emulator assigns high probability of "
-        "amplification (\(\\chi>1\) or \(>1.5\)) across the design × node grid.",
-        "- Large Friedman \(H\) flags feature pairs whose joint PDP is not additive — "
+        "amplification (\\(\\chi>1\\) or \\(>1.5\\)) across the design × node grid.",
+        r"- Large Friedman \(H\) flags feature pairs whose joint PDP is not additive — "
         "candidates for interaction terms in SR / engineering approximations.",
-        "- \(H\) is a PDP residual statistic on the learned mean surface; it is not a "
+        r"- \(H\) is a PDP residual statistic on the learned mean surface; it is not a "
         "causal interaction test and does not address residual spatial lag-1.",
         "",
         "## Output files",

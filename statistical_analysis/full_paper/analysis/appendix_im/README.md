@@ -8,7 +8,7 @@ is not lost relative to the χ modeling code under `analysis/code/`.
 | Stage | Where |
 |-------|--------|
 | TF computation | `seiskit/ttf/`, campaign Box `h=*/transfer_function_results/` |
-| PGA, PSA, Arias \(I_a\) | `seiskit/intensity_measures.py`, Box `h=*/psa_results/`, `ia_results/` |
+| PGA, SA(\(T_0\)), Arias \(I_a\) | `seiskit/intensity_measures.py`, Box `h=*/psa_results/`, `ia_results/` |
 | Peak detection (Appendix 2) | Box `complete/peak_analysis/` (`window_max`, prominence pick) |
 | 1D normalization \(\chi^N\) | Box `peak_normalized.npz` / `psa_ia_normalized.npz` → **`join_master.h5`** |
 | χ stats / ML | `analysis/code/chi_*` consuming `join_master.h5` |

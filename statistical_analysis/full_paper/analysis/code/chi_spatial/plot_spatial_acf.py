@@ -1,7 +1,9 @@
-"""Nature figure: spatial ACF for abs_TF_ratio with aperture limitation cues.
+"""Nature figure: spatial ACF for each χ metric with aperture limitation cues.
 
 Panel a — reference design cell: empirical ρ̂(h) + Exp / Gauss / CosWM fits.
 Panel b — all 243 cells: thin gray ACFs + median / IQR.
+
+One figure is produced per metric in ``spatial_acf.METRICS``.
 
 Reads existing CSVs from ``figure_dir("chi_spatial", "spatial_acf")`` (no refit).
 """
@@ -38,6 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from spatial_acf import (  # noqa: E402
     H_FIT_MAX_M,
     H_MAX_M,
+    METRICS,
     rho_coswm,
     rho_exp,
     rho_gauss,
@@ -45,7 +48,6 @@ from spatial_acf import (  # noqa: E402
 
 apply_full_paper_style(auto_format=True, frame="open", grid=False)
 
-METRIC = "abs_TF_ratio"
 REF = {"Height": 50.0, "Vs1": 230.0, "CoV": 0.2, "rH": 30.0, "aHV": 10.0}
 
 COLOR_EMP = "0.15"
@@ -53,7 +55,6 @@ COLOR_EXP = TOL_BRIGHT["blue"]
 COLOR_GAUSS = TOL_BRIGHT["red"]
 COLOR_COSWM = TOL_MUTED["teal"]
 COLOR_CELL = "0.75"
-COLOR_MED = metric_color(METRIC)
 COLOR_BAND = TOL_MUTED["teal"]
 
 
@@ -64,11 +65,11 @@ def _data_dir() -> Path:
     return figure_dir("chi_spatial", "spatial_acf")
 
 
-def _ref_mask(df: pd.DataFrame) -> pd.Series:
+def _ref_mask(df: pd.DataFrame, metric: str) -> pd.Series:
     m = pd.Series(True, index=df.index)
     for k, v in REF.items():
         m &= np.isclose(df[k].astype(float), float(v))
-    return m & (df["metric"] == METRIC)
+    return m & (df["metric"] == metric)
 
 
 def _shade_aperture(ax: plt.Axes) -> None:
@@ -121,10 +122,10 @@ def _model_curves(row: pd.Series, h: np.ndarray) -> dict[str, np.ndarray]:
     return out
 
 
-def panel_a(ax: plt.Axes, emp: pd.DataFrame, fits: pd.DataFrame) -> None:
+def panel_a(ax: plt.Axes, emp: pd.DataFrame, fits: pd.DataFrame, metric: str) -> None:
     """Reference-cell empirical ACF + three model overlays."""
-    e = emp.loc[_ref_mask(emp)].sort_values("h_m")
-    f = fits.loc[_ref_mask(fits)]
+    e = emp.loc[_ref_mask(emp, metric)].sort_values("h_m")
+    f = fits.loc[_ref_mask(fits, metric)]
     if e.empty or f.empty:
         raise RuntimeError("Reference design cell not found in ACF CSVs.")
     row = f.iloc[0]
@@ -181,7 +182,7 @@ def panel_a(ax: plt.Axes, emp: pd.DataFrame, fits: pd.DataFrame) -> None:
     ax.set_xlabel(r"Lag distance $h$ (m)")
     ax.set_ylabel(r"Autocorrelation $\hat{\rho}(h)$")
     ax.set_title(
-        f"Reference cell: {metric_label(METRIC)}",
+        f"Reference cell: {metric_label(metric)}",
         loc="left",
         fontsize=LABEL_FONTSIZE,
     )
@@ -220,9 +221,10 @@ def panel_a(ax: plt.Axes, emp: pd.DataFrame, fits: pd.DataFrame) -> None:
     )
 
 
-def panel_b(ax: plt.Axes, emp: pd.DataFrame) -> None:
+def panel_b(ax: plt.Axes, emp: pd.DataFrame, metric: str) -> None:
     """All-cell empirical ACF envelope + median / IQR."""
-    m = emp[emp["metric"] == METRIC].copy()
+    m = emp[emp["metric"] == metric].copy()
+    color_med = metric_color(metric)
     _shade_aperture(ax)
 
     # Thin individual cell curves
@@ -244,13 +246,13 @@ def panel_b(ax: plt.Axes, emp: pd.DataFrame) -> None:
     q25 = by_h.quantile(0.25).to_numpy(dtype=float)
     q75 = by_h.quantile(0.75).to_numpy(dtype=float)
 
-    ax.fill_between(h, q25, q75, color=COLOR_BAND, alpha=0.35, zorder=3, lw=0)
-    ax.plot(h, med, color=COLOR_MED, lw=DATA_LINEWIDTH * 1.2, zorder=4, label="Median")
+    ax.fill_between(h, q25, q75, color=color_med, alpha=0.35, zorder=3, lw=0)
+    ax.plot(h, med, color=color_med, lw=DATA_LINEWIDTH * 1.2, zorder=4, label="Median")
 
     _annotate_aperture(ax)
     ax.set_xlabel(r"Lag distance $h$ (m)")
     ax.set_title(
-        f"All design cells ($n=243$): {metric_label(METRIC)}",
+        f"All design cells ($n=243$): {metric_label(metric)}",
         loc="left",
         fontsize=LABEL_FONTSIZE,
     )
@@ -258,7 +260,7 @@ def panel_b(ax: plt.Axes, emp: pd.DataFrame) -> None:
     handles = [
         Line2D([0], [0], color=COLOR_CELL, lw=0.6, alpha=0.7, label="Each cell"),
         Patch(facecolor=COLOR_BAND, alpha=0.45, edgecolor="none", label="IQR"),
-        Line2D([0], [0], color=COLOR_MED, lw=1.2, label="Median"),
+        Line2D([0], [0], color=color_med, lw=1.2, label="Median"),
     ]
     ax.legend(
         handles=handles,
@@ -267,6 +269,28 @@ def panel_b(ax: plt.Axes, emp: pd.DataFrame) -> None:
         frameon=False,
         handlelength=1.6,
     )
+
+
+def plot_metric(emp: pd.DataFrame, fits: pd.DataFrame, metric: str, data_dir: Path) -> Path:
+    """Build and save the two-panel ACF figure for a single metric."""
+    fig, axes = plt.subplots(
+        1,
+        2,
+        figsize=figsize(aspect=0.48),
+        sharey=True,
+        constrained_layout=True,
+    )
+    panel_a(axes[0], emp, fits, metric)
+    panel_b(axes[1], emp, metric)
+    axes[0].set_ylim(*YLIM)
+    axes[1].tick_params(labelleft=False)
+    add_panel_label(axes[0], 0)
+    add_panel_label(axes[1], 1)
+
+    stem = f"spatial_acf_{metric}"
+    out = save_figure(fig, stem, out_dir=data_dir)
+    plt.close(fig)
+    return out
 
 
 def main() -> None:
@@ -279,24 +303,9 @@ def main() -> None:
     emp = pd.read_csv(emp_path)
     fits = pd.read_csv(fit_path)
 
-    fig, axes = plt.subplots(
-        1,
-        2,
-        figsize=figsize(aspect=0.48),
-        sharey=True,
-        constrained_layout=True,
-    )
-    panel_a(axes[0], emp, fits)
-    panel_b(axes[1], emp)
-    axes[0].set_ylim(*YLIM)
-    axes[1].tick_params(labelleft=False)
-    add_panel_label(axes[0], 0)
-    add_panel_label(axes[1], 1)
-
-    stem = f"spatial_acf_{METRIC}"
-    out = save_figure(fig, stem, out_dir=data_dir)
-    plt.close(fig)
-    print(f"Wrote {out}")
+    for metric in METRICS:
+        out = plot_metric(emp, fits, metric, data_dir)
+        print(f"Wrote {out}")
 
 
 if __name__ == "__main__":

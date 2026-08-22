@@ -24,12 +24,12 @@ from sobol import (  # noqa: E402
     DEFAULT_SAMPLER_SEED,
     bounds_CoV,
     bounds_rH,
+    scale_aHV,
     scale_Vs1,
     scale_Vs2,
-    scale_aHV,
+    sigma_aHV,
     sigma_Vs1,
     sigma_Vs2,
-    sigma_aHV,
 )
 
 N_PHYSICS = 32

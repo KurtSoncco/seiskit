@@ -1,13 +1,15 @@
-"""Violin grids of χ ratios across design-factor levels.
+"""Violin grids of χ ratios across design-factor levels (Fig9).
 
-Two Nature-width figures under ``figure_dir("chi_variables", "factor_violins")``:
+Single Nature-width figure under ``figure_dir("chi_variables", "factor_violins")``:
 
-- ``chi_violins_freq.pdf`` — rows ``f_ratio``, ``abs_TF_ratio``; cols factors
-- ``chi_violins_im.pdf`` — rows ``PGA_ratio``, ``PSA_ratio``, ``Ia_ratio``
+- ``chi_violins.pdf`` — rows all five metrics; cols design factors
 
 Each panel: all node×seed observations at that factor level (marginal over
 other factors), violin shape from a fixed subsample, P5 / median / P95 from
 the full finite sample connected across levels.
+
+Display labels use SA (not PSA) for the site-period spectral ordinate column
+``PSA_ratio`` in ``join_master.h5``.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from config import (  # noqa: E402
     DATA_LINEWIDTH,
     FACTORS,
     LABEL_FONTSIZE,
+    METRICS,
     add_panel_label,
     apply_full_paper_style,
     figsize,
@@ -40,9 +43,6 @@ from config import (  # noqa: E402
 apply_full_paper_style(auto_format=True, frame="open", grid=False)
 
 DATA_PATH = BOX_ROOT / "peak_analysis" / "join_master.h5"
-METRICS = ("f_ratio", "abs_TF_ratio", "PGA_ratio", "PSA_ratio", "Ia_ratio")
-FREQ_METRICS = ("f_ratio", "abs_TF_ratio")
-IM_METRICS = ("PGA_ratio", "PSA_ratio", "Ia_ratio")
 
 VIOLIN_N = 8_000
 RNG = np.random.default_rng(42)
@@ -151,7 +151,6 @@ def draw_panel(
 ) -> None:
     color = metric_color(metric)
     levels, samples, pcts = level_stats(df, metric, factor)
-    # True numeric factor levels (not equal category indices).
     positions = np.asarray(levels, dtype=float)
     width = _violin_width(levels)
 
@@ -188,33 +187,26 @@ def draw_panel(
     ax.set_axisbelow(True)
 
 
-def make_figure(
-    df: pd.DataFrame,
-    metrics: tuple[str, ...],
-    *,
-    stem: str,
-    aspect: float,
-    out_dir: Path,
-) -> list[Path]:
+def make_figure(df: pd.DataFrame, *, out_dir: Path) -> list[Path]:
+    metrics = tuple(METRICS)
     nrows, ncols = len(metrics), len(FACTORS)
+    # 5×5 grid: stay under journal max height (~6.69 in)
     fig, axes = plt.subplots(
         nrows,
         ncols,
-        figsize=figsize(aspect=aspect),
+        figsize=figsize(height=6.5),
         sharex="col",
         sharey="row",
         constrained_layout=False,
     )
-    if nrows == 1:
-        axes = np.asarray(axes).reshape(1, -1)
 
     fig.subplots_adjust(
-        left=0.08,
+        left=0.09,
         right=0.98,
-        bottom=0.10,
-        top=0.92,
-        wspace=0.12,
-        hspace=0.18,
+        bottom=0.06,
+        top=0.94,
+        wspace=0.10,
+        hspace=0.16,
     )
 
     panel_i = 0
@@ -232,12 +224,10 @@ def make_figure(
                 ax.tick_params(labelleft=False)
 
             if r == nrows - 1:
-                # Bare name: auto_format → LABEL_MAP via format_label
                 ax.set_xlabel(factor, fontsize=LABEL_FONTSIZE)
             else:
                 ax.tick_params(labelbottom=False)
 
-    # Shared legend (line styles); color is metric-specific in panels
     handles = [
         Line2D(
             [0],
@@ -258,7 +248,7 @@ def make_figure(
         bbox_to_anchor=(0.5, 0.995),
     )
 
-    return save_figure(fig, stem, out_dir=out_dir)
+    return save_figure(fig, "chi_violins", out_dir=out_dir)
 
 
 def main() -> None:
@@ -267,24 +257,8 @@ def main() -> None:
     df = load_ratios()
     print(f"  rows={len(df):,}")
 
-    print("Writing freq violins …")
-    make_figure(
-        df,
-        FREQ_METRICS,
-        stem="chi_violins_freq",
-        aspect=0.55,
-        out_dir=out_dir,
-    )
-    plt.close("all")
-
-    print("Writing IM violins …")
-    make_figure(
-        df,
-        IM_METRICS,
-        stem="chi_violins_im",
-        aspect=0.75,
-        out_dir=out_dir,
-    )
+    print("Writing combined violin figure …")
+    make_figure(df, out_dir=out_dir)
     plt.close("all")
 
 

@@ -62,7 +62,7 @@ PANELS: list[tuple[float, float, float]] = [
 N_SEED_TRACES = 20
 RNG = np.random.default_rng(42)
 SAMPLE_COLOR = "0.55"
-SAMPLE_ALPHA = 0.25
+SAMPLE_ALPHA = 0.5
 SAMPLE_LW = 0.35
 GRID_ALPHA = 0.18
 Y_LIM = (1e-2, 1e1)
@@ -337,9 +337,9 @@ def main() -> None:
         for vs1 in VS1_LIST:
             print(f"  H={h:.0f}, Vs1={vs1:.0f} …")
             p1 = plot_node_profiles(df, h=h, vs1=vs1, out_dir=out_dir)
-            p2 = plot_seed_profiles(df, h=h, vs1=vs1, out_dir=out_dir)
+            # p2 = plot_seed_profiles(df, h=h, vs1=vs1, out_dir=out_dir)
             print(f"    {p1.name}")
-            print(f"    {p2.name}")
+            # print(f"    {p2.name}")
 
     print(f"Done → {out_dir}")
 

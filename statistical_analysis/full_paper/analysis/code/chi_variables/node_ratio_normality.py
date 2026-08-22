@@ -245,8 +245,8 @@ def _count_ln_vs_raw(df: pd.DataFrame, metric: str, residual: bool) -> tuple[int
 
 
 def build_summary_md(results: pd.DataFrame) -> str:
-    pooled = results[not results["residual"]]
-    results[results["residual"]]
+    residual_mask = results["residual"].astype(bool)
+    pooled = results[~residual_mask]
 
     lines = [
         "# Normality check summary",

@@ -167,7 +167,7 @@ METRIC_LABELS = {
     "f_ratio": r"$f_0^N$",
     "abs_TF_ratio": r"$\left| TF \right|_0^N$",
     "PGA_ratio": r"$\mathrm{PGA}^N$",
-    "PSA_ratio": r"$\mathrm{SA}^N$",
+    "PSA_ratio": r"$\mathrm{SA}^N$",  # column name PSA_ratio; display as SA (site-period)
     "Ia_ratio": r"$I_a^N$",
 }
 

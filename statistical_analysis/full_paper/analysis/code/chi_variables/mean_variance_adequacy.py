@@ -340,8 +340,7 @@ def build_summary_md(cell_df: pd.DataFrame, curves: pd.DataFrame) -> str:
         "`join_master.h5`, with working scale \\(Y = \\ln\\chi\\) (lognormal "
         "model for χ).",
         "",
-        "Canonical symbols: "
-        "`statistical_analysis/full_paper/analysis/NOTATION.md`.",
+        "Canonical symbols: `statistical_analysis/full_paper/analysis/NOTATION.md`.",
         "",
         "## Setup",
         "",

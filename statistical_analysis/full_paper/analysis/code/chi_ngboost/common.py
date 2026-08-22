@@ -43,8 +43,10 @@ from _shared import (  # noqa: E402,F401
     pinball_loss,
     r2_score,
     rmse,
-    save_split as _save_split,
     seed_grouped_split_indices,
+)
+from _shared import (
+    save_split as _save_split,
 )
 from config import figure_dir  # noqa: E402
 

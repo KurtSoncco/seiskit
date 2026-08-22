@@ -1,8 +1,11 @@
-"""1D ALE (fallback: PDP) marginal effects on median IM (Y = ln χ).
+"""1D ALE (fallback: PDP) marginal effects on central IM (Y = ln χ).
 
-Prefers QBM τ=0.50 LightGBM; falls back to NGBoost μ when q50 models are
-missing. Implements a simple 1D ALE estimator (no external ALE package).
-Nature PDFs under figure_dir("chi_shap", "ale_effects").
+Dual-model Nature figures under ``figure_dir("chi_shap", "ale_effects")``:
+
+- QBM LightGBM at τ=0.50 (conditional median)
+- NGBoost μ (conditional Normal mean)
+
+Each metric PDF overlays both ALE curves per feature panel.
 """
 
 from __future__ import annotations
@@ -49,6 +52,12 @@ ALE_N_BINS = 20
 ALE_SAMPLE_SEED = 4
 PDP_GRID_N = 25
 
+# (tag, linestyle, legend label)
+MODELS = (
+    ("qbm_q50", "-", r"QBM $\tau=0.50$"),
+    ("ngboost_mu", "--", r"NGBoost $\mu$"),
+)
+
 
 def _as_booster(obj) -> lgb.Booster:
     if isinstance(obj, lgb.Booster):
@@ -84,7 +93,6 @@ def ale_1d(
     if uniq.size < 3:
         return pdp_1d(predict_fn, X, j, n_grid=min(PDP_GRID_N, max(uniq.size, 2)))
 
-    # Quantile edges; drop duplicate edges for discrete-ish features
     qs = np.linspace(0.0, 1.0, n_bins + 1)
     edges = np.unique(np.quantile(xj, qs))
     if edges.size < 3:
@@ -135,34 +143,29 @@ def pdp_1d(
     return grid, vals
 
 
-def _load_predictor(metric: str):
-    """Return (predict_fn, model_tag, method_note)."""
+def _load_predictors(metric: str) -> list[tuple[str, object]]:
+    """Return list of (model_tag, predict_fn) for available models."""
+    out: list[tuple[str, object]] = []
     qpath = qbm_model_path("q50", metric)
     if qpath.is_file():
         booster = _as_booster(joblib.load(qpath))
-        return (
-            lambda X, b=booster: _predict_qbm(b, X),
-            "qbm_q50",
-            "ale",
-        )
+        out.append(("qbm_q50", lambda X, b=booster: _predict_qbm(b, X)))
     npath = ngboost_model_path(metric)
     if npath.is_file():
         model: NGBRegressor = joblib.load(npath)
-        return (
-            lambda X, m=model: _predict_ngb_mu(m, X),
-            "ngboost_mu",
-            "ale",
-        )
-    raise FileNotFoundError(f"No QBM q50 or NGBoost model for {metric}")
+        out.append(("ngboost_mu", lambda X, m=model: _predict_ngb_mu(m, X)))
+    if not out:
+        raise FileNotFoundError(f"No QBM q50 or NGBoost model for {metric}")
+    return out
 
 
 def _plot_metric_ale(
-    curves: dict[str, tuple[np.ndarray, np.ndarray]],
+    curves: dict[str, dict[str, tuple[np.ndarray, np.ndarray]]],
     *,
     metric: str,
-    model_tag: str,
     out: Path,
 ) -> None:
+    """Overlay ALE for each model tag present in *curves*."""
     n = len(FEATURES)
     ncols = 3
     nrows = int(np.ceil(n / ncols))
@@ -172,21 +175,42 @@ def _plot_metric_ale(
         figsize=figsize(height=min(6.5, 2.0 * nrows)),
         squeeze=False,
     )
+    style = {tag: (ls, lab) for tag, ls, lab in MODELS}
     for i, feat in enumerate(FEATURES):
         ax = axes[i // ncols, i % ncols]
-        x, y = curves[feat]
         color = factor_color(feat) if feat != "node_z" else "0.35"
-        ax.plot(x, y, color=color, linewidth=1.0)
-        ax.axhline(0.0, color="0.55", linewidth=0.5, linestyle="--")
-        ax.set_xlabel(feat.replace("_z", r" $z$") if feat.endswith("_z") else feat)
+        for tag in curves:
+            x, y = curves[tag][feat]
+            ls, lab = style.get(tag, ("-", tag))
+            ax.plot(
+                x,
+                y,
+                color=color,
+                linestyle=ls,
+                linewidth=1.0,
+                label=lab if i == 0 else None,
+            )
+        ax.axhline(0.0, color="0.55", linewidth=0.5, linestyle=":")
+        ax.set_xlabel(feat.replace("_z", r"") if feat.endswith("_z") else feat)
         ax.set_ylabel(r"ALE on $Y$")
         add_panel_label(ax, i)
     for j in range(n, nrows * ncols):
         axes[j // ncols, j % ncols].set_visible(False)
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    if handles:
+        fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            ncol=2,
+            fontsize=6,
+            frameon=False,
+            bbox_to_anchor=(0.5, 1.02),
+        )
     fig.suptitle(
-        f"{metric_label(metric, log=True)}  ({model_tag})",
+        f"{metric_label(metric, log=True)} — central response",
         fontsize=7,
-        y=1.01,
+        y=1.06,
     )
     fig.tight_layout(pad=0.35)
     save_figure(fig, f"ale_{metric}", out_dir=out)
@@ -208,46 +232,47 @@ def main() -> None:
     meta = {"subsample_n": int(len(te)), "n_bins": ALE_N_BINS, "models": []}
 
     for metric in METRICS:
-        predict_fn, model_tag, method = _load_predictor(metric)
-        print(f"ALE {metric} via {model_tag} …")
-        curves: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-        for j, feat in enumerate(FEATURES):
-            grid, ale = ale_1d(predict_fn, X, j, n_bins=ALE_N_BINS)
-            curves[feat] = (grid, ale)
-            for x, y in zip(grid, ale):
-                row_tabs.append(
-                    {
-                        "metric": metric,
-                        "model": model_tag,
-                        "method": method,
-                        "feature": feat,
-                        "x": float(x),
-                        "effect": float(y),
-                    }
-                )
-        _plot_metric_ale(curves, metric=metric, model_tag=model_tag, out=out)
-        meta["models"].append({"metric": metric, "model": model_tag, "method": method})
+        predictors = _load_predictors(metric)
+        print(f"ALE {metric} via {[t for t, _ in predictors]} …")
+        curves: dict[str, dict[str, tuple[np.ndarray, np.ndarray]]] = {}
+        for model_tag, predict_fn in predictors:
+            curves[model_tag] = {}
+            for j, feat in enumerate(FEATURES):
+                grid, ale = ale_1d(predict_fn, X, j, n_bins=ALE_N_BINS)
+                curves[model_tag][feat] = (grid, ale)
+                for x, y in zip(grid, ale):
+                    row_tabs.append(
+                        {
+                            "metric": metric,
+                            "model": model_tag,
+                            "method": "ale",
+                            "feature": feat,
+                            "x": float(x),
+                            "effect": float(y),
+                        }
+                    )
+            meta["models"].append({"metric": metric, "model": model_tag, "method": "ale"})
+        _plot_metric_ale(curves, metric=metric, out=out)
 
     tab = pd.DataFrame(row_tabs)
     tab.to_csv(out / "ale_curves.csv", index=False)
     (out / "ale_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
-    # Effect range summary
     amp = (
         tab.groupby(["metric", "model", "feature"], as_index=False)["effect"]
         .agg(effect_min="min", effect_max="max")
         .assign(effect_range=lambda d: d["effect_max"] - d["effect_min"])
-        .sort_values(["metric", "effect_range"], ascending=[True, False])
+        .sort_values(["metric", "model", "effect_range"], ascending=[True, True, False])
     )
     amp.to_csv(out / "ale_effect_range.csv", index=False)
 
     lines = [
-        "# ALE / PDP marginal effects (median IM)",
+        "# ALE / PDP marginal effects (central IM)",
         "",
         "## Definitions",
         "",
-        r"- Response: \(Y=\ln\chi\) (conditional median / Normal mean).",
-        r"- Primary model: QBM LightGBM at \(\tau=0.50\); fallback: NGBoost \(\mu\).",
+        r"- Response: \(Y=\ln\chi\).",
+        r"- Models: QBM LightGBM at \(\tau=0.50\) and NGBoost \(\mu\) (both plotted).",
         r"- Estimator: 1D accumulated local effects (ALE) on quantile bins of each "
         r"feature, centered to mean zero. If binning fails, centered 1D PDP is used.",
         r"- Features: z-scored design factors + `node_z`. Evaluation on a seed-holdout subsample.",
@@ -256,20 +281,13 @@ def main() -> None:
         "",
         amp.to_markdown(index=False, floatfmt=".4f"),
         "",
-        "## Conclusions",
-        "",
-        "- ALE isolates the local marginal effect of each design/spatial feature on the "
-        "median (or μ) surface without requiring extrapolated PDP corners.",
-        "- Large `node_z` ALE slopes indicate a smooth spatial trend in the emulator; "
-        "short-range residual dependence is diagnosed separately.",
-        "",
         "## Output files",
         "",
         "| File | Content |",
         "|------|---------|",
-        "| `ale_curves.csv` | ALE/PDP curves per metric × feature |",
+        "| `ale_curves.csv` | ALE/PDP curves per metric × model × feature |",
         "| `ale_effect_range.csv` | amplitude summary |",
-        "| `ale_<metric>.pdf` | Nature-width multi-panel ALE plots |",
+        "| `ale_<metric>.pdf` | Dual-model Nature ALE overlays |",
         "| `ale_meta.json` | subsample / model tags |",
         "",
     ]

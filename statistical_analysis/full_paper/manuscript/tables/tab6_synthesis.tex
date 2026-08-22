@@ -1,0 +1,14 @@
+\begin{table*}[!ht]
+\caption{Synthesis of variance decomposition roles, dual-model SHAP ranks (lower = more important; averaged over metrics), ALE effect amplitudes, and validated wave-scattering mechanisms.\label{tab:synthesis}}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccc@{}}
+\toprule
+Parameter & Variance role & Mean SHAP rank (QBM $q_{50}$) & Mean SHAP rank (NGBoost $\mu$) & Mean ALE amp.\ (median) & Physical mechanism (editable) \\
+\midrule
+$V_{s1}$ & Median / impedance (low within-seed share) & 2.0 & 2.0 & 0.197 & Anchors 1D impedance / $f_0=V_{s1}/4H$; dominates median location shifts \\
+$H$ & Median / resonance anchor & 2.2 & 2.0 & 0.145 & Sets resonant period with $V_{s1}$; baseline site-period normalization \\
+$CoV$ & Primary $\bar s_W^2$ driver & 2.4 & 2.6 & 0.070 & Drives wave-phase randomization, within-seed variance, and upper-tail spread \\
+$r_h$ & Coherence / interaction scale & 5.2 & 5.4 & 0.006 & Sets interference scale; controls coherence decay and $r_h\times CoV$ coupling \\
+$a_{hv}$ & Between/within variance ratio & 3.6 & 3.6 & 0.027 & Directional focusing; modulates between- vs within-realization variance ratio \\
+\bottomrule
+\end{tabular*}
+\end{table*}

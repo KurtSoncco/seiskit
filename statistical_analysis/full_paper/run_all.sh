@@ -56,6 +56,7 @@ echo "N_JOBS=${FULL_PAPER_N_JOBS:--1}  RUN_ALL_SEEDS=${RUN_ALL_SEEDS:-0}  FORCE_
 run "appendix_im" "$PY" analysis/appendix_im/plot_peak_stability.py
 
 # 2. Qualitative TF — skip all_seeds by default (was OOM-killing the previous run)
+run "qualitative_center_one" "$PY" analysis/qualitative/run_tf.py --mode center_node_one_seed
 run "qualitative_center" "$PY" analysis/qualitative/run_tf.py --mode center_node_all_seeds
 run "qualitative_one_seed" "$PY" analysis/qualitative/run_tf.py --mode one_seed_all_nodes
 if [[ "${RUN_ALL_SEEDS:-0}" == "1" ]]; then
@@ -73,14 +74,17 @@ run "node_ratio_normality" "$PY" "$CODE/chi_variables/node_ratio_normality.py"
 run "distribution_histograms" "$PY" "$CODE/chi_variables/distribution_histograms.py"
 run "factor_violins" "$PY" "$CODE/chi_variables/factor_violins.py"
 run "central_profiles" "$PY" "$CODE/chi_variables/central_profiles.py"
+run "geomean_relative" "$PY" "$CODE/chi_variables/geomean_relative.py"
 run "geomean_factor_cross" "$PY" "$CODE/chi_variables/geomean_factor_cross.py"
 run "variability_plots" "$PY" "$CODE/chi_variables/variability_plots.py"
 run "variance_heatmaps" "$PY" "$CODE/chi_variables/variance_heatmaps.py"
+run "variance_factor_effects" "$PY" "$CODE/chi_variables/variance_factor_effects.py"
 
 # 4. Spatial
 run "spatial_acf" "$PY" "$CODE/chi_spatial/spatial_acf.py"
 run "plot_spatial_acf" "$PY" "$CODE/chi_spatial/plot_spatial_acf.py"
 run "spatial_coherence" "$PY" "$CODE/chi_spatial/spatial_coherence.py"
+run "literature_coherence" "$PY" "$CODE/chi_spatial/literature_coherence.py"
 
 # 5. OLS
 run "stage1_mean_ols" "$PY" "$CODE/chi_ols/stage1_mean_ols.py"
@@ -112,8 +116,12 @@ run "exceedance_friedman" "$PY" "$CODE/chi_ngboost/exceedance_friedman.py"
 run "shap_ngboost" "$PY" "$CODE/chi_shap/shap_ngboost.py"
 run "shap_qbm" "$PY" "$CODE/chi_shap/shap_qbm.py"
 run "shap_compare" "$PY" "$CODE/chi_shap/shap_compare.py"
+run "shap_beeswarm" "$PY" "$CODE/chi_shap/shap_beeswarm.py"
 run "ale_effects" "$PY" "$CODE/chi_shap/ale_effects.py"
+run "ale_dispersion" "$PY" "$CODE/chi_shap/ale_dispersion.py"
+run "ale_2d" "$PY" "$CODE/chi_shap/ale_2d.py"
 run "shap_median_vs_tail" "$PY" "$CODE/chi_shap/shap_median_vs_tail.py"
+run "plot_interactions" "$PY" "$CODE/chi_shap/plot_interactions.py"
 
 # 9. SR optional
 if [[ "${RUN_SR:-0}" == "1" ]]; then
@@ -128,6 +136,9 @@ run "model_scheme" "$PY" figures/model_scheme.py
 run "vs_rh_realizations" "$PY" figures/vs_rh_realizations.py
 run "field_stat_recovery" "$PY" figures/field_stat_recovery.py
 run "ricker_wave" "$PY" figures/descriptions/ricker_wave.py
+
+# 11. Manuscript LaTeX table fragments
+run "export_tables" "$PY" manuscript/export_tables.py
 
 echo ""
 if [[ "$FAILED" -eq 0 ]]; then
