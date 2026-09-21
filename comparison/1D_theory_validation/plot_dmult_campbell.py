@@ -94,7 +94,16 @@ def summarize(name: str, r: np.ndarray) -> None:
     )
 
 
-def plot_vs_and_tf(
+def damping_profile(vs1: float, H: float, vs2: float, *, scale: float = 1.0):
+    """global_avg-style ξ staircase: soil harmonic ξ_Q(vs1), rock ξ_Q(vs2)."""
+    xi_s = xi_of_vs(vs1, scale)
+    xi_r = xi_of_vs(vs2, scale)
+    z = np.array([0.0, H, H, H + H_ROCK])
+    xi = np.array([xi_s, xi_s, xi_r, xi_r])
+    return z, xi, xi_s, xi_r
+
+
+def plot_vs_d_tf(
     vs1: float,
     H: float,
     vs2: float,
@@ -104,16 +113,18 @@ def plot_vs_and_tf(
     af_q: np.ndarray,
     af_d: np.ndarray,
 ) -> Path:
-    fig, axes = plt.subplots(1, 2, figsize=(10.4, 4.8), constrained_layout=True)
+    fig, axes = plt.subplots(1, 3, figsize=(13.2, 4.8), constrained_layout=True)
+    z_max = H + H_ROCK
 
+    # --- Vs ---
     ax = axes[0]
-    z_soil = np.array([0.0, H, H, H + H_ROCK])
+    z_vs = np.array([0.0, H, H, z_max])
     vs_stair = np.array([vs1, vs1, vs2, vs2])
-    ax.plot(vs_stair, z_soil, color="#0072B2", lw=2.0)
-    ax.set_ylim(H + H_ROCK, 0.0)
+    ax.plot(vs_stair, z_vs, color="#0072B2", lw=2.0)
+    ax.set_ylim(z_max, 0.0)
     ax.set_xlabel(r"$V_s$ (m/s)")
     ax.set_ylabel("Depth (m)")
-    ax.set_title("2-layer column")
+    ax.set_title(r"$V_s$ profile")
     ax.grid(True, alpha=0.3)
     ax.annotate(
         fr"Contrast $=V_{{s2}}/V_{{s1}}$={contrast:.2f}" + "\n"
@@ -129,7 +140,36 @@ def plot_vs_and_tf(
         bbox=dict(boxstyle="round,pad=0.28", facecolor="white", edgecolor="0.8"),
     )
 
+    # --- Damping D = ξ (global_avg base vs Dmult × whole profile) ---
     ax = axes[1]
+    z_d, xi_base, xi_s, xi_r = damping_profile(vs1, H, vs2, scale=1.0)
+    _, xi_dm, xi_s_d, xi_r_d = damping_profile(vs1, H, vs2, scale=dmult)
+    ax.plot(100.0 * xi_base, z_d, color="0.35", lw=1.8, ls="--", label=r"base $\xi_Q$")
+    ax.plot(
+        100.0 * xi_dm,
+        z_d,
+        color="#D55E00",
+        lw=2.0,
+        label=fr"$D_{{\mathrm{{mult}}}}\,\xi_Q$",
+    )
+    ax.set_ylim(z_max, 0.0)
+    ax.set_xlabel(r"Damping $D=\xi$ (%)")
+    ax.set_title("Damping profile")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="lower right", fontsize=8, frameon=True)
+    ax.annotate(
+        fr"soil: {100*xi_s:.2f}% → {100*xi_s_d:.2f}%" + "\n"
+        + fr"rock: {100*xi_r:.2f}% → {100*xi_r_d:.2f}%",
+        xy=(0.97, 0.97),
+        xycoords="axes fraction",
+        ha="right",
+        va="top",
+        fontsize=8,
+        bbox=dict(boxstyle="round,pad=0.28", facecolor="white", edgecolor="0.8"),
+    )
+
+    # --- TF ---
+    ax = axes[2]
     ax.loglog(freq, af_q, color="0.35", lw=1.5, ls="--", label=r"$\xi_Q$ (Campbell)")
     ax.loglog(
         freq,
@@ -159,7 +199,7 @@ def plot_vs_and_tf(
 
     fig.suptitle(
         r"$D_{\mathrm{mult}}=\mathrm{clip}(-1.3\,V_{s2}/V_{s1}+13.90,\ 2,\ 10)$"
-        r"  —  one 1D Haskell simulation",
+        r"  —  whole-profile $\xi$ (soil + rock)",
         fontsize=11,
     )
     out = OUT / "af_dmult_campbell.png"
@@ -218,14 +258,14 @@ def main() -> None:
     H = H_SOIL
     vs2 = VS_ROCK
     contrast, dmult = dmult_from_contrast(vs1, vs2)
-    af_q = two_layer_tf(freq, vs1, H, vs2, soil_scale=1.0)
-    af_d = two_layer_tf(freq, vs1, H, vs2, soil_scale=dmult)
+    af_q = two_layer_tf(freq, vs1, H, vs2, soil_scale=1.0, rock_scale=1.0)
+    af_d = two_layer_tf(freq, vs1, H, vs2, soil_scale=dmult, rock_scale=dmult)
     print(
         f"Hallal column: Vs1={vs1:.2f}  H={H:.2f}  Vs2={vs2:.2f}\n"
         f"  Contrast={contrast:.3f}  Dmult={dmult:.3f}\n"
         f"  A1(xi_Q)={np.max(af_q):.2f}  A1(Dmult)={np.max(af_d):.2f}"
     )
-    out_tf = plot_vs_and_tf(vs1, H, vs2, contrast, dmult, freq, af_q, af_d)
+    out_tf = plot_vs_d_tf(vs1, H, vs2, contrast, dmult, freq, af_q, af_d)
     print(out_tf)
 
     # --- Figure 2: Pearson over 200 independent 2-layer columns ---
@@ -234,8 +274,8 @@ def main() -> None:
     r = np.empty(N_PEARSON)
     for i, case in enumerate(cases):
         c, dm = dmult_from_contrast(case.vs1, case.vs2)
-        af_base = two_layer_tf(freq, case.vs1, case.H, case.vs2, soil_scale=1.0)
-        af_dm = two_layer_tf(freq, case.vs1, case.H, case.vs2, soil_scale=dm)
+        af_base = two_layer_tf(freq, case.vs1, case.H, case.vs2, soil_scale=1.0, rock_scale=1.0)
+        af_dm = two_layer_tf(freq, case.vs1, case.H, case.vs2, soil_scale=dm, rock_scale=dm)
         r[i] = pearson_ln(af_dm, af_base)
         rows.append((i, case.vs1, case.H, case.vs2, c, dm, r[i]))
 
