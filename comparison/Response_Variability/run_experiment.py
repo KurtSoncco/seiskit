@@ -54,9 +54,6 @@ from seiskit.intensity_measures import compute_sa, default_periods, pga, sigma_l
 from seiskit.plot_results import get_damping_zeta_grid
 from seiskit.profile_randomization import (
     ProfileRandomizationConfig,
-    RandomizedProfile,
-    generate_tts_randomized_profile_full,
-    generate_vs_randomized_profile_full,
     profile_to_opensees_column,
 )
 from seiskit.solver_utils import get_solver_info
@@ -207,18 +204,16 @@ def _load_recorder_txt(
 
 
 def _profile_config(p: CaseParams) -> ProfileRandomizationConfig:
-    # Hallal arms: fixed H and bedrock; only σ_ln(Vs) or σ_ln(tts) on the base profile.
-    return ProfileRandomizationConfig(
-        vs_mean=p.vs1,
-        thickness=p.H,
-        dz=active_dz(),
-        vs_bedrock=p.vs2,
-        bedrock_thickness=p.bedrock_thickness,
+    # Hallal arms: fixed H and bedrock; σ_ln(Vs) or σ_ln(tts) = design CoV.
+    from seiskit.profile_randomization import hallal_profile_config
+
+    return hallal_profile_config(
+        vs1=p.vs1,
+        H=p.H,
         cov=p.cov,
-        use_full_model=False,
-        randomize_layer_thickness=False,
-        randomize_bedrock_depth=False,
-        vary_bedrock_vs=False,
+        vs2=p.vs2,
+        dz=active_dz(),
+        bedrock_thickness=p.bedrock_thickness,
     )
 
 
@@ -352,24 +347,14 @@ def _build_1d_hallal(
     p: CaseParams,
     rng: np.random.Generator,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    cfg = _profile_config(p)
+    from seiskit.profile_randomization import get_method, profile_to_opensees_column
 
-    if p.method == "hallal_vs":
-        prof = generate_vs_randomized_profile_full(cfg, rng)
-    elif p.method == "hallal_tts":
-        prof = generate_tts_randomized_profile_full(cfg, rng)
-    elif p.method == "hallal_dmin":
-        from seiskit.profile_randomization import build_base_case_profile
-
-        vs_profile = build_base_case_profile(cfg)
-        prof = RandomizedProfile(
-            vs_depth=vs_profile,
-            n_soil_samples=max(1, int(round(p.H / active_dz()))),
-            interface_depth=p.H,
-        )
-    else:
+    if p.method not in ("hallal_vs", "hallal_tts", "hallal_dmin"):
         raise ValueError(f"Not a 1D Hallal method: {p.method}")
 
+    method = get_method(p.method)
+    cfg = _profile_config(p)
+    prof = method.generate_profile(cfg, rng)
     vs_col, mask = profile_to_opensees_column(prof.vs_depth, prof.n_soil_samples)
     return vs_col, mask, prof.vs_depth
 

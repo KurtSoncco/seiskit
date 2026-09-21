@@ -4,9 +4,9 @@ Response-focused benchmark comparing randomization / damping protocols on **64 S
 
 | Arm | Method | Description |
 |-----|--------|-------------|
-| `hallal_vs` | 1D Vs randomization | Toro (1995) simplified profile (σ_ln Vs only; fixed H) |
-| `hallal_tts` | 1D travel-time randomization | Passeri simplified profile (σ_ln tts only; fixed H) |
-| `hallal_dmin` | Damping modification (Approach 5) | Base-case Vs + lab Q–Vs **Dmin ×3…×6** (10 multipliers) |
+| `hallal_vs` | 1D Vs randomization | Toro (1995) Vs-only (σ_ln Vs = CoV; fixed H, no NHPP) |
+| `hallal_tts` | 1D travel-time randomization | Passeri tts-only (σ_ln tts = CoV; fixed H, no NHPP) |
+| `hallal_dmin` | Damping modification (Approach 5) | Base Vs + `Dmult = clip(-1.3·Vs2/Vs1 + 13.90, 2, 10)` on ξ_Q (Hallal et al. 2022) |
 | `grf_2d` | 2D GRF (GIFNO) | GIFNO-FDO-XT surrogate on neural-operator grid |
 | `pretell` | Pretell-style 1D ensemble | **1D OpenSees** geomean over **200** profiles across full **500 m** strip |
 | `opensees_2d` | 2D GRF (**baseline**) | Full-mesh **OpenSees 2D** on the same GRF / seeds |
@@ -59,14 +59,14 @@ Sa / PGA are secondary sanity checks. One broadband drive (`M1`, 3 Hz) is suffic
 
 ## Campaign size
 
-Per Sobol point (production): **200** Hallal Vs + **200** Hallal Tts + **10** Dmin + **40** RF seeds × (`grf_2d` + `pretell` + `opensees_2d`) = **530** runs. Pretell draws **200** 1D profiles per RF realization.
+Per Sobol point (production): **200** Hallal Vs + **200** Hallal Tts + **1** Dmult + **40** RF seeds × (`grf_2d` + `pretell` + `opensees_2d`) = **521** runs. Pretell draws **200** 1D profiles per RF realization.
 
-| Mode | Sobol cases | Hallal Vs/Tts | Dmin | RF seeds | Total runs |
-|------|-------------|---------------|------|----------|------------|
-| Full (`RV_SMOKE=0`) | 64 | 200 each | 10 | 40 ×3 | **33,920** |
-| Stampede OpenSees (skip `grf_2d`) | 64 | 200 each | 10 | 40 pretell + 40 ops2d | **31,360** |
-| Smoke (`RV_SMOKE=1`, 1D only) | 4 | 10 each | 10 | — | **120** |
-| Smoke + 2D (`RV_SMOKE_2D=1`) | 4 | 10 each | 10 | 5 ×3 | **180** |
+| Mode | Sobol cases | Hallal Vs/Tts | Dmult | RF seeds | Total runs |
+|------|-------------|---------------|-------|----------|------------|
+| Full (`RV_SMOKE=0`) | 64 | 200 each | 1 | 40 ×3 | **33,344** |
+| Stampede OpenSees (skip `grf_2d`) | 64 | 200 each | 1 | 40 pretell + 40 ops2d | **30,784** |
+| Smoke (`RV_SMOKE=1`, 1D only) | 4 | 10 each | 1 | — | **84** |
+| Smoke + 2D (`RV_SMOKE_2D=1`) | 4 | 10 each | 1 | 5 ×3 | **144** |
 
 Overrides: `RV_HALLAL_N_SEEDS`, `RV_RF_N_SEEDS`, `RV_PRETELL_N_SAMPLES`.
 

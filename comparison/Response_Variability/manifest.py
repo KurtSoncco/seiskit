@@ -65,7 +65,7 @@ BC_WIDTH = 100.0
 # Production seed / sample counts (per Sobol base case)
 # ---------------------------------------------------------------------------
 # hallal_vs / hallal_tts: 200 realizations each
-# hallal_dmin: 10 Dmin multipliers (not seeds)
+# hallal_dmin: one Dmult per Sobol column (Vs-contrast formula; no seed)
 # grf_2d / pretell / opensees_2d: 40 paired RF seeds each
 # pretell: 200 1D column samples per RF realization (full 500 m strip)
 N_HALLAL_SEEDS_FULL = 200
@@ -77,9 +77,6 @@ HALLAL_SEEDS_FULL = list(range(1, N_HALLAL_SEEDS_FULL + 1))
 HALLAL_SEEDS_SMOKE = list(range(1, N_HALLAL_SEEDS_SMOKE + 1))
 RF_SEEDS_FULL = list(range(1, N_RF_SEEDS_FULL + 1))
 RF_SEEDS_SMOKE = list(range(1, N_RF_SEEDS_SMOKE + 1))
-
-# Hallal Approach 5: Dmin multiplier sweep (10 values, linspace 3–6).
-DMIN_MULTIPLIERS: tuple[float, ...] = tuple(float(x) for x in np.linspace(3.0, 6.0, 10))
 
 RH = RH_FIXED
 AHV = AHV_FIXED
@@ -121,12 +118,9 @@ def active_rf_seeds() -> list[int]:
     return list(range(1, n + 1))
 
 
-def active_dmin_multipliers() -> tuple[float, ...]:
-    return DMIN_MULTIPLIERS
-
-
 def _hallal_entries_per_sobol() -> int:
-    return 2 * len(active_hallal_seeds()) + len(active_dmin_multipliers())
+    # Toro seeds + Passeri seeds + one Dmult (deterministic per column)
+    return 2 * len(active_hallal_seeds()) + 1
 
 
 def active_lx_var() -> float:
@@ -327,8 +321,8 @@ def index_to_params(index: int) -> CaseParams:
                 seed=hallal_seeds[r - n_vs],
                 seed_kind="realization",
             )
-        dmin_idx = r - n_vs - n_tts
-        mults = active_dmin_multipliers()
+        from seiskit.profile_randomization import dmult_from_vs_contrast
+
         return CaseParams(
             index=index,
             sobol_id=base.sobol_id,
@@ -338,9 +332,9 @@ def index_to_params(index: int) -> CaseParams:
             vs2=base.vs2,
             method="hallal_dmin",
             motion_id=MOTION_IDS[0],
-            seed=dmin_idx + 1,
+            seed=1,
             seed_kind="dmin_mult",
-            dmin_multiplier=mults[dmin_idx],
+            dmin_multiplier=dmult_from_vs_contrast(base.vs1, base.vs2),
         )
 
     r = index - hallal_block
@@ -390,13 +384,17 @@ def case_tag(p: CaseParams) -> str:
 
 
 def damping_method_for(p: CaseParams) -> str:
-    if p.method == "hallal_dmin":
+    from seiskit.profile_randomization import get_method
+
+    if p.method in HALLAL_METHODS and get_method(p.method).uses_elemental_damping():
         return "elemental_varying"
     return "global_avg"
 
 
 def dmin_multiplier_for(p: CaseParams) -> float:
-    """Hallal Approach 5: Dmin multiplier from the 3–6 linspace sweep."""
-    if p.method != "hallal_dmin":
+    """Hallal Approach 5: Dmult from Vs2/Vs1 contrast (clipped to [2, 10])."""
+    from seiskit.profile_randomization import get_method
+
+    if p.method not in HALLAL_METHODS:
         return 1.0
-    return float(p.dmin_multiplier)
+    return float(get_method(p.method).damping_multiplier(p.vs1, p.vs2))

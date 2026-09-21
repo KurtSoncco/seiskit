@@ -70,7 +70,7 @@ METHOD_LABELS = {
     "pretell": "Pretell",
     "hallal_vs": "Toro's Vs",
     "hallal_tts": "Passeri tts",
-    "hallal_dmin": "Dmult sweep",
+    "hallal_dmin": "Dmult (Hallal)",
 }
 
 # High-contrast method colors (Wong-inspired; OpenSees = black reference).

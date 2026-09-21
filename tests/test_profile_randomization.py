@@ -1,21 +1,31 @@
 """Tests for profile randomization utilities."""
 
 import numpy as np
+import pytest
 
 from seiskit.profile_randomization import (
+    DmultMethod,
+    PasseriMethod,
     ProfileRandomizationConfig,
     RandomizedProfile,
+    SpatialVariabilityMethod,
+    ToroMethod,
     acf_rmse,
     build_base_case_profile,
+    dmult_from_vs_contrast,
     generate_nhpp_layer_thicknesses,
     generate_passeri_profile,
     generate_toro_profile,
     generate_tts_randomized_profile,
     generate_vs_randomized_profile,
+    get_method,
+    hallal_profile_config,
     profile_to_opensees_column,
     toro_adjacent_correlation,
     vertical_acf_ln_vs,
+    vs_contrast,
 )
+
 
 
 def _cfg(**kw) -> ProfileRandomizationConfig:
@@ -183,3 +193,49 @@ def test_passeri_joint_bedrock_correlation():
         vss.append(vs)
     corr = float(np.corrcoef(np.log(depths), np.log(vss))[0, 1])
     assert 0.40 < corr < 0.60
+
+
+def test_dmult_formula_clip_and_linear():
+    # High contrast → clips to 2 (Hallal-like column ~10.2)
+    assert dmult_from_vs_contrast(225.6, 2298.12) == pytest.approx(2.0)
+    # Low contrast → clips to 10
+    assert dmult_from_vs_contrast(400.0, 800.0) == pytest.approx(10.0)
+    # Mid-range linear: contrast=5 → -1.3*5+13.9 = 7.4
+    assert dmult_from_vs_contrast(200.0, 1000.0) == pytest.approx(7.4)
+    assert vs_contrast(200.0, 1000.0) == pytest.approx(5.0)
+
+
+def test_get_method_aliases():
+    assert isinstance(get_method("toro"), ToroMethod)
+    assert isinstance(get_method("hallal_vs"), ToroMethod)
+    assert isinstance(get_method("passeri"), PasseriMethod)
+    assert isinstance(get_method("hallal_tts"), PasseriMethod)
+    assert isinstance(get_method("dmult"), DmultMethod)
+    assert isinstance(get_method("hallal_dmin"), DmultMethod)
+    with pytest.raises(ValueError):
+        get_method("unknown")
+
+
+def test_method_generate_profiles_vs_only():
+    cfg = hallal_profile_config(
+        vs1=230.0, H=15.0, cov=0.20, vs2=1500.0, dz=0.5, bedrock_thickness=10.0
+    )
+    assert cfg.sigma_ln_vs == pytest.approx(0.20)
+    assert cfg.sigma_ln_tts == pytest.approx(0.20)
+    assert cfg.randomize_layer_thickness is False
+
+    toro = get_method("toro")
+    passeri = get_method("passeri")
+    dmult = get_method("dmult")
+    assert isinstance(toro, SpatialVariabilityMethod)
+
+    p1 = toro.generate_profile(cfg, np.random.default_rng(1))
+    p2 = passeri.generate_profile(cfg, np.random.default_rng(1))
+    p3 = dmult.generate_profile(cfg, np.random.default_rng(1))
+    p3b = dmult.generate_profile(cfg, np.random.default_rng(99))
+    assert isinstance(p1, RandomizedProfile)
+    assert p1.n_soil_samples == 30
+    assert np.allclose(p3.vs_depth, p3b.vs_depth)  # deterministic
+    assert dmult.damping_multiplier(230.0, 1500.0) == dmult_from_vs_contrast(230.0, 1500.0)
+    assert dmult.uses_elemental_damping() is True
+    assert toro.damping_multiplier(230.0, 1500.0) == 1.0
