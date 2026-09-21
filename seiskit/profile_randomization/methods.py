@@ -45,9 +45,10 @@ def dmult_from_vs_contrast(vs1: float, vs2: float) -> float:
         D_\\mathrm{mult}
             = \\mathrm{clip}\\bigl(-1.3\\,V_{s2}/V_{s1} + 13.90,\\ 2,\\ 10\\bigr)
 
-    Applied as :math:`\\xi_\\mathrm{soil} = D_\\mathrm{mult}\\,\\xi_{Q,\\mathrm{avg}}`
-    under OpenSees ``global_avg`` damping (Approach 5: one base :math:`V_s`
-    profile, no randomization). Rock keeps unscaled :math:`\\xi_Q`.
+    Applied as :math:`\\xi = D_\\mathrm{mult}\\,\\xi_{Q}` under OpenSees
+    ``global_avg`` damping on the **whole** column (soil harmonic-mean and
+    rock :math:`\\xi_Q` both scaled). Approach 5: one base :math:`V_s`
+    profile, no randomization.
 
     References
     ----------
@@ -182,7 +183,7 @@ class DmultMethod(SpatialVariabilityMethod):
         return dmult_from_vs_contrast(vs1, vs2)
 
     def uses_elemental_damping(self) -> bool:
-        """Dmult scales the soil ``global_avg`` ξ, not elemental Campbell."""
+        """Dmult scales whole-profile ``global_avg`` ξ (soil + rock)."""
         return False
 
 

@@ -300,8 +300,9 @@ def _apply_damping(
 
         Q_values_soil = [compute_quality_factor(elem.vs_value) for elem in soil_elements]
         avg_damping_soil = compute_average_damping_harmonic(Q_values_soil)
-        # Dmult / Approach 5: scale the soil average (same ξ stored in H5 Damping_zeta).
-        avg_damping_soil *= float(config.dmin_multiplier)
+        # Dmult / Approach 5: scale average ξ on the whole column (soil + rock).
+        dmin_mult = float(config.dmin_multiplier)
+        avg_damping_soil *= dmin_mult
 
         # Compute Rayleigh coefficients for soil layer
         alphaM_soil, betaK_soil = compute_rayleigh_coefficients(
@@ -327,7 +328,7 @@ def _apply_damping(
             # Use bedrock Vs (typically 1500 m/s) for consistent damping
             bedrock_Vs = float(np.median([elem.vs_value for elem in bedrock_elements]))
             Q_bedrock = compute_quality_factor(bedrock_Vs)
-            xi_bedrock = compute_damping_from_Q(Q_bedrock)
+            xi_bedrock = compute_damping_from_Q(Q_bedrock) * dmin_mult
             alphaM_bedrock, betaK_bedrock = compute_rayleigh_coefficients(
                 xi_bedrock, config.damping_freqs[0], config.damping_freqs[1]
             )
