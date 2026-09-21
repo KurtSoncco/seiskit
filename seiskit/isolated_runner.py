@@ -300,6 +300,8 @@ def _apply_damping(
 
         Q_values_soil = [compute_quality_factor(elem.vs_value) for elem in soil_elements]
         avg_damping_soil = compute_average_damping_harmonic(Q_values_soil)
+        # Dmult / Approach 5: scale the soil average (same ξ stored in H5 Damping_zeta).
+        avg_damping_soil *= float(config.dmin_multiplier)
 
         # Compute Rayleigh coefficients for soil layer
         alphaM_soil, betaK_soil = compute_rayleigh_coefficients(

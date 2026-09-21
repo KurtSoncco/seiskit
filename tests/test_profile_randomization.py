@@ -237,5 +237,5 @@ def test_method_generate_profiles_vs_only():
     assert p1.n_soil_samples == 30
     assert np.allclose(p3.vs_depth, p3b.vs_depth)  # deterministic
     assert dmult.damping_multiplier(230.0, 1500.0) == dmult_from_vs_contrast(230.0, 1500.0)
-    assert dmult.uses_elemental_damping() is True
+    assert dmult.uses_elemental_damping() is False
     assert toro.damping_multiplier(230.0, 1500.0) == 1.0
