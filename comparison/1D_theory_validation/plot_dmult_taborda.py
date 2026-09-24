@@ -1,4 +1,4 @@
-"""Dmult-scaled Campbell ξ_Q: one 1D Thomson–Haskell TF + Pearson boxplot.
+"""Dmult-scaled Taborda–Bielak ξ_Q: one 1D Thomson–Haskell TF + Pearson boxplot.
 
 No Toro / Passeri / Vs randomization. Dmult is a standalone damping multiplier
 from Vs contrast:
@@ -150,7 +150,7 @@ def plot_vs_d_tf(
         z_d,
         color="#D55E00",
         lw=2.0,
-        label=fr"$D_{{\mathrm{{mult}}}}\,\xi_Q$",
+        label=r"$D_{\mathrm{mult}}\,\xi_Q$",
     )
     ax.set_ylim(z_max, 0.0)
     ax.set_xlabel(r"Damping $D=\xi$ (%)")
@@ -170,7 +170,7 @@ def plot_vs_d_tf(
 
     # --- TF ---
     ax = axes[2]
-    ax.loglog(freq, af_q, color="0.35", lw=1.5, ls="--", label=r"$\xi_Q$ (Campbell)")
+    ax.loglog(freq, af_q, color="0.35", lw=1.5, ls="--", label=r"$\xi_Q$ (Taborda–Bielak)")
     ax.loglog(
         freq,
         af_d,
@@ -202,7 +202,7 @@ def plot_vs_d_tf(
         r"  —  whole-profile $\xi$ (soil + rock)",
         fontsize=11,
     )
-    out = OUT / "af_dmult_campbell.png"
+    out = OUT / "af_dmult_taborda.png"
     fig.savefig(out, dpi=160)
     plt.close(fig)
     return out

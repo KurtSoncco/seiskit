@@ -299,14 +299,14 @@ def _apply_damping(
             raise ValueError("No soil layer elements found for global average damping")
 
         Q_values_soil = [compute_quality_factor(elem.vs_value) for elem in soil_elements]
-        avg_damping_soil = compute_average_damping_harmonic(Q_values_soil)
-        # Dmult / Approach 5: scale average ξ on the whole column (soil + rock).
+        xi_soil_base = compute_average_damping_harmonic(Q_values_soil)
+        # Dmult (Tao & Rathje 2019): scale ξ on the whole column (soil + rock).
         dmin_mult = float(config.dmin_multiplier)
-        avg_damping_soil *= dmin_mult
+        xi_soil = xi_soil_base * dmin_mult
 
         # Compute Rayleigh coefficients for soil layer
         alphaM_soil, betaK_soil = compute_rayleigh_coefficients(
-            avg_damping_soil, config.damping_freqs[0], config.damping_freqs[1]
+            xi_soil, config.damping_freqs[0], config.damping_freqs[1]
         )
 
         # Apply average damping to all soil layer elements

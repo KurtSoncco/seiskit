@@ -1,4 +1,4 @@
-"""Passeri tts-only (fixed H, no NHPP): Campbell vs 0.25 ξ_Q, plus Pearson box plot."""
+"""Passeri tts-only (fixed H, no NHPP): Taborda–Bielak vs 0.25 ξ_Q, plus Pearson box plot."""
 
 from __future__ import annotations
 
@@ -28,9 +28,9 @@ SIGMA_LN_TTS = COV  # same rule as Toro: use specified CoV as the ln-sigma
 
 
 def load_toro_mod():
-    spec = importlib.util.spec_from_file_location("plot_toro_campbell", ROOT / "plot_toro_campbell.py")
+    spec = importlib.util.spec_from_file_location("plot_toro_taborda", ROOT / "plot_toro_taborda.py")
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["plot_toro_campbell"] = mod
+    sys.modules["plot_toro_taborda"] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -186,7 +186,7 @@ def main() -> None:
         f"(base {float(tts_base[n_soil]):.3f} s)"
     )
 
-    t.tf_panel(axes[2], freq, af_q[swarm], geo_q, p16_q, p84_q, af_base_q, r"Campbell $\xi_Q=1/(2Q)$", "#0072B2")
+    t.tf_panel(axes[2], freq, af_q[swarm], geo_q, p16_q, p84_q, af_base_q, r"Taborda–Bielak $\xi_Q=1/(2Q)$", "#0072B2")
     t.tf_panel(
         axes[3],
         freq,
@@ -205,7 +205,7 @@ def main() -> None:
         fr"(target {SIGMA_LN_TTS:.3f})",
         fontsize=11,
     )
-    out_swarm = OUT / "af_passeri_campbell_vs.png"
+    out_swarm = OUT / "af_passeri_taborda_vs.png"
     fig.savefig(out_swarm, dpi=160)
     plt.close(fig)
     print(out_swarm)
@@ -215,7 +215,7 @@ def main() -> None:
     data = [r_q[np.isfinite(r_q)], r_d[np.isfinite(r_d)]]
     bp = ax.boxplot(
         data,
-        tick_labels=[r"Campbell $\xi_Q$", r"$0.25\,\xi_Q$"],
+        tick_labels=[r"Taborda–Bielak $\xi_Q$", r"$0.25\,\xi_Q$"],
         patch_artist=True,
         widths=0.55,
         medianprops=dict(color="0.15", lw=1.6),

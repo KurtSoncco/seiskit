@@ -100,9 +100,8 @@ def compute_rayleigh_mass_only(zeta: float, f_target: float) -> tuple[float, flo
 
 def compute_quality_factor(Vs: float) -> float:
     """Calculate quality factor Q from shear wave velocity.
-    Model 2 by Campbell (2009)
 
-    Uses Taborda (2013) empirical relationship for soil materials.
+    Taborda and Bielak (2013) Q(Vs) polynomial, with Vs converted to km/s.
 
     Args:
         Vs: Shear wave velocity in m/s

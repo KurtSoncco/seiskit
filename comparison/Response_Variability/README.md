@@ -6,7 +6,7 @@ Response-focused benchmark comparing randomization / damping protocols on **64 S
 |-----|--------|-------------|
 | `hallal_vs` | 1D Vs randomization | Toro (1995) Vs-only (σ_ln Vs = CoV; fixed H, no NHPP) |
 | `hallal_tts` | 1D travel-time randomization | Passeri tts-only (σ_ln tts = CoV; fixed H, no NHPP) |
-| `hallal_dmin` | Damping modification (Approach 5) | Base Vs + `Dmult = clip(-1.3·Vs2/Vs1 + 13.90, 2, 10)` on **whole-profile** `global_avg` ξ_Q (soil + rock; Hallal et al. 2022) |
+| `hallal_dmin` | Dmin multiplier (Tao & Rathje 2019) | Base Vs + `Dmult = clip(-1.3·Vs2/Vs1 + 13.90, 2, 10)` (fit to Dawadi et al. 2026 Fig. 9) on **whole-profile** `global_avg` Taborda–Bielak ξ_Q (soil + rock). Dawadi et al. calibrated Dmult on Darendeli Dmin @ 3 Hz, so the base damping is under review |
 | `grf_2d` | 2D GRF (GIFNO) | GIFNO-FDO-XT surrogate on neural-operator grid |
 | `pretell` | Pretell-style 1D ensemble | **1D OpenSees** geomean over **200** profiles across full **500 m** strip |
 | `opensees_2d` | 2D GRF (**baseline**) | Full-mesh **OpenSees 2D** on the same GRF / seeds |

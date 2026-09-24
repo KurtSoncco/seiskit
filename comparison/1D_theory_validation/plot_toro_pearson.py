@@ -25,9 +25,9 @@ N_REAL = 200
 
 
 def load_toro():
-    spec = importlib.util.spec_from_file_location("plot_toro_campbell", ROOT / "plot_toro_campbell.py")
+    spec = importlib.util.spec_from_file_location("plot_toro_taborda", ROOT / "plot_toro_taborda.py")
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["plot_toro_campbell"] = mod
+    sys.modules["plot_toro_taborda"] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -116,7 +116,7 @@ def main() -> None:
     print(csv_path)
 
     fig, axes = plt.subplots(1, 2, figsize=(10.2, 4.4), constrained_layout=True, sharey=True)
-    hist_panel(axes[0], r_q, "#0072B2", r"Campbell $\xi_Q$")
+    hist_panel(axes[0], r_q, "#0072B2", r"Taborda–Bielak $\xi_Q$")
     hist_panel(axes[1], r_d, "#D55E00", r"$0.25\,\xi_Q$")
     fig.suptitle(
         r"Pearson $r$: Toro $V_s$-only TF vs 1D base  (fixed $H$, no NHPP)",

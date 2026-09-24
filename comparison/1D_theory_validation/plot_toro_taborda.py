@@ -1,4 +1,4 @@
-"""Three Toro ensembles: Vs-only, Vs+H, and full (NHPP+H+Vs). Campbell vs 0.25 ξ_Q."""
+"""Three Toro ensembles: Vs-only, Vs+H, and full (NHPP+H+Vs). Taborda–Bielak vs 0.25 ξ_Q."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ class ToroCase:
 CASES = (
     ToroCase(
         "vs",
-        "af_toro_campbell_vs.png",
+        "af_toro_taborda_vs.png",
         r"Toro $V_s$ only (fixed $H$, one soil layer)",
         r"Toro $V_s$ only",
         False,
@@ -58,7 +58,7 @@ CASES = (
     ),
     ToroCase(
         "vs_H",
-        "af_toro_campbell_vs_H.png",
+        "af_toro_taborda_vs_H.png",
         r"Toro $V_s$ + depth to bedrock",
         r"Toro $V_s$ + $H$",
         False,
@@ -66,7 +66,7 @@ CASES = (
     ),
     ToroCase(
         "full",
-        "af_toro_campbell_full.png",
+        "af_toro_taborda_full.png",
         r"Full Toro (NHPP + interface + $V_s$)",
         r"Full Toro",
         True,
@@ -220,7 +220,7 @@ def run_case(case: ToroCase, vs_mean: float, freq: np.ndarray) -> None:
     ax.grid(True, alpha=0.3)
     ax.legend(loc="lower right", fontsize=8)
 
-    tf_panel(axes[1], freq, af_q, med_q, p16_q, p84_q, af_base_q, r"Campbell $\xi_Q=1/(2Q)$", "#0072B2")
+    tf_panel(axes[1], freq, af_q, med_q, p16_q, p84_q, af_base_q, r"Taborda–Bielak $\xi_Q=1/(2Q)$", "#0072B2")
     tf_panel(
         axes[2],
         freq,
