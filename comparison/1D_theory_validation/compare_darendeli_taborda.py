@@ -11,7 +11,7 @@ Taborda–Bielak ξ_Q instead. This script quantifies the gap:
 
 Darendeli Dmin has no direct Vs dependence; it is driven by σ'm(z). Soil
 assumptions follow Dawadi et al. (2026): ρ = 2000 kg/m³, plus K0 and a water
-table (set below). Rock Dmin uses the same Darendeli expression at rock depth
+table (dry by default). Rock Dmin uses the same Darendeli expression at rock depth
 (PI = 0), as an extrapolation.
 """
 
@@ -40,10 +40,10 @@ SOBOL_CSV = ROOT.parent / "Response_Variability" / "rv_sobol_base_cases.csv"
 RHO = 2000.0  # kg/m³, Dawadi et al. (2026)
 G = 9.81
 GAMMA_W = 9.81  # kN/m³
-GWT = 5.0  # m, water-table depth (assumed)
+GWT = np.inf  # m, water-table depth (dry: no water table)
 K0 = 0.5  # at-rest coefficient (assumed)
 OCR = 1.0
-F_REF = 3.0  # Hz, Dawadi et al. (2026) Dmin reference frequency
+F_REF = 3.0  # Hz, Dmin reference frequency (Dawadi et al. 2026 used 3 Hz); --f-ref overrides
 PI_LIST = (0.0, 15.0, 30.0)
 PI_TF = 0.0  # PI used for the TF comparison
 DZ = 2.0  # m, sublayer thickness for depth-varying Dmin
@@ -69,7 +69,8 @@ def sigma_m_kpa(z: np.ndarray | float) -> np.ndarray:
     return sv_eff * (1.0 + 2.0 * K0) / 3.0
 
 
-def dmin_at(z, PI: float = PI_TF, freq: float = F_REF) -> np.ndarray:
+def dmin_at(z, PI: float = PI_TF, freq: float | None = None) -> np.ndarray:
+    freq = F_REF if freq is None else freq
     return compute_darendeli_dmin(sigma_m_kpa(z), PI=PI, OCR=OCR, freq=freq)
 
 
@@ -186,7 +187,7 @@ def run_hallal(mod) -> dict:
     dmin_soil = dmin_at(col["z_mid"])
     w = col["h"] / col["vs"]
     print(f"  soil tt-avg: xi_TB={100 * np.sum(w * xi_q_soil) / w.sum():.2f}%  "
-          f"Dmin(3Hz,PI=0)={100 * np.sum(w * dmin_soil) / w.sum():.2f}%  "
+          f"Dmin({F_REF:g}Hz,PI=0)={100 * np.sum(w * dmin_soil) / w.sum():.2f}%  "
           f"rock: xi_TB={100 * xi_tb(col['vs_rock']):.2f}%  Dmin={100 * float(dmin_at(col['z_rock'], PI=0.0)):.2f}%")
     for key, m in misfit.items():
         print(f"  ln-TF RMS misfit vs Hallal digitized [{key}]: {m:.3f}")
@@ -372,6 +373,13 @@ def fig_sobol(rows: list[dict]) -> Path:
 
 
 def main() -> None:
+    import argparse
+
+    global F_REF, OUT
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--f-ref", type=float, default=F_REF, help="Darendeli excitation frequency (Hz)")
+    F_REF = parser.parse_args().f_ref
+    OUT = OUT / f"f{F_REF:g}Hz"
     apply_style()
     OUT.mkdir(parents=True, exist_ok=True)
     print(f"Assumptions: rho={RHO:g}  GWT={GWT:g} m  K0={K0:g}  OCR={OCR:g}  f_ref={F_REF:g} Hz  PI_TF={PI_TF:g}")

@@ -21,3 +21,30 @@ def test_run_isolated_analysis_smoke(tmp_path):
     status = run_isolated_analysis(config, model_data, "smoke_run", output_dir=str(tmp_path))
     assert isinstance(status, str)
     assert status.startswith("No OpenSees") or status.startswith("Finished") or "Failed" in status
+
+
+def test_apply_damping_global_avg_base_override(monkeypatch):
+    """xi_soil_base / xi_rock_base replace ξ_Q and are scaled by dmin_multiplier."""
+    import seiskit.isolated_runner as runner
+    from seiskit.damping import compute_rayleigh_coefficients
+
+    calls = {}
+
+    class FakeOps:
+        @staticmethod
+        def region(tag, *args):
+            calls[tag] = args[-4:-2]
+
+    monkeypatch.setattr(runner, "ops", FakeOps)
+    config = AnalysisConfig(
+        Lx=5.0, Ly=10.0, hx=5.0, dmin_multiplier=4.0, xi_soil_base=0.008, xi_rock_base=0.005
+    )
+    vs = np.array([[1500.0], [200.0]])
+    mask = np.array([[True], [False]])
+    model_data = build_model_data(
+        config, vs, np.full_like(vs, 2000.0), np.full_like(vs, 0.3), bedrock_mask=mask
+    )
+    runner._apply_damping(config, model_data, [])
+    f1, f2 = config.damping_freqs
+    assert np.allclose(calls[1], compute_rayleigh_coefficients(0.032, f1, f2))
+    assert np.allclose(calls[2], compute_rayleigh_coefficients(0.020, f1, f2))

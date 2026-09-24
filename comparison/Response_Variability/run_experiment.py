@@ -37,6 +37,8 @@ from manifest import (
     case_tag,
     damping_method_for,
     dmin_multiplier_for,
+    dmult_base_damping,
+    dmult_dmin_freq,
     index_to_params,
     motion_frequency,
     pretell_column_indices,
@@ -458,6 +460,7 @@ def _analysis_config(
         else (active_lx_total() if bc_2d else grid_dz)
     )
     record_lateral = (10, 2.0) if bc_2d else None
+    xi_base = dmult_base_damping(p)
 
     # Large 2D NO-grid meshes (~1500×nz) need hours per 100-step batch; override via env.
     max_batch = float(os.getenv("RV_MAX_TIME_PER_BATCH", "28800"))  # 8 h default
@@ -481,6 +484,8 @@ def _analysis_config(
         damping_zeta=0.025,
         damping_method=damping_method_for(p),
         dmin_multiplier=dmin_multiplier_for(p),
+        xi_soil_base=xi_base[0] if xi_base else None,
+        xi_rock_base=xi_base[1] if xi_base else None,
         boundary_condition_type="2D" if bc_2d else "1D",
         record_center_nodes=True,
         center_node_y_positions=center_y,
@@ -541,6 +546,11 @@ def _write_h5(
             f.attrs["pretell_central_width_m"] = float(PRETELL_SAMPLE_WIDTH_M)
         if p.method == "hallal_dmin":
             f.attrs["dmin_multiplier"] = dmin_multiplier_for(p)
+            xi_soil_base, xi_rock_base = dmult_base_damping(p)
+            f.attrs["dmult_base"] = "darendeli_dmin"
+            f.attrs["dmult_dmin_freq"] = dmult_dmin_freq()
+            f.attrs["xi_soil_base"] = xi_soil_base
+            f.attrs["xi_rock_base"] = xi_rock_base
         grp = f.create_group("params")
         grp.attrs["sobol_id"] = p.sobol_id
         grp.attrs["Vs1"] = p.vs1

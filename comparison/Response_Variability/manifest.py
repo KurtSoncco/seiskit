@@ -391,6 +391,25 @@ def damping_method_for(p: CaseParams) -> str:
     return "global_avg"
 
 
+def dmult_dmin_freq() -> float:
+    """Darendeli excitation frequency (Hz) for the Dmult base; ``RV_DMULT_FREF`` overrides."""
+    return float(os.getenv("RV_DMULT_FREF", "3.0"))
+
+
+def dmult_base_damping(p: CaseParams) -> tuple[float, float] | None:
+    """Darendeli (2001) Dmin (soil, rock) base for ``hallal_dmin``; None for other arms.
+
+    Dmult was calibrated on Darendeli Dmin (Dawadi et al. 2026), so the multiplier
+    is applied to Dmin, not Taborda–Bielak ξ_Q. Dry column, PI=0, OCR=1, K0=0.5,
+    ρ=2000 kg/m³.
+    """
+    if p.method != "hallal_dmin":
+        return None
+    from seiskit.damping import compute_darendeli_column_dmin
+
+    return compute_darendeli_column_dmin(p.H, p.bedrock_thickness, freq=dmult_dmin_freq())
+
+
 def dmin_multiplier_for(p: CaseParams) -> float:
     """Hallal Approach 5: Dmult from Vs2/Vs1 contrast (clipped to [2, 10])."""
     from seiskit.profile_randomization import get_method

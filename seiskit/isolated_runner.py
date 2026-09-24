@@ -299,7 +299,10 @@ def _apply_damping(
             raise ValueError("No soil layer elements found for global average damping")
 
         Q_values_soil = [compute_quality_factor(elem.vs_value) for elem in soil_elements]
-        xi_soil_base = compute_average_damping_harmonic(Q_values_soil)
+        if config.xi_soil_base is not None:
+            xi_soil_base = float(config.xi_soil_base)
+        else:
+            xi_soil_base = compute_average_damping_harmonic(Q_values_soil)
         # Dmult (Tao & Rathje 2019): scale ξ on the whole column (soil + rock).
         dmin_mult = float(config.dmin_multiplier)
         xi_soil = xi_soil_base * dmin_mult
@@ -328,7 +331,10 @@ def _apply_damping(
             # Use bedrock Vs (typically 1500 m/s) for consistent damping
             bedrock_Vs = float(np.median([elem.vs_value for elem in bedrock_elements]))
             Q_bedrock = compute_quality_factor(bedrock_Vs)
-            xi_bedrock = compute_damping_from_Q(Q_bedrock) * dmin_mult
+            if config.xi_rock_base is not None:
+                xi_bedrock = float(config.xi_rock_base) * dmin_mult
+            else:
+                xi_bedrock = compute_damping_from_Q(Q_bedrock) * dmin_mult
             alphaM_bedrock, betaK_bedrock = compute_rayleigh_coefficients(
                 xi_bedrock, config.damping_freqs[0], config.damping_freqs[1]
             )

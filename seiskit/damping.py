@@ -168,6 +168,37 @@ def compute_darendeli_dmin(
     return dmin_pct / 100.0
 
 
+def compute_darendeli_column_dmin(
+    H: float,
+    bedrock_thickness: float,
+    *,
+    rho: float = 2000.0,
+    K0: float = 0.5,
+    PI: float = 0.0,
+    OCR: float = 1.0,
+    freq: float = 1.0,
+    dz: float = 0.5,
+) -> tuple[float, float]:
+    """Thickness-averaged Darendeli Dmin for a dry soil layer over bedrock.
+
+    sigma'm(z) = rho * g * z * (1 + 2 K0) / 3 (no water table), evaluated at
+    ``dz`` sublayer midpoints. Averaging by thickness matches ``global_avg``,
+    whose harmonic-mean Q is the arithmetic mean of xi over equal elements.
+    Rock uses the same expression over the bedrock thickness (extrapolation).
+
+    Returns:
+        (Dmin_soil, Dmin_rock) as damping ratios (fractions)
+    """
+
+    def _avg(z_top: float, thickness: float) -> float:
+        n = max(1, int(np.ceil(thickness / dz)))
+        z_mid = z_top + (np.arange(n) + 0.5) * (thickness / n)
+        sigma_m = rho * 9.81 * z_mid / 1000.0 * (1.0 + 2.0 * K0) / 3.0
+        return float(np.mean(compute_darendeli_dmin(sigma_m, PI=PI, OCR=OCR, freq=freq)))
+
+    return _avg(0.0, H), _avg(H, bedrock_thickness)
+
+
 def compute_average_damping_harmonic(Q_values: list[float]) -> float:
     """Calculate harmonic average damping from a list of Q values.
 

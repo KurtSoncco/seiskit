@@ -406,6 +406,8 @@ def get_damping_zeta_grid(
         if len(soil_Vs) > 0:
             Q_values_soil = [compute_quality_factor(vs) for vs in soil_Vs]
             avg_damping_soil = compute_average_damping_harmonic(Q_values_soil)
+            if config is not None and config.xi_soil_base is not None:
+                avg_damping_soil = float(config.xi_soil_base)
             dmin_mult = float(config.dmin_multiplier) if config is not None else 1.0
             zeta_grid[soil_mask] = avg_damping_soil * dmin_mult
         else:
@@ -414,6 +416,8 @@ def get_damping_zeta_grid(
             bedrock_Vs = float(np.median(Vs_extended[bedrock_mask]))
             Q_bedrock = compute_quality_factor(bedrock_Vs)
             xi_bedrock = compute_damping_from_Q(Q_bedrock)
+            if config is not None and config.xi_rock_base is not None:
+                xi_bedrock = float(config.xi_rock_base)
             zeta_grid[bedrock_mask] = xi_bedrock * dmin_mult
 
     elif damping_method in ("elemental_varying", "elemental_mass_only"):

@@ -60,6 +60,9 @@ class AnalysisConfig:
     damping_method: str = "global_avg"
     damping_f_target: float = 0.75
     dmin_multiplier: float = 1.0
+    # global_avg base ξ overrides (e.g. Darendeli Dmin for Dmult); None → Taborda–Bielak ξ_Q
+    xi_soil_base: Optional[float] = None
+    xi_rock_base: Optional[float] = None
 
     # Solver tolerances
     gravity_tolerance: float = 1.0e-4
