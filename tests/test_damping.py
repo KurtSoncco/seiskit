@@ -502,11 +502,15 @@ def test_compute_darendeli_dmin_trends():
 
 
 def test_compute_darendeli_column_dmin():
-    """Column averages: rock (deeper) < soil, and the 3 Hz / 1 Hz ratio is 1 + 0.2919 ln 3."""
+    """Per-layer mid-depth Dmin: rock (deeper) < soil, and the 3 Hz / 1 Hz ratio is 1 + 0.2919 ln 3."""
     from seiskit.damping import compute_darendeli_column_dmin
 
     soil_1, rock_1 = compute_darendeli_column_dmin(50.0, 10.0, freq=1.0)
     soil_3, rock_3 = compute_darendeli_column_dmin(50.0, 10.0, freq=3.0)
     assert 0.004 < rock_1 < soil_1 < 0.015
+    # One value per layer at mid-depth: soil at H/2, rock at H + t/2.
+    sigma = lambda z: 2000.0 * 9.81 * z / 1000.0 * (1.0 + 2.0 * 0.5) / 3.0  # noqa: E731
+    assert soil_1 == pytest.approx(compute_darendeli_dmin(sigma(25.0)))
+    assert rock_1 == pytest.approx(compute_darendeli_dmin(sigma(55.0)))
     assert soil_3 / soil_1 == pytest.approx(1.0 + 0.2919 * np.log(3.0))
     assert rock_3 / rock_1 == pytest.approx(1.0 + 0.2919 * np.log(3.0))

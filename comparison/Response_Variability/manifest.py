@@ -400,8 +400,8 @@ def dmult_base_damping(p: CaseParams) -> tuple[float, float] | None:
     """Darendeli (2001) Dmin (soil, rock) base for ``hallal_dmin``; None for other arms.
 
     Dmult was calibrated on Darendeli Dmin (Dawadi et al. 2026), so the multiplier
-    is applied to Dmin, not Taborda–Bielak ξ_Q. Dry column, PI=0, OCR=1, K0=0.5,
-    ρ=2000 kg/m³.
+    is applied to Dmin, not Taborda–Bielak ξ_Q. One Dmin per layer at its mid-depth;
+    dry column, PI=0, OCR=1, K0=0.5, ρ=2000 kg/m³.
     """
     if p.method != "hallal_dmin":
         return None

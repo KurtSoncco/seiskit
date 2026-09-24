@@ -9,7 +9,8 @@ Taborda–Bielak ξ_Q instead. This script quantifies the gap:
 3. 1D Thomson–Haskell TFs for four bases: ξ_Q, Dmult·ξ_Q, Dmin, Dmult·Dmin,
    plus the multiplier k on ξ_Q that reproduces the Dmult·Dmin f0 peak.
 
-Darendeli Dmin has no direct Vs dependence; it is driven by σ'm(z). Soil
+Darendeli Dmin has no direct Vs dependence; it is driven by σ'm, taken once per
+layer at its mid-depth (constant within a layer, like Vs). Soil
 assumptions follow Dawadi et al. (2026): ρ = 2000 kg/m³, plus K0 and a water
 table (dry by default). Rock Dmin uses the same Darendeli expression at rock depth
 (PI = 0), as an extrapolation.
@@ -75,10 +76,10 @@ def dmin_at(z, PI: float = PI_TF, freq: float | None = None) -> np.ndarray:
 
 
 def sublayer_mids(H: float) -> tuple[np.ndarray, np.ndarray]:
+    """Sublayer thicknesses and the depth where each takes Dmin (its layer's mid-depth)."""
     n = max(1, int(np.ceil(H / DZ)))
     h = np.full(n, H / n)
-    z_mid = (np.arange(n) + 0.5) * (H / n)
-    return h, z_mid
+    return h, np.full(n, 0.5 * H)
 
 
 def column_layers(
@@ -152,7 +153,7 @@ def hallal_column(mod) -> dict:
         z_top = z_bot - h
         h_all.append(np.full(n, h / n))
         vs_all.append(np.full(n, vs))
-        z_all.append(z_top + (np.arange(n) + 0.5) * (h / n))
+        z_all.append(np.full(n, z_top + 0.5 * h))  # Dmin at layer mid-depth
     h = np.concatenate(h_all)
     vs = np.concatenate(vs_all)
     z_mid = np.concatenate(z_all)
@@ -270,8 +271,8 @@ def fig_damping(rows: list[dict], hal: dict) -> Path:
         sc = ax.scatter(vs1, R, c=H, cmap="viridis", marker=mk, s=26, edgecolor="k", lw=0.3, label=f"PI={pi:.0f}")
     ax.axhline(1.0, color="0.4", lw=1)
     ax.set_xlabel(r"Soil $V_{s1}$ (m/s)")
-    ax.set_ylabel(r"$R = \xi_Q / \overline{D}_\mathrm{min}$ (soil)")
-    ax.set_title("(b) Sobol columns: ξ_Q / depth-avg Dmin", fontsize=10)
+    ax.set_ylabel(r"$R = \xi_Q / D_\mathrm{min}(H/2)$ (soil)")
+    ax.set_title("(b) Sobol columns: ξ_Q / Dmin at H/2", fontsize=10)
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=8)
     fig.colorbar(sc, ax=ax, label="H (m)")
@@ -282,10 +283,11 @@ def fig_damping(rows: list[dict], hal: dict) -> Path:
     xi_q = np.array([xi_tb(v) for v in col["vs"]])
     ax.step(100 * np.r_[xi_q, xi_q[-1]], z_edges, where="post", color=COLORS["tb"], lw=2, label=r"$\xi_Q$")
     for pi, ls in zip(PI_LIST, ("-", "--", ":")):
-        ax.plot(100 * dmin_at(col["z_mid"], PI=pi), col["z_mid"], color=COLORS["dar"], ls=ls, lw=1.5,
+        d = dmin_at(col["z_mid"], PI=pi)
+        ax.step(100 * np.r_[d, d[-1]], z_edges, where="post", color=COLORS["dar"], ls=ls, lw=1.5,
                 label=f"Dmin PI={pi:.0f}, {F_REF:g} Hz")
-    ax.plot(100 * dmin_at(col["z_mid"], PI=0.0, freq=1.0), col["z_mid"], color="0.5", lw=1.2,
-            label="Dmin PI=0, 1 Hz")
+    d = dmin_at(col["z_mid"], PI=0.0, freq=1.0)
+    ax.step(100 * np.r_[d, d[-1]], z_edges, where="post", color="0.5", lw=1.2, label="Dmin PI=0, 1 Hz")
     ax.invert_yaxis()
     ax.set_xlabel("Damping ratio (%)")
     ax.set_ylabel("Depth (m)")

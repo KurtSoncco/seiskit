@@ -1,5 +1,8 @@
 """Hallal-paper Dmin profile vs Darendeli (1 / 3 Hz) and Taborda–Bielak ξ_Q.
 
+All damping is constant per layer, taken at the layer mid-depth (thin lines in
+panel (a) show the continuous Darendeli curves for reference).
+
 Left: Dmin vs depth for the Hallal 5-layer column. Middle / right: 1D
 |AF_within| against the digitized Hallal TF, without and with Dmult.
 Reuses the column, TF and Darendeli helpers of ``compare_darendeli_taborda``.
@@ -98,9 +101,13 @@ def main() -> None:
     z_fine = np.linspace(1.0, 125.0, 300)
     ax.plot(HALLAL_DMIN[:, 0], HALLAL_DMIN[:, 1], "o", color=COLORS["hallal"], ms=7, zorder=5, label=labels["hallal"])
     ax.plot(100 * hallal_dmin_at(z_fine), z_fine, color=COLORS["hallal"], lw=1, ls=":", label="interp. (log–log)")
-    for key, f in (("dar1", 1.0), ("dar3", 3.0)):
-        ax.plot(100 * cmp.dmin_at(z_fine, freq=f), z_fine, color=COLORS[key], lw=1.8, label=labels[key])
     z_edges = np.concatenate([[0.0], np.cumsum(col["h"])])
+    for key, f in (("dar1", 1.0), ("dar3", 3.0)):
+        ax.plot(100 * cmp.dmin_at(z_fine, freq=f), z_fine, color=COLORS[key], lw=0.9, alpha=0.6)
+        ax.step(100 * np.r_[xi[key], xi[key][-1]], z_edges, where="post", color=COLORS[key], lw=1.8,
+                label=f"{labels[key]} (layer mid-depth)")
+    ax.step(100 * np.r_[xi["hallal"], xi["hallal"][-1]], z_edges, where="post", color=COLORS["hallal"],
+            lw=1.4, ls=(0, (4, 2)), label="Hallal at layer mid-depth")
     ax.step(100 * np.r_[xi["tb"], xi["tb"][-1]], z_edges, where="post", color=COLORS["tb"], lw=1.8, label=labels["tb"])
     ax.axhline(col["H"], color="0.5", lw=0.8, ls="--")
     ax.text(0.05, col["H"] - 1.5, "soil / rock", fontsize=8, color="0.4")
