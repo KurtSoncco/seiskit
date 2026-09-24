@@ -6,6 +6,7 @@ import pytest
 from seiskit.damping import (
     compute_average_damping_harmonic,
     compute_damping_from_Q,
+    compute_darendeli_dmin,
     compute_quality_factor,
     compute_rayleigh_coefficients,
     compute_rayleigh_mass_only,
@@ -479,3 +480,22 @@ def test_rayleigh_damping_only_applied_to_soil_elements():
     assert alphaM > 0
     assert betaK > 0
     assert len(interior_soil_element_tags) == 5  # Only soil elements
+
+
+def test_compute_darendeli_dmin_reference_values():
+    """Darendeli (2001) worked example in Dawadi et al. (2026)."""
+    assert compute_darendeli_dmin(20.0, PI=30, OCR=1.5, freq=1.0) == pytest.approx(0.0187, abs=5e-5)
+    assert compute_darendeli_dmin(20.0, PI=30, OCR=1.5, freq=3.0) == pytest.approx(0.0247, abs=5e-5)
+    # PI=0, OCR=1, 1 atm, 1 Hz reduces to the leading coefficient.
+    assert compute_darendeli_dmin(101.325) == pytest.approx(0.008005)
+
+
+def test_compute_darendeli_dmin_trends():
+    """Dmin decreases with confinement and increases with PI and frequency."""
+    sigma = np.array([10.0, 100.0, 1000.0])
+    d = compute_darendeli_dmin(sigma)
+    assert np.all(np.diff(d) < 0)
+    assert compute_darendeli_dmin(50.0, PI=30) > compute_darendeli_dmin(50.0, PI=0)
+    assert compute_darendeli_dmin(50.0, freq=3.0) > compute_darendeli_dmin(50.0, freq=1.0)
+    with pytest.raises(ValueError):
+        compute_darendeli_dmin(0.0)
