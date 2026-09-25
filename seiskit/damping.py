@@ -161,9 +161,7 @@ def compute_darendeli_dmin(
     if np.any(sigma_m_atm <= 0.0):
         raise ValueError("sigma_m_kpa must be positive")
     dmin_pct = (
-        (0.8005 + 0.0129 * PI * OCR**-0.1069)
-        * sigma_m_atm**-0.2889
-        * (1.0 + 0.2919 * np.log(freq))
+        (0.8005 + 0.0129 * PI * OCR**-0.1069) * sigma_m_atm**-0.2889 * (1.0 + 0.2919 * np.log(freq))
     )
     return dmin_pct / 100.0
 
