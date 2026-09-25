@@ -606,6 +606,20 @@ def run_case(index: int, *, force: bool = False) -> str:
     if h5_path.exists() and not force:
         print(f"[skip] {h5_path} exists")
         return "skipped"
+    if h5_path.exists() and os.getenv("RV_ALLOW_CASE_MISMATCH", "0") != "1":
+        # Index layouts changed over time (old 410 vs 401 entries per Sobol); never
+        # let --force replace a different case stored under the same index.
+        import h5py
+
+        with h5py.File(h5_path, "r") as f:
+            old_task = str(f.attrs.get("task_id", ""))
+        old_key = re.sub(r"_dmin\d+\.\d+$", "", old_task)
+        new_key = re.sub(r"_dmin\d+\.\d+$", "", case_tag(p))
+        if old_key != new_key:
+            raise RuntimeError(
+                f"{h5_path} holds {old_task!r}, not {case_tag(p)!r}; refusing to overwrite. "
+                "Write to another RV_H5_DIR or set RV_ALLOW_CASE_MISMATCH=1."
+            )
 
     out_dir = _output_dir(p)
     out_dir.mkdir(parents=True, exist_ok=True)
