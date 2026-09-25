@@ -27,7 +27,6 @@ from seiskit.profile_randomization import (
 )
 
 
-
 def _cfg(**kw) -> ProfileRandomizationConfig:
     defaults = dict(
         vs_mean=230.0,
@@ -234,7 +233,9 @@ def test_method_generate_profiles_vs_only():
     p3 = dmult.generate_profile(cfg, np.random.default_rng(1))
     p3b = dmult.generate_profile(cfg, np.random.default_rng(99))
     assert isinstance(p1, RandomizedProfile)
+    assert isinstance(p2, RandomizedProfile)
     assert p1.n_soil_samples == 30
+    assert p2.n_soil_samples == 30
     assert np.allclose(p3.vs_depth, p3b.vs_depth)  # deterministic
     assert dmult.damping_multiplier(230.0, 1500.0) == dmult_from_vs_contrast(230.0, 1500.0)
     assert dmult.uses_elemental_damping() is False

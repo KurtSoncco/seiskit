@@ -19,7 +19,7 @@ from typing import ClassVar
 
 import numpy as np
 
-from .common import build_base_case_profile, _nominal_soil_samples
+from .common import _nominal_soil_samples, build_base_case_profile
 from .models import ProfileRandomizationConfig, RandomizedProfile
 from .passeri import generate_passeri_profile
 from .toro import generate_toro_profile
