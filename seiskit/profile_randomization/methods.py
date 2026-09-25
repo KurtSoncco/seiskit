@@ -49,11 +49,11 @@ def dmult_from_vs_contrast(vs1: float, vs2: float) -> float:
     ``vs2`` is the bedrock :math:`V_s` and ``vs1`` the time-averaged soil
     :math:`V_s` above it (Dawadi et al. 2026 definition of velocity contrast).
 
-    Currently applied as :math:`\\xi = D_\\mathrm{mult}\\,\\xi_{Q}`
-    (Taborda–Bielak) under OpenSees ``global_avg`` damping on the **whole**
-    column (soil harmonic-mean and rock :math:`\\xi_Q` both scaled), with one
-    base :math:`V_s` profile and no randomization. Note the published
-    calibration base is Darendeli (2001) :math:`D_\\mathrm{min}` at 3 Hz.
+    Applied as :math:`\\xi = D_\\mathrm{mult}\\,D_\\mathrm{min}` where
+    :math:`D_\\mathrm{min}` is Darendeli (2001) small-strain damping at 3 Hz
+    (soil and rock, each at layer mid-depth), under OpenSees ``global_avg``
+    on the whole column, with one base :math:`V_s` profile and no
+    randomization.
 
     References
     ----------
@@ -190,7 +190,7 @@ class DmultMethod(SpatialVariabilityMethod):
         return dmult_from_vs_contrast(vs1, vs2)
 
     def uses_elemental_damping(self) -> bool:
-        """Dmult scales whole-profile ``global_avg`` ξ (soil + rock)."""
+        """Dmult scales whole-profile ``global_avg`` Darendeli Dmin (soil + rock)."""
         return False
 
 

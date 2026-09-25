@@ -1,8 +1,8 @@
 """Darendeli (2001) Dmin vs Taborda–Bielak ξ_Q, and the effect on Dmult TFs.
 
-Dmult (Tao & Rathje 2019; contrast fit from Dawadi et al. 2026) was calibrated
-on Darendeli Dmin at f = 3 Hz. The Response_Variability arm applies it to
-Taborda–Bielak ξ_Q instead. This script quantifies the gap:
+Dmult (Tao & Rathje 2019; contrast fit from Dawadi et al. 2026) is calibrated
+on Darendeli Dmin at f = 3 Hz; production arms now use that base. This script
+quantifies the gap versus the older Taborda–Bielak ξ_Q base:
 
 1. Dmin and ξ_Q vs Vs, and R = ξ_Q / Dmin for the 64 Sobol columns.
 2. Depth profiles for the Hallal 5-layer column.
@@ -315,9 +315,9 @@ def fig_hallal_tf(hal: dict) -> Path:
     dm = hal["dm"]
     labels = {
         "tb": r"$\xi_Q$",
-        "tb_dm": rf"{dm:.1f}$\,\xi_Q$ (current)",
+        "tb_dm": rf"{dm:.1f}$\,\xi_Q$ (legacy)",
         "dar": r"$D_\mathrm{min}$",
-        "dar_dm": rf"{dm:.1f}$\,D_\mathrm{{min}}$ (Tao & Rathje / Dawadi)",
+        "dar_dm": rf"{dm:.1f}$\,D_\mathrm{{min}}$ (current)",
     }
     for key, af in hal["curves"].items():
         ls = "--" if key.endswith("_dm") else "-"
@@ -349,7 +349,7 @@ def fig_sobol(rows: list[dict]) -> Path:
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel(r"$A_{f_0}$, Dmult$\cdot D_\mathrm{min}$")
-    ax.set_ylabel(r"$A_{f_0}$, Dmult$\cdot\xi_Q$ (current)")
+    ax.set_ylabel(r"$A_{f_0}$, Dmult$\cdot\xi_Q$ (legacy)")
     ax.set_title("(a) f0 peak amplitude", fontsize=10)
     ax.grid(True, which="both", alpha=0.3)
 
