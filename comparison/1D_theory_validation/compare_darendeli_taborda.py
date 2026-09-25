@@ -95,6 +95,13 @@ def column_layers(
     return layers, RockHalfspace(float(vs_rock), RHO, float(mult * xi_rock))
 
 
+def depth_steps(values: np.ndarray, z_edges: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(x, z) polyline of a per-layer constant profile vs depth."""
+    x = np.repeat(np.asarray(values, dtype=float), 2)
+    z = np.column_stack([z_edges[:-1], z_edges[1:]]).ravel()
+    return x, z
+
+
 def af_within(freq: np.ndarray, layers: list[Layer]) -> np.ndarray:
     """Vectorized |AF_within| (same propagator as ``layered_transfer_function``)."""
     omega = 2.0 * np.pi * np.asarray(freq, dtype=float)
@@ -281,13 +288,13 @@ def fig_damping(rows: list[dict], hal: dict) -> Path:
     col = hal["col"]
     z_edges = np.concatenate([[0.0], np.cumsum(col["h"])])
     xi_q = np.array([xi_tb(v) for v in col["vs"]])
-    ax.step(100 * np.r_[xi_q, xi_q[-1]], z_edges, where="post", color=COLORS["tb"], lw=2, label=r"$\xi_Q$")
+    ax.plot(*depth_steps(100 * xi_q, z_edges), color=COLORS["tb"], lw=2, label=r"$\xi_Q$")
     for pi, ls in zip(PI_LIST, ("-", "--", ":")):
         d = dmin_at(col["z_mid"], PI=pi)
-        ax.step(100 * np.r_[d, d[-1]], z_edges, where="post", color=COLORS["dar"], ls=ls, lw=1.5,
+        ax.plot(*depth_steps(100 * d, z_edges), color=COLORS["dar"], ls=ls, lw=1.5,
                 label=f"Dmin PI={pi:.0f}, {F_REF:g} Hz")
     d = dmin_at(col["z_mid"], PI=0.0, freq=1.0)
-    ax.step(100 * np.r_[d, d[-1]], z_edges, where="post", color="0.5", lw=1.2, label="Dmin PI=0, 1 Hz")
+    ax.plot(*depth_steps(100 * d, z_edges), color="0.5", lw=1.2, label="Dmin PI=0, 1 Hz")
     ax.invert_yaxis()
     ax.set_xlabel("Damping ratio (%)")
     ax.set_ylabel("Depth (m)")

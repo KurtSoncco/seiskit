@@ -1,7 +1,9 @@
 """Hallal-paper Dmin profile vs Darendeli (1 / 3 Hz) and Taborda–Bielak ξ_Q.
 
-All damping is constant per layer, taken at the layer mid-depth (thin lines in
-panel (a) show the continuous Darendeli curves for reference).
+The Hallal Dmin is a step profile: each digitized point is the bottom of a
+layer. The column uses Hallal's layering (layer 1 split at 2.5 m; boundaries
+snapped to the tabulated ones). Darendeli and ξ_Q are constant per layer, at
+the layer mid-depth (thin lines in panel (a): continuous Darendeli curves).
 
 Left: Dmin vs depth for the Hallal 5-layer column. Middle / right: 1D
 |AF_within| against the digitized Hallal TF, without and with Dmult.
@@ -26,7 +28,7 @@ from seiskit.theory.layered_1d_tf import Layer
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "results" / "darendeli_taborda"
 
-# Digitized Dmin (%) vs depth (m) from the Hallal paper (Hallal column).
+# Digitized Hallal-paper step profile: Dmin (%) and the depth (m) of each layer's bottom.
 HALLAL_DMIN = np.array(
     [
         [1.4989733059548258, 2.517482517482456],
@@ -55,14 +57,22 @@ def _load(name: str, fname: str):
     return mod
 
 
-def hallal_dmin_at(z: np.ndarray) -> np.ndarray:
-    """Log–log interpolation of the digitized profile (power-law extrapolation at the ends)."""
-    x, zd = HALLAL_DMIN[:, 0] / 100.0, HALLAL_DMIN[:, 1]
-    b, la = np.polyfit(np.log(zd), np.log(x), 1)
-    z = np.asarray(z, dtype=float)
-    inner = np.exp(np.interp(np.log(z), np.log(zd), np.log(x)))
-    outer = np.exp(la) * z**b
-    return np.where((z < zd[0]) | (z > zd[-1]), outer, inner)
+SNAP_TOL = 1.0  # m, snap digitized boundaries to the tabulated layer boundaries
+
+
+def hallal_layers(table: np.ndarray) -> list[tuple[float, float, float, float]]:
+    """(z_top, z_bot, Vs, Dmin) per Hallal layer; the last row is the rock layer."""
+    z_tab = table[:, 1]
+    z_bot = []
+    for z in HALLAL_DMIN[:, 1]:
+        k = int(np.argmin(np.abs(z_tab - z)))
+        z_bot.append(float(z_tab[k]) if abs(z_tab[k] - z) < SNAP_TOL else float(z))
+    z_top = [0.0] + z_bot[:-1]
+    rows = []
+    for zt, zb, d in zip(z_top, z_bot, HALLAL_DMIN[:, 0] / 100.0):
+        k = min(int(np.searchsorted(z_tab, 0.5 * (zt + zb))), len(table) - 1)
+        rows.append((zt, zb, float(table[k, 3]), float(d)))
+    return rows
 
 
 def main() -> None:
@@ -70,15 +80,23 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     cmp = _load("compare_darendeli_taborda", "compare_darendeli_taborda.py")
     ext = _load("extracted_profile", "plot_extracted_profile.py")
-    hal = cmp.run_hallal(ext)
-    col, dm = hal["col"], hal["dm"]
+    rows = hallal_layers(ext.TABLE)
+    z_top = np.array([r[0] for r in rows])
+    z_bot = np.array([r[1] for r in rows])
+    vs = np.array([r[2] for r in rows])
+    h, z_mid = z_bot - z_top, 0.5 * (z_top + z_bot)
+    soil = slice(0, len(rows) - 1)  # last Hallal layer is rock (AF_within ignores it)
+    vs1 = float(np.sum(h[soil]) / np.sum(h[soil] / vs[soil]))
+    dm = cmp.dmult_from_vs_contrast(vs1, float(ext.TABLE[-1, 3]))
     freq = cmp.FREQ
+    raw = np.loadtxt(ext.HALLAL_RAW, delimiter=",", skiprows=1)
+    f_h, a_h = ext.clean_digitized_tf(raw[:, 0], raw[:, 1])
 
     xi = {
-        "hallal": hallal_dmin_at(col["z_mid"]),
-        "dar1": cmp.dmin_at(col["z_mid"], freq=1.0),
-        "dar3": cmp.dmin_at(col["z_mid"], freq=3.0),
-        "tb": np.array([cmp.xi_tb(v) for v in col["vs"]]),
+        "hallal": np.array([r[3] for r in rows]),
+        "dar1": cmp.dmin_at(z_mid, freq=1.0),
+        "dar3": cmp.dmin_at(z_mid, freq=3.0),
+        "tb": np.array([cmp.xi_tb(v) for v in vs]),
     }
     labels = {
         "hallal": r"Hallal paper $D_\mathrm{min}$",
@@ -86,31 +104,36 @@ def main() -> None:
         "dar3": r"Darendeli, 3 Hz",
         "tb": r"Taborda–Bielak $\xi_Q$",
     }
+    print(f"Vs1_tt={vs1:.1f}  Dmult={dm:.2f}")
+    print(f"{'layer (m)':>14} {'Vs':>6} {'Hallal':>7} {'Dar1Hz':>7} {'Dar3Hz':>7} {'xi_TB':>6}")
+    for k in range(len(rows)):
+        print(f"{z_top[k]:6.1f}-{z_bot[k]:6.1f} {vs[k]:6.0f} " + " ".join(
+            f"{100 * xi[key][k]:7.3f}" for key in ("hallal", "dar1", "dar3", "tb")))
 
-    band = (hal["f_h"] > 0.5) & (hal["f_h"] < 10.0)
+    band = (f_h > 0.5) & (f_h < 10.0)
 
     def tf_and_misfit(x: np.ndarray, mult: float) -> tuple[np.ndarray, float]:
-        layers = [Layer(float(h), float(v), cmp.RHO, float(mult * xx)) for h, v, xx in zip(col["h"], col["vs"], x)]
+        layers = [Layer(float(hh), float(v), cmp.RHO, float(mult * xx)) for hh, v, xx in zip(h[soil], vs[soil], x[soil])]
         af = cmp.af_within(freq, layers)
-        af_i = np.exp(np.interp(np.log(hal["f_h"][band]), np.log(freq), np.log(af)))
-        return af, float(np.sqrt(np.mean((np.log(af_i) - np.log(hal["a_h"][band])) ** 2)))
+        af_i = np.exp(np.interp(np.log(f_h[band]), np.log(freq), np.log(af)))
+        return af, float(np.sqrt(np.mean((np.log(af_i) - np.log(a_h[band])) ** 2)))
 
     fig, axes = plt.subplots(1, 3, figsize=(17, 5.6), constrained_layout=True, gridspec_kw={"width_ratios": [0.7, 1, 1]})
 
     ax = axes[0]
-    z_fine = np.linspace(1.0, 125.0, 300)
-    ax.plot(HALLAL_DMIN[:, 0], HALLAL_DMIN[:, 1], "o", color=COLORS["hallal"], ms=7, zorder=5, label=labels["hallal"])
-    ax.plot(100 * hallal_dmin_at(z_fine), z_fine, color=COLORS["hallal"], lw=1, ls=":", label="interp. (log–log)")
-    z_edges = np.concatenate([[0.0], np.cumsum(col["h"])])
+    z_fine = np.linspace(0.5, 125.0, 300)
+    z_edges = np.r_[z_top, z_bot[-1]]
     for key, f in (("dar1", 1.0), ("dar3", 3.0)):
-        ax.plot(100 * cmp.dmin_at(z_fine, freq=f), z_fine, color=COLORS[key], lw=0.9, alpha=0.6)
-        ax.step(100 * np.r_[xi[key], xi[key][-1]], z_edges, where="post", color=COLORS[key], lw=1.8,
-                label=f"{labels[key]} (layer mid-depth)")
-    ax.step(100 * np.r_[xi["hallal"], xi["hallal"][-1]], z_edges, where="post", color=COLORS["hallal"],
-            lw=1.4, ls=(0, (4, 2)), label="Hallal at layer mid-depth")
-    ax.step(100 * np.r_[xi["tb"], xi["tb"][-1]], z_edges, where="post", color=COLORS["tb"], lw=1.8, label=labels["tb"])
-    ax.axhline(col["H"], color="0.5", lw=0.8, ls="--")
-    ax.text(0.05, col["H"] - 1.5, "soil / rock", fontsize=8, color="0.4")
+        ax.plot(100 * cmp.dmin_at(z_fine, freq=f), z_fine, color=COLORS[key], lw=0.9, alpha=0.5)
+    for key in ("dar1", "dar3", "tb"):
+        ax.plot(*cmp.depth_steps(100 * xi[key], z_edges), color=COLORS[key], lw=1.8,
+                label=labels[key] + (" (layer mid-depth)" if key != "tb" else ""))
+    ax.plot(*cmp.depth_steps(100 * xi["hallal"], z_edges), color=COLORS["hallal"],
+            lw=2.2, ls=(0, (4, 2)), zorder=6, label=labels["hallal"] + " (step)")
+    ax.plot(HALLAL_DMIN[:, 0], HALLAL_DMIN[:, 1], "o", color=COLORS["hallal"], ms=6, zorder=7,
+            label="digitized (layer bottoms)")
+    ax.axhline(z_top[-1], color="0.5", lw=0.8, ls="--")
+    ax.text(3.2, z_top[-1] - 1.5, "soil / rock", fontsize=8, color="0.4")
     ax.invert_yaxis()
     ax.set_xlim(0, 5)
     ax.set_xlabel("Damping ratio (%)")
@@ -123,8 +146,8 @@ def main() -> None:
         (axes[1], 1.0, "(b) Base damping (no Dmult)"),
         (axes[2], dm, f"(c) Dmult × base  (Dmult = {dm:.1f})"),
     ):
-        ax.plot(hal["raw"][:, 0], hal["raw"][:, 1], ".", color="0.82", ms=2.3, alpha=0.5)
-        ax.loglog(hal["f_h"], hal["a_h"], color="0.35", lw=2.6, alpha=0.6, label="Hallal TF (digitized)")
+        ax.plot(raw[:, 0], raw[:, 1], ".", color="0.82", ms=2.3, alpha=0.5)
+        ax.loglog(f_h, a_h, color="0.35", lw=2.6, alpha=0.6, label="Hallal TF (digitized)")
         for key in ("hallal", "dar1", "dar3", "tb"):
             af, mis = tf_and_misfit(xi[key], mult)
             ls, lw, zo = ((0, (4, 2)), 2.2, 6) if key == "hallal" else ("-", 1.4, 4)
