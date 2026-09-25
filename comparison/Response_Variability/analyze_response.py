@@ -12,6 +12,7 @@ Usage (from comparison/Response_Variability):
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,13 @@ from scipy.interpolate import interp1d
 from seiskit.gof import anderson_frequency_domain, log_residual_bias
 from seiskit.intensity_measures import sigma_ln
 
+DMULT_REF_FREQ = 3.0  # Hz; production Dmult arm keeps the id ``hallal_dmin``
+
+
+def dmult_arm(freq: float) -> str:
+    """Method id for a Dmult run by its Darendeli frequency (other than 3 Hz → own arm)."""
+    return "hallal_dmin" if freq == DMULT_REF_FREQ else f"hallal_dmin_{freq:g}hz"
+
 
 def _load_h5(path: Path) -> dict:
     import h5py
@@ -28,6 +36,11 @@ def _load_h5(path: Path) -> dict:
     with h5py.File(path, "r") as f:
         params = f["params"]
         method = f.attrs.get("method", "")
+        if method == "hallal_dmin":
+            if "dmult_dmin_freq" in f.attrs:
+                method = dmult_arm(float(f.attrs["dmult_dmin_freq"]))
+            else:  # pre-Darendeli fixed-Dmin sweep (old 410-per-Sobol layout)
+                method = "hallal_dmin_legacy"
         motion_id = f.attrs.get("motion_id", "")
         pga = float(f["ims"].attrs.get("PGA_surface", 0.0))
         periods = f["ims"]["Sa_periods"][:]
@@ -65,9 +78,11 @@ def _load_h5(path: Path) -> dict:
     return out
 
 
-def collect_rows(h5_dir: Path) -> pd.DataFrame:
+def collect_rows(h5_dir: Path, extra_dirs: Sequence[Path] = ()) -> pd.DataFrame:
+    """Load ``run_*.h5`` from ``h5_dir`` plus any ``extra_dirs`` (e.g. Dmult 1 Hz)."""
     rows = []
-    for path in sorted(h5_dir.glob("run_*.h5")):
+    paths = [p for d in (h5_dir, *extra_dirs) for p in sorted(Path(d).glob("run_*.h5"))]
+    for path in paths:
         try:
             idx = int(path.stem.split("_")[1])
         except (IndexError, ValueError):
@@ -558,9 +573,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--h5-dir", type=Path, default=Path("results/h5"))
     parser.add_argument("--out-dir", type=Path, default=Path("results/analysis"))
+    parser.add_argument(
+        "--extra-h5-dir", type=Path, action="append", default=[],
+        help="Additional H5 dir (repeatable), e.g. results/h5_dmult_1hz",
+    )
     args = parser.parse_args()
 
-    df = collect_rows(args.h5_dir)
+    df = collect_rows(args.h5_dir, args.extra_h5_dir)
     print(f"Loaded {len(df)} HDF5 files from {args.h5_dir}")
     if df.empty:
         print("No data to analyze.")
