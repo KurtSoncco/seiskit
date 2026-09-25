@@ -37,10 +37,7 @@ def _load_h5(path: Path) -> dict:
         params = f["params"]
         method = f.attrs.get("method", "")
         if method == "hallal_dmin":
-            if "dmult_dmin_freq" in f.attrs:
-                method = dmult_arm(float(f.attrs["dmult_dmin_freq"]))
-            else:  # pre-Darendeli fixed-Dmin sweep (old 410-per-Sobol layout)
-                method = "hallal_dmin_legacy"
+            method = dmult_arm(float(f.attrs["dmult_dmin_freq"]))
         motion_id = f.attrs.get("motion_id", "")
         pga = float(f["ims"].attrs.get("PGA_surface", 0.0))
         periods = f["ims"]["Sa_periods"][:]
