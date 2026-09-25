@@ -86,8 +86,8 @@ def main() -> None:
     freq = np.logspace(np.log10(0.2), np.log10(12.0), 700)
     base = build_base_case_profile(cfg)
     n_soil = max(1, int(round(t.H_SOIL / t.DZ)))
-    af_base_q = t.tf_profile(base, n_soil, t.DZ, freq, t.XI_SCALE_Q)
-    af_base_d = t.tf_profile(base, n_soil, t.DZ, freq, t.XI_SCALE_DMIN)
+    af_base_q = t.tf_profile(base, n_soil, t.DZ, freq, t.BASE_Q)
+    af_base_d = t.tf_profile(base, n_soil, t.DZ, freq, t.BASE_DMIN)
 
     r_q = np.empty(N_REAL)
     r_d = np.empty(N_REAL)
@@ -97,27 +97,27 @@ def main() -> None:
         prof = generate_toro_profile(cfg, rng)
         ns = int(prof.n_soil_samples)
         vs1[k] = float(prof.vs_depth[0])
-        af_q = t.tf_profile(prof.vs_depth, ns, t.DZ, freq, t.XI_SCALE_Q)
-        af_d = t.tf_profile(prof.vs_depth, ns, t.DZ, freq, t.XI_SCALE_DMIN)
+        af_q = t.tf_profile(prof.vs_depth, ns, t.DZ, freq, t.BASE_Q)
+        af_d = t.tf_profile(prof.vs_depth, ns, t.DZ, freq, t.BASE_DMIN)
         r_q[k] = pearson_ln(af_q, af_base_q)
         r_d[k] = pearson_ln(af_d, af_base_d)
 
     print(f"Toro Vs-only vs 1D base  n={N_REAL}  σ_ln Vs=CoV={t.SIGMA_LN_VS:.2f}  H={t.H_SOIL} m")
     summarize("ξ_Q", r_q)
-    summarize("0.25 ξ_Q", r_d)
+    summarize("Darendeli Dmin", r_d)
     csv_path = OUT / "toro_vs_1d_pearson.csv"
     np.savetxt(
         csv_path,
         np.column_stack([np.arange(N_REAL), vs1, r_q, r_d]),
         delimiter=",",
-        header="seed,vs1,r_xiQ,r_0p25xiQ",
+        header="seed,vs1,r_xiQ,r_dmin",
         comments="",
     )
     print(csv_path)
 
     fig, axes = plt.subplots(1, 2, figsize=(10.2, 4.4), constrained_layout=True, sharey=True)
     hist_panel(axes[0], r_q, "#0072B2", r"Taborda–Bielak $\xi_Q$")
-    hist_panel(axes[1], r_d, "#D55E00", r"$0.25\,\xi_Q$")
+    hist_panel(axes[1], r_d, "#D55E00", r"Darendeli $D_{\min}$")
     fig.suptitle(
         r"Pearson $r$: Toro $V_s$-only TF vs 1D base  (fixed $H$, no NHPP)",
         fontsize=11,

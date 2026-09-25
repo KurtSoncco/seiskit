@@ -1,4 +1,4 @@
-"""Passeri tts-only (fixed H, no NHPP): Taborda–Bielak vs 0.25 ξ_Q, plus Pearson box plot."""
+"""Passeri tts-only (fixed H, no NHPP): Taborda–Bielak ξ_Q vs Darendeli Dmin (3 Hz), plus Pearson box plot."""
 
 from __future__ import annotations
 
@@ -83,8 +83,8 @@ def main() -> None:
     freq = np.logspace(np.log10(0.2), np.log10(12.0), 700)
     base = build_base_case_profile(cfg)
     n_soil = max(1, int(round(t.H_SOIL / t.DZ)))
-    af_base_q = t.tf_profile(base, n_soil, t.DZ, freq, t.XI_SCALE_Q)
-    af_base_d = t.tf_profile(base, n_soil, t.DZ, freq, t.XI_SCALE_DMIN)
+    af_base_q = t.tf_profile(base, n_soil, t.DZ, freq, t.BASE_Q)
+    af_base_d = t.tf_profile(base, n_soil, t.DZ, freq, t.BASE_DMIN)
 
     n = N_PEARSON
     af_q = np.empty((n, len(freq)))
@@ -104,8 +104,8 @@ def main() -> None:
         tts[k] = float(prof.interface_depth) / vs1[k]
         n_layers.append(len({round(float(v), 3) for v in prof.vs_depth[:ns]}))
         interfaces.append(float(prof.interface_depth))
-        af_q[k] = t.tf_profile(prof.vs_depth, ns, t.DZ, freq, t.XI_SCALE_Q)
-        af_d[k] = t.tf_profile(prof.vs_depth, ns, t.DZ, freq, t.XI_SCALE_DMIN)
+        af_q[k] = t.tf_profile(prof.vs_depth, ns, t.DZ, freq, t.BASE_Q)
+        af_d[k] = t.tf_profile(prof.vs_depth, ns, t.DZ, freq, t.BASE_DMIN)
 
     print(
         f"Passeri tts-only  n_swarm={N_SWARM}  n_pearson={N_PEARSON}  "
@@ -123,14 +123,14 @@ def main() -> None:
     print(
         f"  A1 ξ_Q     p50={np.median(peaks_q):.1f}  "
         f"p16–p84={np.percentile(peaks_q,16):.1f}–{np.percentile(peaks_q,84):.1f}\n"
-        f"  A1 0.25ξ_Q p50={np.median(peaks_d):.1f}  "
+        f"  A1 Dmin    p50={np.median(peaks_d):.1f}  "
         f"p16–p84={np.percentile(peaks_d,16):.1f}–{np.percentile(peaks_d,84):.1f}"
     )
 
     r_q = np.array([pearson_ln(af_q[k], af_base_q) for k in range(n)])
     r_d = np.array([pearson_ln(af_d[k], af_base_d) for k in range(n)])
     summarize("ξ_Q", r_q)
-    summarize("0.25 ξ_Q", r_d)
+    summarize("Darendeli Dmin", r_d)
     csv_path = OUT / "passeri_vs_1d_pearson.csv"
     np.savetxt(
         csv_path,
@@ -195,7 +195,7 @@ def main() -> None:
         p16_d,
         p84_d,
         af_base_d,
-        r"$0.25\,\xi_Q$  (Fig. 6 $D_{\min}$)",
+        r"Darendeli $D_{\min}$ (3 Hz)",
         "#D55E00",
     )
     fig.suptitle(
@@ -215,7 +215,7 @@ def main() -> None:
     data = [r_q[np.isfinite(r_q)], r_d[np.isfinite(r_d)]]
     bp = ax.boxplot(
         data,
-        tick_labels=[r"Taborda–Bielak $\xi_Q$", r"$0.25\,\xi_Q$"],
+        tick_labels=[r"Taborda–Bielak $\xi_Q$", r"Darendeli $D_{\min}$"],
         patch_artist=True,
         widths=0.55,
         medianprops=dict(color="0.15", lw=1.6),

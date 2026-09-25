@@ -612,10 +612,13 @@ def run_case(index: int, *, force: bool = False) -> str:
         import h5py
 
         with h5py.File(h5_path, "r") as f:
+            stored = (
+                str(f.attrs.get("method", "")),
+                int(f["params"].attrs.get("sobol_id", -1)),
+                int(f["params"].attrs.get("seed", -1)),
+            )
             old_task = str(f.attrs.get("task_id", ""))
-        old_key = re.sub(r"_dmin\d+\.\d+$", "", old_task)
-        new_key = re.sub(r"_dmin\d+\.\d+$", "", case_tag(p))
-        if old_key != new_key:
+        if stored != (p.method, p.sobol_id, p.seed):
             raise RuntimeError(
                 f"{h5_path} holds {old_task!r}, not {case_tag(p)!r}; refusing to overwrite. "
                 "Write to another RV_H5_DIR or set RV_ALLOW_CASE_MISMATCH=1."

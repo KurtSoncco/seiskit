@@ -1,4 +1,4 @@
-"""Three Toro ensembles: Vs-only, Vs+H, and full (NHPP+H+Vs). Taborda–Bielak vs 0.25 ξ_Q."""
+"""Three Toro ensembles: Vs-only, Vs+H, and full (NHPP+H+Vs). Taborda–Bielak ξ_Q vs Darendeli Dmin (3 Hz)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from seiskit.damping import compute_damping_from_Q, compute_quality_factor
+from seiskit.damping import compute_damping_from_Q, compute_darendeli_dmin, compute_quality_factor
 from seiskit.plot_config import apply_style
 from seiskit.profile_randomization import (
     ProfileRandomizationConfig,
@@ -32,8 +32,9 @@ DZ = 0.5
 N_REAL = 80
 COV = 0.20
 SIGMA_LN_VS = COV
-XI_SCALE_Q = 1.0
-XI_SCALE_DMIN = 0.25
+BASE_Q = "xi_q"  # Taborda–Bielak ξ_Q(Vs)
+BASE_DMIN = "dmin"  # Darendeli (2001) Dmin, per layer at mid-depth
+DMIN_FREQ = 3.0  # Hz
 SEED0 = 101
 
 
@@ -81,11 +82,21 @@ def travel_time_vs() -> float:
     return float(np.sum(h) / np.sum(h / vs))
 
 
-def xi_of_vs(vs: float, scale: float) -> float:
-    return float(scale * compute_damping_from_Q(compute_quality_factor(float(vs))))
+def xi_of_vs(vs: float) -> float:
+    return float(compute_damping_from_Q(compute_quality_factor(float(vs))))
 
 
-def vs_depth_to_layers(vs_depth: np.ndarray, n_soil: int, dz: float, xi_scale: float):
+def dmin_at(z: float, rho: float) -> float:
+    """Darendeli Dmin (PI=0, OCR=1, dry, K0=0.5) at depth ``z``."""
+    sigma_m = rho * 9.81 * z / 1000.0 * (1.0 + 2.0 * 0.5) / 3.0
+    return float(compute_darendeli_dmin(sigma_m, freq=DMIN_FREQ))
+
+
+def layer_xi(base: str, vs: float, z_mid: float, rho: float) -> float:
+    return xi_of_vs(vs) if base == BASE_Q else dmin_at(z_mid, rho)
+
+
+def vs_depth_to_layers(vs_depth: np.ndarray, n_soil: int, dz: float, base: str):
     vs = np.asarray(vs_depth, dtype=float).ravel()
     n_soil = int(np.clip(n_soil, 1, len(vs) - 1))
     soil = vs[:n_soil]
@@ -97,14 +108,14 @@ def vs_depth_to_layers(vs_depth: np.ndarray, n_soil: int, dz: float, xi_scale: f
         while j < n_soil and abs(soil[j] - soil[i]) <= 1e-6 * max(1.0, abs(soil[i])):
             j += 1
         v = float(soil[i])
-        layers.append(Layer((j - i) * dz, v, RHO_SOIL, xi_of_vs(v, xi_scale)))
+        layers.append(Layer((j - i) * dz, v, RHO_SOIL, layer_xi(base, v, 0.5 * (i + j) * dz, RHO_SOIL)))
         i = j
-    rock = RockHalfspace(rock_vs, RHO_ROCK, xi_of_vs(rock_vs, xi_scale))
+    rock = RockHalfspace(rock_vs, RHO_ROCK, layer_xi(base, rock_vs, n_soil * dz + 0.5 * H_ROCK, RHO_ROCK))
     return layers, rock
 
 
-def tf_profile(vs_depth, n_soil, dz, freq, xi_scale):
-    layers, rock = vs_depth_to_layers(vs_depth, n_soil, dz, xi_scale)
+def tf_profile(vs_depth, n_soil, dz, freq, base):
+    layers, rock = vs_depth_to_layers(vs_depth, n_soil, dz, base)
     _, aw, _ = layered_transfer_function(freq, layers, rock)
     return aw
 
@@ -175,8 +186,8 @@ def run_case(case: ToroCase, vs_mean: float, freq: np.ndarray) -> None:
         soil_rows.append(prof.vs_depth[:n_soil].copy())
         n_layers.append(len({round(float(v), 3) for v in prof.vs_depth[:n_soil]}))
         interfaces.append(float(prof.interface_depth))
-        af_q[k] = tf_profile(prof.vs_depth, n_soil, DZ, freq, XI_SCALE_Q)
-        af_d[k] = tf_profile(prof.vs_depth, n_soil, DZ, freq, XI_SCALE_DMIN)
+        af_q[k] = tf_profile(prof.vs_depth, n_soil, DZ, freq, BASE_Q)
+        af_d[k] = tf_profile(prof.vs_depth, n_soil, DZ, freq, BASE_DMIN)
 
     stats = ensemble_stats(soil_rows, SIGMA_LN_VS)
     print(
@@ -191,7 +202,7 @@ def run_case(case: ToroCase, vs_mean: float, freq: np.ndarray) -> None:
     print(
         f"  A1 ξ_Q     p50={np.median(peaks_q):.1f}  "
         f"p16–p84={np.percentile(peaks_q,16):.1f}–{np.percentile(peaks_q,84):.1f}\n"
-        f"  A1 0.25ξ_Q p50={np.median(peaks_d):.1f}  "
+        f"  A1 Dmin    p50={np.median(peaks_d):.1f}  "
         f"p16–p84={np.percentile(peaks_d,16):.1f}–{np.percentile(peaks_d,84):.1f}"
     )
 
@@ -201,8 +212,8 @@ def run_case(case: ToroCase, vs_mean: float, freq: np.ndarray) -> None:
     p16_d, p84_d = np.percentile(af_d, [16, 84], axis=0)
     base = build_base_case_profile(cfg)
     n_soil_base = max(1, int(round(H_SOIL / DZ)))
-    af_base_q = tf_profile(base, n_soil_base, DZ, freq, XI_SCALE_Q)
-    af_base_d = tf_profile(base, n_soil_base, DZ, freq, XI_SCALE_DMIN)
+    af_base_q = tf_profile(base, n_soil_base, DZ, freq, BASE_Q)
+    af_base_d = tf_profile(base, n_soil_base, DZ, freq, BASE_DMIN)
 
     fig, axes = plt.subplots(1, 3, figsize=(13.4, 5.3), constrained_layout=True)
     ax = axes[0]
@@ -229,7 +240,7 @@ def run_case(case: ToroCase, vs_mean: float, freq: np.ndarray) -> None:
         p16_d,
         p84_d,
         af_base_d,
-        r"$0.25\,\xi_Q$  (Fig. 6 $D_{\min}$)",
+        r"Darendeli $D_{\min}$ (3 Hz)",
         "#D55E00",
     )
     fig.suptitle(
