@@ -65,7 +65,7 @@ BC_WIDTH = 100.0
 # Production seed / sample counts (per Sobol base case)
 # ---------------------------------------------------------------------------
 # hallal_vs / hallal_tts: 200 realizations each
-# hallal_dmin: one Dmult per Sobol column (Vs-contrast formula; no seed)
+# hallal_dmin: one Dmult per Sobol column (Vs-contrast formula; deterministic)
 # grf_2d / pretell / opensees_2d: 40 paired RF seeds each
 # pretell: 200 1D column samples per RF realization (full 500 m strip)
 N_HALLAL_SEEDS_FULL = 200
@@ -267,7 +267,7 @@ class CaseParams:
     method: MethodId
     motion_id: str
     seed: int
-    seed_kind: Literal["realization", "rf", "dmin_mult"]
+    seed_kind: Literal["realization", "rf", "deterministic"]
     rH: float = RH_FIXED
     aHV: float = AHV_FIXED
     bedrock_thickness: float = BEDROCK_DEPTH
@@ -333,7 +333,7 @@ def index_to_params(index: int) -> CaseParams:
             method="hallal_dmin",
             motion_id=MOTION_IDS[0],
             seed=1,
-            seed_kind="dmin_mult",
+            seed_kind="deterministic",
             dmin_multiplier=dmult_from_vs_contrast(base.vs1, base.vs2),
         )
 
@@ -379,7 +379,7 @@ def case_tag(p: CaseParams) -> str:
         f"CoV{p.cov:.2f}_Vs2{p.vs2:.0f}_{p.motion_id}_{p.seed_kind}{p.seed}"
     )
     if p.method == "hallal_dmin":
-        tag += f"_dmin{p.dmin_multiplier:.2f}"
+        tag += f"_dmult{p.dmin_multiplier:.2f}"
     return tag
 
 
@@ -391,8 +391,27 @@ def damping_method_for(p: CaseParams) -> str:
     return "global_avg"
 
 
+def dmult_dmin_freq() -> float:
+    """Darendeli excitation frequency (Hz) for the Dmult base; ``RV_DMULT_FREF`` overrides."""
+    return float(os.getenv("RV_DMULT_FREF", "3.0"))
+
+
+def dmult_base_damping(p: CaseParams) -> tuple[float, float] | None:
+    """Darendeli (2001) Dmin (soil, rock) base for ``hallal_dmin``; None for other arms.
+
+    Dmult was calibrated on Darendeli Dmin (Dawadi et al. 2026), so the multiplier
+    is applied to Dmin, not Taborda–Bielak ξ_Q. One Dmin per layer at its mid-depth;
+    dry column, PI=0, OCR=1, K0=0.5, ρ=2000 kg/m³.
+    """
+    if p.method != "hallal_dmin":
+        return None
+    from seiskit.damping import compute_darendeli_column_dmin
+
+    return compute_darendeli_column_dmin(p.H, p.bedrock_thickness, freq=dmult_dmin_freq())
+
+
 def dmin_multiplier_for(p: CaseParams) -> float:
-    """Hallal Approach 5: Dmult from Vs2/Vs1 contrast (clipped to [2, 10])."""
+    """Dmult from Vs2/Vs1 contrast (clipped to [2, 10]); 1.0 for non-Dmult arms."""
     from seiskit.profile_randomization import get_method
 
     if p.method not in HALLAL_METHODS:

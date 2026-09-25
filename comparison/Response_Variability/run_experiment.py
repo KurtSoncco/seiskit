@@ -37,6 +37,8 @@ from manifest import (
     case_tag,
     damping_method_for,
     dmin_multiplier_for,
+    dmult_base_damping,
+    dmult_dmin_freq,
     index_to_params,
     motion_frequency,
     pretell_column_indices,
@@ -458,6 +460,7 @@ def _analysis_config(
         else (active_lx_total() if bc_2d else grid_dz)
     )
     record_lateral = (10, 2.0) if bc_2d else None
+    xi_base = dmult_base_damping(p)
 
     # Large 2D NO-grid meshes (~1500×nz) need hours per 100-step batch; override via env.
     max_batch = float(os.getenv("RV_MAX_TIME_PER_BATCH", "28800"))  # 8 h default
@@ -481,6 +484,8 @@ def _analysis_config(
         damping_zeta=0.025,
         damping_method=damping_method_for(p),
         dmin_multiplier=dmin_multiplier_for(p),
+        xi_soil_base=xi_base[0] if xi_base else None,
+        xi_rock_base=xi_base[1] if xi_base else None,
         boundary_condition_type="2D" if bc_2d else "1D",
         record_center_nodes=True,
         center_node_y_positions=center_y,
@@ -541,6 +546,11 @@ def _write_h5(
             f.attrs["pretell_central_width_m"] = float(PRETELL_SAMPLE_WIDTH_M)
         if p.method == "hallal_dmin":
             f.attrs["dmin_multiplier"] = dmin_multiplier_for(p)
+            xi_soil_base, xi_rock_base = dmult_base_damping(p)
+            f.attrs["dmult_base"] = "darendeli_dmin"
+            f.attrs["dmult_dmin_freq"] = dmult_dmin_freq()
+            f.attrs["xi_soil_base"] = xi_soil_base
+            f.attrs["xi_rock_base"] = xi_rock_base
         grp = f.create_group("params")
         grp.attrs["sobol_id"] = p.sobol_id
         grp.attrs["Vs1"] = p.vs1
@@ -596,6 +606,23 @@ def run_case(index: int, *, force: bool = False) -> str:
     if h5_path.exists() and not force:
         print(f"[skip] {h5_path} exists")
         return "skipped"
+    if h5_path.exists() and os.getenv("RV_ALLOW_CASE_MISMATCH", "0") != "1":
+        # Index layouts changed over time (old 410 vs 401 entries per Sobol); never
+        # let --force replace a different case stored under the same index.
+        import h5py
+
+        with h5py.File(h5_path, "r") as f:
+            stored = (
+                str(f.attrs.get("method", "")),
+                int(f["params"].attrs.get("sobol_id", -1)),
+                int(f["params"].attrs.get("seed", -1)),
+            )
+            old_task = str(f.attrs.get("task_id", ""))
+        if stored != (p.method, p.sobol_id, p.seed):
+            raise RuntimeError(
+                f"{h5_path} holds {old_task!r}, not {case_tag(p)!r}; refusing to overwrite. "
+                "Write to another RV_H5_DIR or set RV_ALLOW_CASE_MISMATCH=1."
+            )
 
     out_dir = _output_dir(p)
     out_dir.mkdir(parents=True, exist_ok=True)

@@ -20,7 +20,6 @@ from analyze_response import (
 from manifest import (
     AHV_FIXED,
     BEDROCK_DEPTH,
-    METHODS,
     NO_NX_FULL,
     PRETELL_SAMPLE_WIDTH_M,
     RH_FIXED,
@@ -30,6 +29,9 @@ from manifest import (
     active_rf_bc_width,
     active_rf_lx_var,
     pretell_column_indices,
+)
+from manifest import (
+    METHODS as _MANIFEST_METHODS,
 )
 
 from seiskit.intensity_measures import sigma_ln
@@ -64,13 +66,17 @@ theoretical_f0 = _rv_run.theoretical_f0
 
 apply_style()
 
+# Analysis-only arm: Dmult on 1 Hz Darendeli Dmin (runs kept in a separate H5 dir).
+METHODS = [*_MANIFEST_METHODS, "hallal_dmin_1hz"]
+
 METHOD_LABELS = {
     "grf_2d": "2D GIFNO",
     "opensees_2d": "2D OpenSees",
     "pretell": "Pretell",
     "hallal_vs": "Toro's Vs",
     "hallal_tts": "Passeri tts",
-    "hallal_dmin": "Dmult (Hallal)",
+    "hallal_dmin": "Dmult (Dmin 3 Hz)",
+    "hallal_dmin_1hz": "Dmult (Dmin 1 Hz)",
 }
 
 # High-contrast method colors (Wong-inspired; OpenSees = black reference).
@@ -81,6 +87,7 @@ METHOD_COLORS = {
     "hallal_vs": "#009E73",  # green
     "hallal_tts": "#D55E00",  # vermillion
     "hallal_dmin": "#CC79A7",  # magenta
+    "hallal_dmin_1hz": "#56B4E9",  # sky blue
 }
 METHOD_LINESTYLES = {
     "opensees_2d": "-",
@@ -89,6 +96,7 @@ METHOD_LINESTYLES = {
     "hallal_vs": "--",
     "hallal_tts": ":",
     "hallal_dmin": (0, (3, 1, 1, 1)),
+    "hallal_dmin_1hz": (0, (1, 1)),
 }
 
 _SUMMARY_METHODS = (
@@ -97,6 +105,7 @@ _SUMMARY_METHODS = (
     "hallal_vs",
     "hallal_tts",
     "hallal_dmin",
+    "hallal_dmin_1hz",
 )
 
 DEFAULT_PANEL_SOBOL_IDS = (19, 37, 36, 10, 44)
@@ -1584,6 +1593,10 @@ def main() -> None:
         default=None,
         help="Comma-separated Sobol ids for profile/TF panels (default: 19,37,36,10,44)",
     )
+    parser.add_argument(
+        "--extra-h5-dir", type=Path, action="append", default=[],
+        help="Additional H5 dir (repeatable), e.g. results/h5_dmult_1hz",
+    )
     parser.add_argument("--motion", type=str, default="M1")
     parser.add_argument(
         "--summary-only",
@@ -1593,7 +1606,7 @@ def main() -> None:
     args = parser.parse_args()
     sobol_ids = _parse_sobol_ids(args.sobol_ids, args.sobol_id)
 
-    df = collect_rows(args.h5_dir)
+    df = collect_rows(args.h5_dir, args.extra_h5_dir)
     if df.empty:
         print("No data to plot.")
         return

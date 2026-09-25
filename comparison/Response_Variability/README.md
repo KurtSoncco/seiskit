@@ -6,7 +6,7 @@ Response-focused benchmark comparing randomization / damping protocols on **64 S
 |-----|--------|-------------|
 | `hallal_vs` | 1D Vs randomization | Toro (1995) Vs-only (σ_ln Vs = CoV; fixed H, no NHPP) |
 | `hallal_tts` | 1D travel-time randomization | Passeri tts-only (σ_ln tts = CoV; fixed H, no NHPP) |
-| `hallal_dmin` | Damping modification (Approach 5) | Base Vs + `Dmult = clip(-1.3·Vs2/Vs1 + 13.90, 2, 10)` on **whole-profile** `global_avg` ξ_Q (soil + rock; Hallal et al. 2022) |
+| `hallal_dmin` | Dmin multiplier (Tao & Rathje 2019) | Base Vs + `Dmult = clip(-1.3·Vs2/Vs1 + 13.90, 2, 10)` (fit to Dawadi et al. 2026 Fig. 9) × **Darendeli (2001) Dmin** on whole-profile `global_avg` (soil + rock, each at layer mid-depth; dry, PI=0, OCR=1, K0=0.5; `RV_DMULT_FREF` Hz, default 3) |
 | `grf_2d` | 2D GRF (GIFNO) | GIFNO-FDO-XT surrogate on neural-operator grid |
 | `pretell` | Pretell-style 1D ensemble | **1D OpenSees** geomean over **200** profiles across full **500 m** strip |
 | `opensees_2d` | 2D GRF (**baseline**) | Full-mesh **OpenSees 2D** on the same GRF / seeds |
@@ -103,10 +103,34 @@ chmod +x submit_local.sh
 ## Analysis
 
 ```bash
-python analyze_response.py --h5-dir results/h5 --out-dir results/analysis
-python plot_comparison.py --h5-dir results/h5 --out-dir results/figures \
-  --analysis-dir results/analysis --sobol-ids 19,37,36,10,44
+python analyze_response.py --h5-dir results/h5 \
+  --extra-h5-dir results/h5_dmult_3hz --extra-h5-dir results/h5_dmult_1hz \
+  --out-dir results/analysis
+python plot_comparison.py --h5-dir results/h5 \
+  --extra-h5-dir results/h5_dmult_3hz --extra-h5-dir results/h5_dmult_1hz \
+  --out-dir results/figures --analysis-dir results/analysis --sobol-ids 19,37,36,10,44
+python plot_dmult_arms.py   # Dmult 3 Hz / 1 Hz vs 2D OpenSees, against Vs2/Vs1
 ```
+
+### Index layout and Dmult outputs
+
+`results/h5` (July campaign) uses the **old 410-per-Sobol layout** (200 Vs + 200 tts +
+10 fixed-Dmin sweep slots, now removed); the current manifest uses **401** (one Dmult
+case). Indices are therefore not interchangeable. Dmult runs on the current layout live in their own dirs:
+
+| Dir | Arm id in analysis | Base damping |
+|-----|--------------------|--------------|
+| `results/h5_dmult_3hz` | `hallal_dmin` | Dmult × Darendeli Dmin @ 3 Hz (default) |
+| `results/h5_dmult_1hz` | `hallal_dmin_1hz` | Dmult × Darendeli Dmin @ 1 Hz (`RV_DMULT_FREF=1`) |
+
+```bash
+seq 0 63 | awk '{print $1*401+400}' | xargs -P 6 -I{} sh -c \
+  'RV_OUTDIR=results/dmult_3hz RV_H5_DIR=results/h5_dmult_3hz python run_experiment.py --index {} --force'
+```
+
+`run_case` refuses `--force` when the existing H5 holds a different case (method,
+Sobol id, seed); override with
+`RV_ALLOW_CASE_MISMATCH=1` only on purpose.
 
 Per-Sobol figures: `profile_tf_panel_sobolNN_M1.png` (top: Vs profiles a–c; bottom: full-width TF).  
 Cross-Sobol metrics: `tf_peak_*_all_sobol.png`, `tf_band_misfit_all_sobol.png`, `tf_error_vs_sobol_params.png` (ground truth: 2D OpenSees).
@@ -114,7 +138,7 @@ Cross-Sobol metrics: `tf_peak_*_all_sobol.png`, `tf_band_misfit_all_sobol.png`, 
 
 **Recommended split:** Stampede3 runs **Hallal + Pretell + `opensees_2d`**. Run **`grf_2d` locally** with GIFNO (no weights in git).
 
-After changing Pretell sampling / adding `opensees_2d`, **re-submit Stampede with `FORCE_RERUN=1`** for pretell (+ new ops2d). Hallal H5s remain index-compatible; local GIFNO `grf_2d` indices are unchanged.
+After changing Pretell sampling / adding `opensees_2d`, **re-submit Stampede with `FORCE_RERUN=1`** for pretell (+ new ops2d). Hallal H5 indices changed from 410 to 401 per Sobol (see *Index layout* above); local GIFNO `grf_2d` indices are unchanged.
 
 ```bash
 chmod +x submit_stampede3_opensees.sh

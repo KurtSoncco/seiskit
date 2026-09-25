@@ -158,7 +158,7 @@ METRIC_COLORS = {
     "f_ratio": TOL_MUTED["indigo"],
     "abs_TF_ratio": TOL_MUTED["teal"],
     "PGA_ratio": TOL_MUTED["wine"],
-    "PSA_ratio": TOL_MUTED["purple"],
+    "PSA_ratio": TOL_MUTED["rose"],
     "Ia_ratio": TOL_MUTED["olive"],
 }
 

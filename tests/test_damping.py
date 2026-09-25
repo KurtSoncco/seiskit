@@ -6,6 +6,7 @@ import pytest
 from seiskit.damping import (
     compute_average_damping_harmonic,
     compute_damping_from_Q,
+    compute_darendeli_dmin,
     compute_quality_factor,
     compute_rayleigh_coefficients,
     compute_rayleigh_mass_only,
@@ -479,3 +480,37 @@ def test_rayleigh_damping_only_applied_to_soil_elements():
     assert alphaM > 0
     assert betaK > 0
     assert len(interior_soil_element_tags) == 5  # Only soil elements
+
+
+def test_compute_darendeli_dmin_reference_values():
+    """Darendeli (2001) worked example in Dawadi et al. (2026)."""
+    assert compute_darendeli_dmin(20.0, PI=30, OCR=1.5, freq=1.0) == pytest.approx(0.0187, abs=5e-5)
+    assert compute_darendeli_dmin(20.0, PI=30, OCR=1.5, freq=3.0) == pytest.approx(0.0247, abs=5e-5)
+    # PI=0, OCR=1, 1 atm, 1 Hz reduces to the leading coefficient.
+    assert compute_darendeli_dmin(101.325) == pytest.approx(0.008005)
+
+
+def test_compute_darendeli_dmin_trends():
+    """Dmin decreases with confinement and increases with PI and frequency."""
+    sigma = np.array([10.0, 100.0, 1000.0])
+    d = compute_darendeli_dmin(sigma)
+    assert np.all(np.diff(d) < 0)
+    assert compute_darendeli_dmin(50.0, PI=30) > compute_darendeli_dmin(50.0, PI=0)
+    assert compute_darendeli_dmin(50.0, freq=3.0) > compute_darendeli_dmin(50.0, freq=1.0)
+    with pytest.raises(ValueError):
+        compute_darendeli_dmin(0.0)
+
+
+def test_compute_darendeli_column_dmin():
+    """Per-layer mid-depth Dmin: rock (deeper) < soil, and the 3 Hz / 1 Hz ratio is 1 + 0.2919 ln 3."""
+    from seiskit.damping import compute_darendeli_column_dmin
+
+    soil_1, rock_1 = compute_darendeli_column_dmin(50.0, 10.0, freq=1.0)
+    soil_3, rock_3 = compute_darendeli_column_dmin(50.0, 10.0, freq=3.0)
+    assert 0.004 < rock_1 < soil_1 < 0.015
+    # One value per layer at mid-depth: soil at H/2, rock at H + t/2.
+    sigma = lambda z: 2000.0 * 9.81 * z / 1000.0 * (1.0 + 2.0 * 0.5) / 3.0  # noqa: E731
+    assert soil_1 == pytest.approx(compute_darendeli_dmin(sigma(25.0)))
+    assert rock_1 == pytest.approx(compute_darendeli_dmin(sigma(55.0)))
+    assert soil_3 / soil_1 == pytest.approx(1.0 + 0.2919 * np.log(3.0))
+    assert rock_3 / rock_1 == pytest.approx(1.0 + 0.2919 * np.log(3.0))

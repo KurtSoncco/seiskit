@@ -48,6 +48,7 @@ ml = [
     "bambi",
     "arviz",
     "pymc>=5.10",
+    "salib>=1.5.2",
 ]
 notebook = [
     "ipykernel",

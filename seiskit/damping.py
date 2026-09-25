@@ -100,9 +100,8 @@ def compute_rayleigh_mass_only(zeta: float, f_target: float) -> tuple[float, flo
 
 def compute_quality_factor(Vs: float) -> float:
     """Calculate quality factor Q from shear wave velocity.
-    Model 2 by Campbell (2009)
 
-    Uses Taborda (2013) empirical relationship for soil materials.
+    Taborda and Bielak (2013) Q(Vs) polynomial, with Vs converted to km/s.
 
     Args:
         Vs: Shear wave velocity in m/s
@@ -133,6 +132,64 @@ def compute_damping_from_Q(Q: float) -> float:
         Damping ratio xi
     """
     return 1.0 / (2.0 * Q)
+
+
+def compute_darendeli_dmin(
+    sigma_m_kpa: float,
+    PI: float = 0.0,
+    OCR: float = 1.0,
+    freq: float = 1.0,
+) -> float:
+    """Calculate small-strain damping ratio Dmin from Darendeli (2001).
+
+    Dmin(%) = (0.8005 + 0.0129 * PI * OCR^-0.1069) * sigma_m^-0.2889
+              * (1 + 0.2919 * ln(freq)),  with sigma_m in atm.
+
+    Dmin depends on confinement, plasticity, stress history and excitation
+    frequency; it has no direct Vs dependence.
+
+    Args:
+        sigma_m_kpa: Mean effective confining stress in kPa
+        PI: Plasticity index (%)
+        OCR: Overconsolidation ratio
+        freq: Excitation frequency in Hz
+
+    Returns:
+        Damping ratio Dmin (fraction, not percent)
+    """
+    sigma_m_atm = np.asarray(sigma_m_kpa, dtype=float) / 101.325
+    if np.any(sigma_m_atm <= 0.0):
+        raise ValueError("sigma_m_kpa must be positive")
+    dmin_pct = (
+        (0.8005 + 0.0129 * PI * OCR**-0.1069) * sigma_m_atm**-0.2889 * (1.0 + 0.2919 * np.log(freq))
+    )
+    return dmin_pct / 100.0
+
+
+def compute_darendeli_column_dmin(
+    H: float,
+    bedrock_thickness: float,
+    *,
+    rho: float = 2000.0,
+    K0: float = 0.5,
+    PI: float = 0.0,
+    OCR: float = 1.0,
+    freq: float = 1.0,
+) -> tuple[float, float]:
+    """Darendeli Dmin for a dry soil layer over bedrock, one value per layer.
+
+    Each layer takes Dmin at its mid-depth, with
+    sigma'm(z) = rho * g * z * (1 + 2 K0) / 3 (no water table), so damping is
+    constant within a layer like its Vs. Rock uses the same expression at the
+    bedrock mid-depth (extrapolation).
+
+    Returns:
+        (Dmin_soil, Dmin_rock) as damping ratios (fractions)
+    """
+    z_mid = np.array([0.5 * H, H + 0.5 * bedrock_thickness])
+    sigma_m = rho * 9.81 * z_mid / 1000.0 * (1.0 + 2.0 * K0) / 3.0
+    d_soil, d_rock = compute_darendeli_dmin(sigma_m, PI=PI, OCR=OCR, freq=freq)
+    return float(d_soil), float(d_rock)
 
 
 def compute_average_damping_harmonic(Q_values: list[float]) -> float:
