@@ -1,7 +1,7 @@
 # Hallal Toro / Passeri / Dmult / Pretell vs neural-operator 2-layer 2D
 
 Compares Hallal-style 1D randomization / damping proxies **and** Pretell-style
-1D column sampling (Campbell \(Q\)–\(V_s\)) to the **two-layer** Sobol OpenSees
+1D column sampling (Taborda–Bielak \(Q\)–\(V_s\)) to the **two-layer** Sobol OpenSees
 2D campaign on Box (not the 243-cell statistical-analysis factorial; not
 three-layer / dipping).
 
@@ -18,8 +18,8 @@ three-layer / dipping).
 |-----|-------------|
 | Toro | Vs-only, fixed H, σ_ln = CoV, N=200 → geomean ± σ_ln |
 | Passeri | tts-only, fixed H, σ_ln = CoV, N=200 → geomean ± σ_ln |
-| Dmult | Base column; whole-profile \(0.25\,\xi_Q\) × clip(-1.3·Vs2/Vs1+13.90, 2, 10) |
-| Pretell | 200 evenly spaced columns on the 500 m strip; Thomson–Haskell `AF_within` with **elemental** Campbell ξ_Q = 1/(2Q(Vs)); saves geomean, p16, p84, σ_ln |
+| Dmult | Base column; Darendeli (2001) Dmin at 3 Hz (soil and rock, each at layer mid-depth) × clip(-1.3·Vs2/Vs1+13.90, 2, 10) (Tao & Rathje 2019; Dawadi et al. 2026) |
+| Pretell | 200 evenly spaced columns on the 500 m strip; Thomson–Haskell `AF_within` with **elemental** Taborda–Bielak ξ_Q = 1/(2Q(Vs)); saves geomean, p16, p84, σ_ln |
 
 Pearson: `corr(ln|TF|_method, ln|TF|_2D_center)` on 0.1–10 Hz (1000 pts).
 
@@ -32,7 +32,7 @@ HALLAL_N_REAL=4 python run_comparison.py --smoke
 # full Hallal arms (joblib; uses all cores or HALLAL_N_JOBS / SLURM_CPUS_PER_TASK)
 python run_comparison.py
 
-# Pretell (Campbell Q–Vs on strip columns; default N=200)
+# Pretell (Taborda–Bielak Q–Vs on strip columns; default N=200)
 HALLAL_N_JOBS=16 PRETELL_N_SAMPLES=200 python add_pretell.py
 
 # figures (4×3 panels + Pearson boxplot)

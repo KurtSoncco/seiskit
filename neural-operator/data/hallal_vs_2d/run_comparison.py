@@ -50,6 +50,7 @@ from sobol import (  # noqa: E402
 )
 from seiskit.damping import (  # noqa: E402
     compute_damping_from_Q,
+    compute_darendeli_column_dmin,
     compute_quality_factor,
 )
 from seiskit.profile_randomization import (  # noqa: E402
@@ -81,8 +82,9 @@ BEDROCK_THICKNESS = 10.0
 DZ = 1.0
 N_REAL_DEFAULT = 200
 EPS = 1e-12
-# Dmult scales small-strain damping 0.25 ξ_Q, not the full Campbell ξ_Q.
-DMULT_XI_SCALE = 0.25
+# Dmult (Tao & Rathje 2019) multiplies Darendeli (2001) Dmin, the base its
+# contrast fit (Dawadi et al. 2026) was calibrated on; one value per layer.
+DMULT_DMIN_FREQ = 3.0  # Hz
 
 METHODS = ("toro", "passeri")
 
@@ -179,8 +181,9 @@ def unique_samples(manifest: list[ManifestEntry]) -> list[ManifestEntry]:
 # ---------------------------------------------------------------------------
 # Haskell TF for Hallal arms
 # ---------------------------------------------------------------------------
-def xi_of_vs(vs: float, scale: float = 1.0) -> float:
-    return float(scale * compute_damping_from_Q(compute_quality_factor(float(vs))))
+def xi_of_vs(vs: float) -> float:
+    """Taborda–Bielak ξ_Q = 1 / (2 Q(Vs))."""
+    return float(compute_damping_from_Q(compute_quality_factor(float(vs))))
 
 
 def two_layer_af(
@@ -188,12 +191,9 @@ def two_layer_af(
     vs1: float,
     H: float,
     vs2: float,
-    *,
-    soil_scale: float = 1.0,
-    rock_scale: float = 1.0,
 ) -> np.ndarray:
-    layers = [Layer(float(H), float(vs1), RHO, xi_of_vs(vs1, soil_scale))]
-    rock = RockHalfspace(float(vs2), RHO, xi_of_vs(vs2, rock_scale))
+    layers = [Layer(float(H), float(vs1), RHO, xi_of_vs(vs1))]
+    rock = RockHalfspace(float(vs2), RHO, xi_of_vs(vs2))
     _, aw, _ = layered_transfer_function(freq, layers, rock)
     return np.asarray(aw, dtype=np.float64)
 
@@ -236,18 +236,15 @@ def ensemble_geomean_sigma(
 
 
 def dmult_tf(entry: ManifestEntry, freq: np.ndarray) -> tuple[np.ndarray, float]:
-    """Base-column |TF| with ξ = D_mult × 0.25 ξ_Q on soil and rock."""
+    """Base-column |TF| with ξ = D_mult × Darendeli Dmin on soil and rock."""
     dmult = dmult_from_vs_contrast(entry.Vs1, entry.Vs2)
-    scale = dmult * DMULT_XI_SCALE
-    af = two_layer_af(
-        freq,
-        entry.Vs1,
-        entry.H_discretized,
-        entry.Vs2,
-        soil_scale=scale,
-        rock_scale=scale,
+    d_soil, d_rock = compute_darendeli_column_dmin(
+        entry.H_discretized, BEDROCK_THICKNESS, rho=RHO, freq=DMULT_DMIN_FREQ
     )
-    return af, float(dmult)
+    layers = [Layer(float(entry.H_discretized), float(entry.Vs1), RHO, dmult * d_soil)]
+    rock = RockHalfspace(float(entry.Vs2), RHO, dmult * d_rock)
+    _, af, _ = layered_transfer_function(freq, layers, rock)
+    return np.asarray(af, dtype=np.float64), float(dmult)
 
 
 def _run_one_sample_ensembles(
@@ -417,7 +414,8 @@ def run(
             f.attrs["rho"] = RHO
             f.attrs["dz"] = DZ
             f.attrs["bedrock_thickness"] = BEDROCK_THICKNESS
-            f.attrs["dmult_xi_scale"] = DMULT_XI_SCALE
+            f.attrs["dmult_base"] = "darendeli_dmin"
+            f.attrs["dmult_dmin_freq"] = DMULT_DMIN_FREQ
         print(f"[ensembles] wrote {ens_path} in {time.time() - t1:.1f}s")
 
     # Map sample_id → row in ensemble arrays

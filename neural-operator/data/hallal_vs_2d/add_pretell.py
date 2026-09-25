@@ -1,11 +1,11 @@
-"""Pretell 1D column ensemble with Campbell Q–Vs damping vs NO 2D center TF.
+"""Pretell 1D column ensemble with Taborda–Bielak Q–Vs damping vs NO 2D center TF.
 
 For each of the 7680 two-layer OpenSees runs:
 
 1. Load ``Vs_realization_2D`` from the H5
 2. Extract evenly spaced 1D columns across the 500 m variability strip
    (Pretell-style; same indexing as ``comparison/Response_Variability``)
-3. Thomson–Haskell ``AF_within`` with **elemental** Campbell
+3. Thomson–Haskell ``AF_within`` with **elemental** Taborda–Bielak
    :math:`\\xi_Q = 1/(2Q(V_s))` on merged soil layers + rock halfspace
 4. Geomean, empirical p16/p84, and :math:`\\sigma_{\\ln}` over columns
 5. Pearson :math:`r(\\ln|TF|_{\\mathrm{Pretell}},\\ln|TF|_{2D,\\mathrm{center}})`
@@ -270,7 +270,7 @@ def _open_ckpt(
     f.create_dataset("columns", data=cols.astype(np.int32))
     f.attrs["n_samples"] = n_samp
     f.attrs["layer_rel_tol"] = LAYER_REL_TOL
-    f.attrs["damping"] = "campbell_elemental_Q_Vs"
+    f.attrs["damping"] = "taborda_bielak_elemental_Q_Vs"
     f.attrs["approach"] = "pretell_strip_columns"
     f.attrs["stats"] = "geomean,p16,p84,sigma_ln"
     f.flush()

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Resume Pretell Campbell Q–Vs ensembles on Savio (remaining indices only).
+# Resume Pretell Taborda–Bielak Q–Vs ensembles on Savio (remaining indices only).
 #
 # From this directory on Savio:
 #   mkdir -p logs
