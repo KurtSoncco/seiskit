@@ -100,18 +100,21 @@ def test_full_toro_soil_not_flat_when_nhpp_on():
     assert np.std(soil) > 1.0
 
 
-def test_simplified_uniform_soil_constant():
+def test_simplified_frozen_h_soil_varies_with_depth():
     cfg = _cfg(use_full_model=False, randomize_layer_thickness=False, randomize_bedrock_depth=False)
     vs = generate_vs_randomized_profile(cfg, np.random.default_rng(42))
-    assert np.allclose(vs[:30], vs[0])
+    assert vs[:30].std() > 1.0
     assert np.all(vs[30:] == 1500.0)
+    assert np.all(np.isfinite(vs))
+    assert np.all(vs > 0)
 
 
 def test_vs_ensemble_cov_simplified():
-    cfg = _cfg(use_full_model=False, randomize_bedrock_depth=False)
+    cfg = _cfg(use_full_model=False, randomize_bedrock_depth=False, randomize_layer_thickness=False)
     rng = np.random.default_rng(42)
     profiles = [generate_vs_randomized_profile(cfg, rng)[:30] for _ in range(400)]
-    assert 0.09 < _ensemble_cov(profiles) < 0.22
+    assert 0.08 < _ensemble_cov(profiles) < 0.35
+    assert not np.allclose(profiles[0], profiles[1])
 
 
 def test_profile_to_opensees_auto_interface():
@@ -240,3 +243,54 @@ def test_method_generate_profiles_vs_only():
     assert dmult.damping_multiplier(230.0, 1500.0) == dmult_from_vs_contrast(230.0, 1500.0)
     assert dmult.uses_elemental_damping() is False
     assert toro.damping_multiplier(230.0, 1500.0) == 1.0
+
+
+def test_toro_sigma_ln_spid_taper():
+    from seiskit.profile_randomization import toro_sigma_ln_vs
+
+    cfg = _cfg()
+    assert float(toro_sigma_ln_vs(0.0, cfg)) == pytest.approx(0.25)
+    assert float(toro_sigma_ln_vs(15.0, cfg)) == pytest.approx(0.15)
+    assert float(toro_sigma_ln_vs(40.0, cfg)) == pytest.approx(0.15)
+    mid = float(toro_sigma_ln_vs(7.5, cfg))
+    assert 0.15 < mid < 0.25
+
+
+def test_toro_h0_not_rho0_in_depth_term():
+    depth = np.array([0.25, 0.75, 1.25, 2.0])
+    rho_h0 = toro_adjacent_correlation(depth, rho_0=0.99, delta=3.9, rho_200=0.98, b=0.344, h0=0.0)
+    rho_old = toro_adjacent_correlation(
+        depth, rho_0=0.99, delta=3.9, rho_200=0.98, b=0.344, h0=0.99
+    )
+    assert not np.allclose(rho_h0, rho_old)
+
+
+def test_frozen_h_full_matches_simplified():
+    kw = dict(
+        use_full_model=True,
+        randomize_layer_thickness=False,
+        randomize_bedrock_depth=False,
+        vary_bedrock_vs=False,
+    )
+    cfg_full = _cfg(**kw)
+    cfg_simp = _cfg(
+        use_full_model=False, randomize_layer_thickness=False, randomize_bedrock_depth=False
+    )
+    vs_full = generate_toro_profile(cfg_full, np.random.default_rng(42)).vs_depth
+    vs_simp = generate_vs_randomized_profile(cfg_simp, np.random.default_rng(42))
+    assert np.allclose(vs_full, vs_simp)
+
+
+def test_frozen_h_adjacent_ln_corr_high():
+    cfg = _cfg(
+        use_full_model=False,
+        randomize_layer_thickness=False,
+        randomize_bedrock_depth=False,
+        thickness=40.0,
+    )
+    rng = np.random.default_rng(0)
+    n_soil = int(round(cfg.thickness / cfg.dz))
+    stack = np.vstack([generate_vs_randomized_profile(cfg, rng)[:n_soil] for _ in range(200)])
+    ln = np.log(np.clip(stack, 1e-6, None))
+    corr = float(np.corrcoef(ln[:, 0], ln[:, 1])[0, 1])
+    assert corr > 0.7

@@ -5,7 +5,12 @@
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
-    "python.languageServer": "None",
+    "python.languageServer": "Default",
+    "python.analysis.extraPaths": [
+        "statistical_analysis/full_paper",
+        "statistical_analysis/full_paper/analysis/code",
+        "statistical_analysis/full_paper/analysis/code/chi_spatial"
+    ],
     "chat.tools.terminal.autoApprove": {
         "/home/kurt-/seiskit/.venv/bin/python": true
     }

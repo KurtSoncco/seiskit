@@ -69,21 +69,42 @@ def generate_nhpp_layer_thicknesses(
     )
 
 
+def _build_grid_soil_layers(
+    config: ProfileRandomizationConfig,
+    interface_depth: float,
+    vs_median_depth: np.ndarray | None = None,
+) -> list[_GeoLayer]:
+    """One Toro soil layer per ``dz`` sample (frozen thickness, Toro 2022 Sec. 4)."""
+    dz = float(config.dz)
+    n_soil = max(1, int(round(float(interface_depth) / dz)))
+    med = None if vs_median_depth is None else np.asarray(vs_median_depth, dtype=float).ravel()
+    layers: list[_GeoLayer] = []
+    for i in range(n_soil):
+        depth_bottom = (i + 1) * dz
+        depth_mid = (i + 0.5) * dz
+        if med is not None and i < len(med):
+            vs_med = float(med[i])
+        else:
+            vs_med = float(config.vs_mean)
+        layers.append(
+            _GeoLayer(
+                thickness=dz,
+                depth_mid=depth_mid,
+                depth_bottom=depth_bottom,
+                vs_median=vs_med,
+                is_bedrock=False,
+            )
+        )
+    return layers
+
+
 def _build_soil_layers_nhpp(
     config: ProfileRandomizationConfig,
     interface_depth: float,
     rng: np.random.Generator,
 ) -> list[_GeoLayer]:
     if not config.randomize_layer_thickness:
-        return [
-            _GeoLayer(
-                thickness=interface_depth,
-                depth_mid=interface_depth / 2.0,
-                depth_bottom=interface_depth,
-                vs_median=config.vs_mean,
-                is_bedrock=False,
-            )
-        ]
+        return _build_grid_soil_layers(config, interface_depth)
 
     min_t = max(config.min_layer_thickness, config.dz)
     thick, mids, bots = generate_nhpp_layer_thicknesses(

@@ -18,8 +18,11 @@ class ProfileRandomizationConfig:
     bedrock_thickness: float = 10.0
     # Randomization parameters
     sigma_ln_vs: float = 0.15
+    sigma_ln_vs_surface: float = 0.25
+    sigma_ln_vs_depth_m: float = 15.0
     sigma_ln_tts: float = 0.02
     clip_std: float = 2.0
+    toro_sigma_inflate: float = 1.16
     # Randomization options
     randomize_layer_thickness: bool = True
     randomize_bedrock_depth: bool = True
@@ -34,6 +37,7 @@ class ProfileRandomizationConfig:
     toro_delta: float = 3.9
     toro_rho_200: float = 0.98
     toro_b: float = 0.344
+    toro_h0: float = 0.0
     toro_bedrock_interface_rho: float = 1.0
     vary_bedrock_vs: bool = False
     passeri_bedrock_depth_vs_rho: float = 0.508

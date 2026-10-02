@@ -17,7 +17,7 @@ from .nhpp import (
     _sample_bedrock_vs,
     _sample_interface_depth,
 )
-from .toro import _finalize_profile, toro_adjacent_correlation
+from .toro import _ar1_standard_scores, _finalize_profile, toro_adjacent_correlation
 
 
 def _passeri_joint_bedrock_draw(
@@ -58,18 +58,6 @@ def _passeri_joint_bedrock_draw(
     return interface, bed_vs
 
 
-def _ar1_standard_scores(n: int, rho_adj: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    z = np.zeros(n, dtype=float)
-    eps = rng.standard_normal(n)
-    for i in range(n):
-        if i == 0:
-            z[i] = eps[i]
-        else:
-            rho_i = float(rho_adj[i - 1])
-            z[i] = rho_i * z[i - 1] + np.sqrt(max(1e-12, 1.0 - rho_i**2)) * eps[i]
-    return z
-
-
 def _passeri_tts_layer_vs(
     soil_layers: list[_GeoLayer],
     config: ProfileRandomizationConfig,
@@ -90,6 +78,7 @@ def _passeri_tts_layer_vs(
         delta=config.toro_delta,
         rho_200=config.toro_rho_200,
         b=config.toro_b,
+        h0=config.toro_h0,
     )
     rho = np.clip(rho + config.tts_rho_boost, 0.0, 0.99)
     z = _ar1_standard_scores(n, rho, rng)

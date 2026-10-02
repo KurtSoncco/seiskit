@@ -25,22 +25,14 @@ def toro_adjacent_correlation(
     delta: float,
     rho_200: float,
     b: float,
+    h0: float = 0.0,
     bedrock_interface: bool = False,
     bedrock_interface_rho: float = 1.0,
 ) -> np.ndarray:
-    """Adjacent-layer correlation (Toro 1995 eq. 2-4).
+    """Adjacent-layer correlation (Toro 1995 eq. 2-4 / Toro 2022 eqs. 6–8).
 
-    Args:
-        depth_mid (np.ndarray): The mid-depths of the layers.
-        rho_0 (float): The rho_0 parameter.
-        delta (float): The delta parameter.
-        rho_200 (float): The rho_200 parameter.
-        b (float): The b parameter.
-        bedrock_interface (bool): Whether the bedrock interface is present.
-        bedrock_interface_rho (float): The rho of the bedrock interface.
-
-    Returns:
-        np.ndarray: The adjacency correlation matrix.
+    ``rho_0`` and ``delta`` enter the thickness term; ``h0`` is the depth offset
+    in metres (Table 1 generic value is 0), not ``rho_0``.
     """
     mid = np.asarray(depth_mid, dtype=float)
     n = len(mid)
@@ -50,8 +42,9 @@ def toro_adjacent_correlation(
 
     t = np.diff(mid)
     d = 0.5 * (mid[:-1] + mid[1:])
+    h0 = float(h0)
 
-    corr_depth = rho_200 * np.power((d + rho_0) / (200.0 + rho_0), b)
+    corr_depth = rho_200 * np.power((d + h0) / (200.0 + h0), b)
     corr_depth = np.where(d > 200.0, rho_200, corr_depth)
     corr_thick = rho_0 * np.exp(-t / delta)
     corr = np.clip((1.0 - corr_depth) * corr_thick + corr_depth, 0.0, 0.99)
@@ -61,30 +54,30 @@ def toro_adjacent_correlation(
     return corr
 
 
-def _toro_covariance_matrix(sigma_ln: np.ndarray, corr_adj: np.ndarray) -> np.ndarray:
-    """Toro covariance matrix (Toro 1995 eq. 2-5).
+def _ar1_standard_scores(n: int, rho_adj: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Toro 2022 eq. 5: Z_i = rho Z_{i-1} + sqrt(1-rho^2) epsilon."""
+    z = np.zeros(int(n), dtype=float)
+    if n <= 0:
+        return z
+    eps = rng.standard_normal(int(n))
+    rho_adj = np.asarray(rho_adj, dtype=float).ravel()
+    z[0] = eps[0]
+    for i in range(1, int(n)):
+        rho_i = float(rho_adj[min(i - 1, max(0, len(rho_adj) - 1))])
+        rho_i = float(np.clip(rho_i, -0.99, 0.99))
+        z[i] = rho_i * z[i - 1] + np.sqrt(max(1e-12, 1.0 - rho_i**2)) * eps[i]
+    return z
 
-    Args:
-        sigma_ln (np.ndarray): The log standard deviations of the layers.
-        corr_adj (np.ndarray): The adjacency correlation matrix.
 
-    Returns:
-        np.ndarray: The covariance matrix.
-    """
-    # Compute the covariance matrix
-    n = len(sigma_ln)
-    std = np.asarray(sigma_ln, dtype=float)
-    var = std**2
-    mat = np.diag(var)
-    n_pair = min(len(corr_adj), n - 1)
-    for i in range(n_pair):
-        rho = float(np.clip(corr_adj[i], -0.99, 0.99))
-        cov = rho * std[i] * std[i + 1]
-        mat[i, i + 1] = cov
-        mat[i + 1, i] = cov
-    eigval, eigvec = np.linalg.eigh(mat)
-    eigval = np.clip(eigval, 1e-12, None)
-    return eigvec @ np.diag(eigval) @ eigvec.T
+def toro_sigma_ln_vs(depth_m: np.ndarray | float, config: ProfileRandomizationConfig) -> np.ndarray:
+    """SPID-style σ_ln V(z): surface value tapering to ``sigma_ln_vs`` by ``sigma_ln_vs_depth_m``."""
+    z = np.asarray(depth_m, dtype=float)
+    z1 = max(float(config.sigma_ln_vs_depth_m), 1e-12)
+    s0 = float(config.sigma_ln_vs_surface)
+    s1 = float(config.sigma_ln_vs)
+    t = np.clip(z / z1, 0.0, 1.0)
+    out = s0 + (s1 - s0) * t
+    return np.asarray(out, dtype=float)
 
 
 def _toro_draw_layer_vs(
@@ -93,31 +86,56 @@ def _toro_draw_layer_vs(
     rng: np.random.Generator,
     *,
     randomize_bedrock: bool,
+    reject_profile: bool = False,
+    rho: float | None = None,
+    max_reject: int = 2000,
 ) -> np.ndarray:
+    """AR(1) lognormal Vs (Toro 2022 eq. 4–5) with 1.16 σ inflation and |Z|≤2.
+
+    Grid / frozen-H draws truncate each Z_i. Coarse NHPP draws (``reject_profile``)
+    redraw the whole profile if any |Z_i| exceeds ``clip_std``.
+    """
+    n = len(layers)
     ln_median = np.log(np.clip([layer.vs_median for layer in layers], 1e-6, None))
-    sigma = np.array(
-        [
-            config.sigma_ln_bedrock_vs if layer.is_bedrock else config.sigma_ln_vs
-            for layer in layers
-        ],
-        dtype=float,
-    )
-    mids = np.array([layer.depth_mid for layer in layers])
+    mids = np.array([layer.depth_mid for layer in layers], dtype=float)
+    sigma = np.empty(n, dtype=float)
+    for i, layer in enumerate(layers):
+        if layer.is_bedrock:
+            sigma[i] = float(config.sigma_ln_bedrock_vs) if randomize_bedrock else 0.0
+        else:
+            sigma[i] = float(toro_sigma_ln_vs(layer.depth_mid, config).reshape(()))
     has_bedrock = any(layer.is_bedrock for layer in layers)
-    corr = toro_adjacent_correlation(
-        mids,
-        rho_0=config.toro_rho_0,
-        delta=config.toro_delta,
-        rho_200=config.toro_rho_200,
-        b=config.toro_b,
-        bedrock_interface=has_bedrock and not randomize_bedrock,
-        bedrock_interface_rho=config.toro_bedrock_interface_rho,
-    )
-    cov = _toro_covariance_matrix(sigma, corr)
-    ln_draw = rng.multivariate_normal(ln_median, cov)
-    lo = ln_median - config.clip_std * sigma
-    hi = ln_median + config.clip_std * sigma
-    vs = np.exp(np.clip(ln_draw, lo, hi))
+    if rho is not None:
+        corr = np.full(max(1, n - 1), float(np.clip(rho, 0.0, 0.99)))
+    else:
+        corr = toro_adjacent_correlation(
+            mids,
+            rho_0=config.toro_rho_0,
+            delta=config.toro_delta,
+            rho_200=config.toro_rho_200,
+            b=config.toro_b,
+            h0=config.toro_h0,
+            bedrock_interface=has_bedrock and not randomize_bedrock,
+            bedrock_interface_rho=config.toro_bedrock_interface_rho,
+        )
+    clip = float(config.clip_std)
+    inflate = float(config.toro_sigma_inflate)
+
+    def _draw_z(rng_i: np.random.Generator) -> np.ndarray:
+        return _ar1_standard_scores(n, corr, rng_i)
+
+    if reject_profile and n > 0:
+        z = _draw_z(rng)
+        tries = 1
+        while np.any(np.abs(z) >= clip) and tries < int(max_reject):
+            z = _draw_z(rng)
+            tries += 1
+        if np.any(np.abs(z) >= clip):
+            z = np.clip(z, -clip, clip)
+    else:
+        z = np.clip(_draw_z(rng), -clip, clip)
+
+    vs = np.exp(ln_median + inflate * sigma * z)
     if has_bedrock and not randomize_bedrock:
         for i, layer in enumerate(layers):
             if layer.is_bedrock:
@@ -148,20 +166,22 @@ def generate_toro_profile(
     config: ProfileRandomizationConfig,
     rng: np.random.Generator,
 ) -> RandomizedProfile:
-    """Full Toro: NHPP thicknesses -> bedrock depth -> correlated Vs.
+    """Full Toro: optional NHPP thicknesses -> bedrock depth -> AR(1) Vs.
 
-    Args:
-        config (ProfileRandomizationConfig): The configuration for the profile randomization.
-        rng (np.random.Generator): The random number generator.
-
-    Returns:
-        RandomizedProfile: The randomized profile.
+    With ``randomize_layer_thickness=False`` (Toro 2022 Sec. 4 site-specific),
+    soil is one layer per ``dz`` sample and Z is truncated per component.
     """
     interface = _sample_interface_depth(config, rng)
     soil_layers = _build_soil_layers_nhpp(config, interface, rng)
     bed_vs = float(config.vs_bedrock)
     layers = _append_bedrock_layer(soil_layers, interface, bed_vs, config)
-    layer_vs = _toro_draw_layer_vs(layers, config, rng, randomize_bedrock=config.vary_bedrock_vs)
+    layer_vs = _toro_draw_layer_vs(
+        layers,
+        config,
+        rng,
+        randomize_bedrock=config.vary_bedrock_vs,
+        reject_profile=bool(config.randomize_layer_thickness),
+    )
     return _finalize_profile(layers, layer_vs, interface, config)
 
 

@@ -36,6 +36,7 @@ from .passeri import generate_passeri_profile
 from .toro import (
     generate_toro_profile,
     toro_adjacent_correlation,
+    toro_sigma_ln_vs,
 )
 
 __all__ = [
@@ -63,6 +64,7 @@ __all__ = [
     "profile_cov",
     "profile_to_opensees_column",
     "toro_adjacent_correlation",
+    "toro_sigma_ln_vs",
     "toro_rho",
     "vertical_acf_from_2d_field",
     "vertical_acf_ln_vs",

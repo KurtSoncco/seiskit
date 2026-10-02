@@ -14,6 +14,7 @@ baseline is a thick black line.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Literal
@@ -68,7 +69,7 @@ Mode = Literal[
 
 MODE_SUBTITLE: dict[Mode, str] = {
     "center_node_one_seed": f"center node, seed {SEED_IDX}",
-    "center_node_all_seeds": f"center node, {N_SEEDS} seeds per case",
+    "center_node_all_seeds": f"center node, {N_SEEDS} seeds per geomean",
     "one_seed_all_nodes": f"seed {SEED_IDX}, all {N_NODES} nodes",
     "all_seeds_all_nodes": f"all {N_SEEDS} seeds × all {N_NODES} nodes",
 }
@@ -81,14 +82,20 @@ DOC_WIDTH_3X3, FIG_HEIGHT_3X3 = figsize(aspect=0.95)
 FREQ_LIM = (1e-1, 1e1)
 TF_LIM = (5e-1, 5e2)
 
-# Paul Tol Bright: colorblind-safe blue / green / vermillion (plus linestyle)
+# CoV palettes (0.1, 0.2, 0.3); all colorblind-safe, black reserved for 1D.
+# Trial: A/B are darker Okabe–Ito picks (override via env COV_PALETTE).
+COV_PALETTES: dict[str, tuple[str, str, str]] = {
+    "tol_bright": (TOL_BRIGHT["blue"], TOL_BRIGHT["green"], TOL_BRIGHT["red"]),
+    "A": ("#332288", "#E69F00", "#117733"),  # indigo / orange / dark green
+    "B": ("#E69F00", "#117733", "#AA3377"),  # orange / dark green / purple
+}
+COV_PALETTE = os.environ.get("COV_PALETTE", "A")
 COV_STYLE: dict[float, dict[str, str]] = {
-    0.1: {"color": TOL_BRIGHT["blue"], "ls": "-", "label": "CoV = 0.1"},
-    0.2: {"color": TOL_BRIGHT["green"], "ls": "--", "label": "CoV = 0.2"},
-    0.3: {"color": TOL_BRIGHT["red"], "ls": "-.", "label": "CoV = 0.3"},
+    cov: {"color": color, "ls": ls, "label": f"CoV = {cov}"}
+    for cov, color, ls in zip(COV_LIST, COV_PALETTES[COV_PALETTE], ("-", "--", "-."))
 }
 COLOR_1D = "#000000"
-LW_1D = 1.75
+LW_1D = 2.0
 
 
 def case_figure_dir(case: Mode, layout: str = "3x3") -> Path:
@@ -230,7 +237,7 @@ def plot_tf_panel(
             lo,
             hi,
             facecolor=color,
-            alpha=0.18,
+            alpha=0.25,
             edgecolor="none",
             zorder=3,
             label="_nolegend_",

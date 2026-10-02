@@ -6,8 +6,9 @@ import numpy as np
 
 from .common import _nominal_soil_samples, build_base_case_profile, geological_layer_starts
 from .models import ProfileRandomizationConfig, RandomizedProfile, _GeoLayer, _LayerGrid
-from .passeri import _ar1_standard_scores, _passeri_tts_layer_vs
-from .toro import toro_adjacent_correlation
+from .nhpp import _append_bedrock_layer, _build_grid_soil_layers
+from .passeri import _passeri_tts_layer_vs
+from .toro import _finalize_profile, _toro_draw_layer_vs
 
 
 def _build_geological_layer_grid(
@@ -49,36 +50,23 @@ def generate_vs_simplified(
     vs_base: np.ndarray | None,
     rho: Optional[float],
 ) -> RandomizedProfile:
+    """Frozen-H Toro: AR(1) on the ``dz`` soil grid (Toro 2022 Sec. 4)."""
     base = (
         build_base_case_profile(config) if vs_base is None else np.asarray(vs_base, float).ravel()
     )
     n_soil = _nominal_soil_samples(config)
-    grid = _build_geological_layer_grid(config, base)
-    soil_idx = [k for k, s in enumerate(grid.layer_starts) if int(s) < n_soil]
-    vs_geo = grid.vs_base.copy()
-    if soil_idx:
-        ln_median = np.log(np.clip(grid.vs_base[soil_idx], 1e-6, None))
-        mids = grid.depth_mid[soil_idx]
-        rho_s = (
-            np.full(max(1, len(soil_idx) - 1), float(np.clip(rho, 0, 0.99)))
-            if rho is not None
-            else toro_adjacent_correlation(
-                mids,
-                rho_0=config.toro_rho_0,
-                delta=config.toro_delta,
-                rho_200=config.toro_rho_200,
-                b=config.toro_b,
-            )
-        )
-        z = _ar1_standard_scores(len(soil_idx), rho_s, rng)
-        ln_val = ln_median + config.sigma_ln_vs * z
-        lo = ln_median - config.clip_std * config.sigma_ln_vs
-        hi = ln_median + config.clip_std * config.sigma_ln_vs
-        draw = np.exp(np.clip(ln_val, lo, hi))
-        for i, k in enumerate(soil_idx):
-            vs_geo[k] = draw[i]
-    vs_depth = _expand_geological_to_depth(vs_geo, grid.layer_starts, len(base))
-    return RandomizedProfile(vs_depth, n_soil, float(config.thickness))
+    n_soil = max(1, min(n_soil, len(base)))
+    soil = _build_grid_soil_layers(config, float(config.thickness), vs_median_depth=base[:n_soil])
+    layers = _append_bedrock_layer(soil, float(config.thickness), float(config.vs_bedrock), config)
+    layer_vs = _toro_draw_layer_vs(
+        layers,
+        config,
+        rng,
+        randomize_bedrock=False,
+        reject_profile=False,
+        rho=rho,
+    )
+    return _finalize_profile(layers, layer_vs, float(config.thickness), config)
 
 
 def generate_tts_simplified(
