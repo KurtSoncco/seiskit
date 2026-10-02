@@ -38,6 +38,7 @@ from config import (  # noqa: E402
     metric_label,
     save_figure,
 )
+
 from seiskit.plot_config import get_crameri_cmap  # noqa: E402
 
 apply_full_paper_style(auto_format=True, frame="boxed", grid=False)
@@ -71,6 +72,8 @@ COL_TITLES = (
     r"QBM TreeSHAP $|\phi_{jk}|$",
     r"NGBoost proxy $|\phi_i\phi_j|$",
 )
+
+
 def _labels() -> list[str]:
     return [DISPLAY.get(f, f) for f in FEATURES]
 
@@ -100,7 +103,9 @@ def _h_aligned(friedman: pd.DataFrame, metric: str, pairs: list[tuple[str, str]]
     return np.array([lookup.get(p, np.nan) for p in pairs], dtype=float)
 
 
-def _select_pairs(tab: pd.DataFrame, metric: str, *, preferred: str, fallback: str | None) -> pd.DataFrame:
+def _select_pairs(
+    tab: pd.DataFrame, metric: str, *, preferred: str, fallback: str | None
+) -> pd.DataFrame:
     q = tab[(tab["metric"] == metric) & (tab["target"] == preferred)]
     if q.empty and fallback is not None:
         q = tab[(tab["metric"] == metric) & (tab["target"] == fallback)]
@@ -162,8 +167,7 @@ def _layout_panels(fig: plt.Figure, axes: np.ndarray) -> None:
     height = min(ax.get_position().height for ax in axes.ravel())
     sq_w = height * fh / fw
     y0s = [
-        axes[r, 0].get_position().y0
-        + 0.5 * (axes[r, 0].get_position().height - height)
+        axes[r, 0].get_position().y0 + 0.5 * (axes[r, 0].get_position().height - height)
         for r in range(axes.shape[0])
     ]
     heat_stack = sq_w + _CBAR_PAD + _CBAR_WIDTH

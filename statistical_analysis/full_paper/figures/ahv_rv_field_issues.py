@@ -91,9 +91,7 @@ def ensemble(rh: float, ahv: float) -> np.ndarray:
     """Soil rows of the centered Gaussian field, shape (n, soil, nx)."""
     fields = np.empty((N_ENS, SOIL, NX), dtype=np.float64)
     for i in range(N_ENS):
-        g = generate_gaussian_field_fft(
-            NX, NZ, DX, DZ, rh, ahv, np.random.default_rng(10_000 + i)
-        )
+        g = generate_gaussian_field_fft(NX, NZ, DX, DZ, rh, ahv, np.random.default_rng(10_000 + i))
         fields[i] = g[:SOIL]
     return fields
 
@@ -367,7 +365,7 @@ def figure_periodic() -> plt.Figure:
         ax_map,
         rf"$r_h = {rh:.0f}\,\mathrm{{m}}$"
         + "\n"
-        + rf"$a_{{hv}} = 1$"
+        + r"$a_{hv} = 1$"
         + "\n"
         + rf"$r_v = {rh:.0f}\,\mathrm{{m}}$",
     )

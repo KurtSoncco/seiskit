@@ -2,7 +2,7 @@
 
 Contrasts are τ=0.05−τ=0.50 and τ=0.95−τ=0.50, each as a 2×5 figure (abs /
 signed). QBM reuses TreeSHAP CSVs from ``chi_shap/shap_qbm``. NGBoost explains
-the Normal quantile \(q_\tau=\mu+z_\tau\sigma\) with permutation SHAP (same
+the Normal quantile \\(q_\tau=\\mu+z_\tau\\sigma\\) with permutation SHAP (same
 subsample recipe as ``shap_ngboost.py``). Pass ``--force`` to recompute
 NGBoost quantile SHAP instead of loading cached CSVs.
 
@@ -138,9 +138,9 @@ def _explain_ngb(predict_fn, X_bg: np.ndarray, X_ex: np.ndarray) -> np.ndarray:
 
 
 def _load_or_compute_ngboost_quantiles() -> dict[str, pd.DataFrame]:
-    """Permutation SHAP of \(q_\\tau=\\mu+z_\\tau\\sigma\) via μ and σ composition.
+    """Permutation SHAP of \\(q_\\tau=\\mu+z_\\tau\\sigma\\) via μ and σ composition.
 
-    SHAP is linear, so \(\phi(q_\\tau)=\phi(\\mu)+z_\\tau\phi(\\sigma)\). Caching
+    SHAP is linear, so \\(\\phi(q_\\tau)=\\phi(\\mu)+z_\\tau\\phi(\\sigma)\\). Caching
     writes ``shap_importance_q{05,50,95}.csv`` under ``shap_ngboost``.
     """
     ngb_dir = out_dir("shap_ngboost")
@@ -187,9 +187,7 @@ def _load_or_compute_ngboost_quantiles() -> dict[str, pd.DataFrame]:
             "q95": sv_mu + z95 * sv_sig,
         }
         for t, sv in composed.items():
-            rows[t].append(
-                importance_table(sv, FEATURES, metric=metric, model="ngboost", target=t)
-            )
+            rows[t].append(importance_table(sv, FEATURES, metric=metric, model="ngboost", target=t))
 
     out = {}
     for t, chunks in rows.items():
@@ -313,9 +311,7 @@ def _build_diff(by_target: dict[str, pd.DataFrame]) -> pd.DataFrame:
                         "mean_signed_shap_tau": signed_tail,
                         "delta_mean_abs_shap": abs_tail - abs_med,
                         "delta_mean_signed_shap": signed_tail - signed_med,
-                        "abs_ratio_tau_over_q50": (
-                            abs_tail / abs_med if abs_med > 0 else np.nan
-                        ),
+                        "abs_ratio_tau_over_q50": (abs_tail / abs_med if abs_med > 0 else np.nan),
                     }
                 )
     diff = pd.DataFrame(rows)
@@ -354,7 +350,9 @@ def _write_pair(
     )
 
 
-def _summary_block(title: str, source: str, diff: pd.DataFrame, files: list[tuple[str, str]]) -> list[str]:
+def _summary_block(
+    title: str, source: str, diff: pd.DataFrame, files: list[tuple[str, str]]
+) -> list[str]:
     top = (
         diff.sort_values("delta_mean_abs_shap", ascending=False)
         .groupby(["contrast", "metric"], as_index=False)
@@ -426,8 +424,7 @@ def main() -> None:
         "",
         "- Features with large positive \\(\\Delta\\overline{|\\phi|}\\) are candidate "
         "tail drivers; near-zero deltas indicate rank-stable importance.",
-        "- Lower-tail (\\(0.05-0.50\\)) and upper-tail (\\(0.95-0.50\\)) rows need "
-        "not agree.",
+        "- Lower-tail (\\(0.05-0.50\\)) and upper-tail (\\(0.95-0.50\\)) rows need not agree.",
         "- Signed deltas can flip when the tail model reverses the average direction "
         "of a feature's contribution relative to the median.",
         "",
@@ -440,7 +437,10 @@ def main() -> None:
         r"`shap_ngboost.py`). Cached as `chi_shap/shap_ngboost/shap_importance_q*.csv`.",
         ngb_diff,
         [
-            ("shap_median_vs_tail_ngboost.csv", "NGBoost q05/q50/q95 SHAP and both tail−median deltas"),
+            (
+                "shap_median_vs_tail_ngboost.csv",
+                "NGBoost q05/q50/q95 SHAP and both tail−median deltas",
+            ),
             ("shap_median_vs_tail_ngboost_delta_abs.pdf", "NGBoost 2×5 Δ mean |SHAP|"),
             ("shap_median_vs_tail_ngboost_delta_signed.pdf", "NGBoost 2×5 Δ signed SHAP"),
         ],

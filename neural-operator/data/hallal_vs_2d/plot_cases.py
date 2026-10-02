@@ -19,8 +19,8 @@ import os
 import sys
 from pathlib import Path
 
-import hdf5plugin  # noqa: F401  — register Blosc2/ZFP for Box H5s
 import h5py
+import hdf5plugin  # noqa: F401  — register Blosc2/ZFP for Box H5s
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -33,19 +33,19 @@ REPO = NO_DATA.parents[1]
 sys.path.insert(0, str(NO_DATA))
 sys.path.insert(0, str(REPO))
 
+# Pretell column indexing (same as add_pretell / RV manifest)
+from add_pretell import pretell_column_indices  # noqa: E402
 from sobol import (  # noqa: E402
     DEFAULT_RF_SEEDS_PER_SAMPLE,
     DEFAULT_SOBOL_SAMPLE_COUNT,
     build_manifest,
 )
+
 from seiskit.plot_config import apply_style  # noqa: E402
 from seiskit.profile_randomization import (  # noqa: E402
     get_method,
     hallal_profile_config,
 )
-
-# Pretell column indexing (same as add_pretell / RV manifest)
-from add_pretell import pretell_column_indices  # noqa: E402
 
 BOX_ROOT = Path(
     os.getenv(
@@ -181,7 +181,9 @@ def _swarm_vs(entry, method: str, n: int, rng0: int) -> tuple[np.ndarray, np.nda
     return stack, z
 
 
-def _strip_vs(vs_field: np.ndarray, dz: float, n: int = N_VS_SWARM) -> tuple[np.ndarray, np.ndarray]:
+def _strip_vs(
+    vs_field: np.ndarray, dz: float, n: int = N_VS_SWARM
+) -> tuple[np.ndarray, np.ndarray]:
     cols = pretell_column_indices(n)
     stack = vs_field[:, cols]
     z = (np.arange(stack.shape[0]) + 0.5) * dz
@@ -247,6 +249,7 @@ def _method_curves(
         return geo, lo, hi
     raise KeyError(key)
 
+
 def plot_case(
     entry,
     index: int,
@@ -310,7 +313,7 @@ def plot_case(
             ax.text(
                 0.97,
                 0.03,
-                fr"$D_{{\mathrm{{mult}}}}$={dmult_val:.2f}",
+                rf"$D_{{\mathrm{{mult}}}}$={dmult_val:.2f}",
                 transform=ax.transAxes,
                 ha="right",
                 va="bottom",
@@ -346,7 +349,7 @@ def plot_case(
             ax.text(
                 0.03,
                 0.97,
-                fr"rel $L_1$={_rel_l1(tf_m, tf_2d):.2f}",
+                rf"rel $L_1$={_rel_l1(tf_m, tf_2d):.2f}",
                 transform=ax.transAxes,
                 va="top",
                 ha="left",
@@ -384,9 +387,9 @@ def plot_case(
     )
     fig.suptitle(
         (
-            fr"sample {entry.sample_id}, seed {entry.rf_seed}  |  "
-            fr"$V_{{s1}}$={entry.Vs1:.0f}, $H$={entry.H_discretized:.0f} m, "
-            fr"CoV={entry.CoV:.2f}, $V_{{s2}}$={entry.Vs2:.0f}"
+            rf"sample {entry.sample_id}, seed {entry.rf_seed}  |  "
+            rf"$V_{{s1}}$={entry.Vs1:.0f}, $H$={entry.H_discretized:.0f} m, "
+            rf"CoV={entry.CoV:.2f}, $V_{{s2}}$={entry.Vs2:.0f}"
         ),
         fontsize=10,
         y=1.05,
@@ -427,7 +430,7 @@ def plot_boxplot(df: pd.DataFrame, out_path: Path) -> None:
     for i, arr in enumerate(data, start=1):
         med = float(np.nanmedian(arr))
         ax.annotate(
-            fr"$p_{{50}}$={med:.2f}",
+            rf"$p_{{50}}$={med:.2f}",
             xy=(i, med),
             xytext=(i + 0.28, med),
             fontsize=8,
@@ -435,9 +438,7 @@ def plot_boxplot(df: pd.DataFrame, out_path: Path) -> None:
             color="0.25",
         )
     ax.set_ylim(-0.05, 1.05)
-    ax.set_ylabel(
-        r"Pearson $r(\ln|TF|_{\mathrm{method}},\,\ln|TF|_{2\mathrm{D},\mathrm{center}})$"
-    )
+    ax.set_ylabel(r"Pearson $r(\ln|TF|_{\mathrm{method}},\,\ln|TF|_{2\mathrm{D},\mathrm{center}})$")
     ax.set_title(f"Agreement with 2D center TF  (n={len(df)})")
     ax.grid(True, axis="y", alpha=0.3)
     out_path.parent.mkdir(parents=True, exist_ok=True)

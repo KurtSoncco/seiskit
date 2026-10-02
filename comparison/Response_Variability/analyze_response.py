@@ -571,7 +571,10 @@ def main() -> None:
     parser.add_argument("--h5-dir", type=Path, default=Path("results/h5"))
     parser.add_argument("--out-dir", type=Path, default=Path("results/analysis"))
     parser.add_argument(
-        "--extra-h5-dir", type=Path, action="append", default=[],
+        "--extra-h5-dir",
+        type=Path,
+        action="append",
+        default=[],
         help="Additional H5 dir (repeatable), e.g. results/h5_dmult_1hz",
     )
     args = parser.parse_args()

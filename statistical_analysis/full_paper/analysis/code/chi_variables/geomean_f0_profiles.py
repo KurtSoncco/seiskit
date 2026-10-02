@@ -96,6 +96,7 @@ def extract_matrix(
     with np.errstate(invalid="ignore"):
         return np.where(np.isfinite(values) & (values > 0), values, np.nan)
 
+
 def seed_geomeans(values: np.ndarray) -> np.ndarray:
     with np.errstate(invalid="ignore", divide="ignore"):
         return np.exp(np.nanmean(np.log(values), axis=0))
@@ -298,9 +299,33 @@ def plot_factor_profile(
                 node_values.append(_summary_value(matrix, "node"))
                 global_values.append(_summary_value(matrix, "global"))
 
-            seed_ax.plot(f0_values, seed_values, color=color, lw=DATA_LINEWIDTH, ls=line_style, marker=marker, ms=3.2)
-            node_ax.plot(f0_values, node_values, color=color, lw=DATA_LINEWIDTH, ls=line_style, marker=marker, ms=3.2)
-            global_ax.plot(f0_values, global_values, color=color, lw=DATA_LINEWIDTH, ls=line_style, marker=marker, ms=3.0)
+            seed_ax.plot(
+                f0_values,
+                seed_values,
+                color=color,
+                lw=DATA_LINEWIDTH,
+                ls=line_style,
+                marker=marker,
+                ms=3.2,
+            )
+            node_ax.plot(
+                f0_values,
+                node_values,
+                color=color,
+                lw=DATA_LINEWIDTH,
+                ls=line_style,
+                marker=marker,
+                ms=3.2,
+            )
+            global_ax.plot(
+                f0_values,
+                global_values,
+                color=color,
+                lw=DATA_LINEWIDTH,
+                ls=line_style,
+                marker=marker,
+                ms=3.0,
+            )
 
         seed_ax.set_ylabel(metric_label(metric), fontsize=TICK_LABELSIZE)
         node_ax.tick_params(labelleft=False)
@@ -400,7 +425,10 @@ def build_summary_md(written: list[Path], df: pd.DataFrame) -> str:
             "| --- | --- |",
         ]
     )
-    lines.extend(f"| `{path.name}` | Factor profile across calculated $f_{{0,\\mathrm{{calc}}}}$ |" for path in written)
+    lines.extend(
+        f"| `{path.name}` | Factor profile across calculated $f_{{0,\\mathrm{{calc}}}}$ |"
+        for path in written
+    )
     lines.append("")
     return "\n".join(lines)
 

@@ -89,7 +89,10 @@ FACTOR_LABELS = {
 }
 
 RESPONSES = ("mu", "sigma")
-RESPONSE_LABELS = {"mu": r"predictive mean $\hat\mu(\ln\chi)$", "sigma": r"predictive std $\hat\sigma(\ln\chi)$"}
+RESPONSE_LABELS = {
+    "mu": r"predictive mean $\hat\mu(\ln\chi)$",
+    "sigma": r"predictive std $\hat\sigma(\ln\chi)$",
+}
 
 
 def zscore_stats(df: pd.DataFrame) -> tuple[dict[str, tuple[float, float]], tuple[float, float]]:
@@ -171,7 +174,9 @@ def bar_color(factor: str) -> str:
     return FACTOR_COLORS.get(factor, REF_COLOR)
 
 
-def plot_st_bars(all_s1: dict[str, pd.DataFrame], response: str, out: Path, *, tag: str, names: list[str]) -> None:
+def plot_st_bars(
+    all_s1: dict[str, pd.DataFrame], response: str, out: Path, *, tag: str, names: list[str]
+) -> None:
     fig, ax = plt.subplots(figsize=figsize(aspect=0.55))
     metrics = list(all_s1.keys())
     n_f = len(names)
@@ -218,7 +223,9 @@ def run_sobol(
     (e.g. the f0_calc correlation check).
     """
     n = problem["num_vars"]
-    print(f"Saltelli sampling ({tag or 'fixed-node'}): N={N_SALTELLI} -> {N_SALTELLI * (2 * n + 2)} evals/metric")
+    print(
+        f"Saltelli sampling ({tag or 'fixed-node'}): N={N_SALTELLI} -> {N_SALTELLI * (2 * n + 2)} evals/metric"
+    )
     X_real = sobol_sample.sample(problem, N_SALTELLI, calc_second_order=True, seed=SALTELLI_SEED)
     X_feat = X_feat_fn(X_real)
 
@@ -303,7 +310,9 @@ def rank_sentence(combined_s1: dict, response: str, names: list[str]) -> list[st
     return lines
 
 
-def top_interactions(combined_s2: dict, response: str, n: int = 3, *, involving: str | None = None) -> pd.DataFrame:
+def top_interactions(
+    combined_s2: dict, response: str, n: int = 3, *, involving: str | None = None
+) -> pd.DataFrame:
     long = combined_s2[response].copy()
     if involving is not None:
         long = long[(long["factor_a"] == involving) | (long["factor_b"] == involving)]
@@ -433,11 +442,15 @@ def main() -> None:
         "",
         "**Mean response**",
         "",
-        top_interactions(combined_s2_n, "mu", involving="node").to_markdown(index=False, floatfmt=".3f"),
+        top_interactions(combined_s2_n, "mu", involving="node").to_markdown(
+            index=False, floatfmt=".3f"
+        ),
         "",
         "**Std response**",
         "",
-        top_interactions(combined_s2_n, "sigma", involving="node").to_markdown(index=False, floatfmt=".3f"),
+        top_interactions(combined_s2_n, "sigma", involving="node").to_markdown(
+            index=False, floatfmt=".3f"
+        ),
         "",
         "## Quarter-wavelength estimator \\(\\hat f_0 = V_{s1}/(4H)\\)",
         "",
@@ -462,8 +475,12 @@ def main() -> None:
         f"(mean \\(S_T\\) = {mean_of_means.iloc[0]:.3f}), followed by "
         f"{', '.join(mean_of_means.index[1:])} in decreasing order."
     )
-    s1_sum = combined_s1["mu"].groupby("metric").apply(lambda d: d["S1"].sum(), include_groups=False)
-    st_sum = combined_s1["mu"].groupby("metric").apply(lambda d: d["ST"].sum(), include_groups=False)
+    s1_sum = (
+        combined_s1["mu"].groupby("metric").apply(lambda d: d["S1"].sum(), include_groups=False)
+    )
+    st_sum = (
+        combined_s1["mu"].groupby("metric").apply(lambda d: d["ST"].sum(), include_groups=False)
+    )
     interaction_gap = (st_sum - s1_sum).sort_values(ascending=False)
     lines.append(
         f"- Sum(\\(S_T\\)) exceeds Sum(\\(S_1\\)) most for **{metric_label(interaction_gap.index[0])}** "
@@ -481,7 +498,9 @@ def main() -> None:
     )
     node_mean_mu = mu_piv_n.mean(axis=1)
     node_st_mu = float(node_mean_mu.get("node", float("nan")))
-    node_rank_mu = int(node_mean_mu.rank(ascending=False)["node"]) if "node" in node_mean_mu else None
+    node_rank_mu = (
+        int(node_mean_mu.rank(ascending=False)["node"]) if "node" in node_mean_mu else None
+    )
     lines.append(
         f"- Adding node position as a 6th factor gives it mean \\(S_T\\) = {node_st_mu:.3f} on the "
         f"predictive mean (rank {node_rank_mu} of {len(names_node)}); this quantifies how much the "

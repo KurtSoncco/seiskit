@@ -142,7 +142,11 @@ def _rel_err(freq: np.ndarray, a: np.ndarray, b: np.ndarray, f_lo: float, f_hi: 
     if not np.any(mask):
         return {"median": float("nan"), "p95": float("nan"), "n": 0}
     rel = np.abs(a[mask] - b[mask]) / b[mask]
-    return {"median": float(np.median(rel)), "p95": float(np.percentile(rel, 95)), "n": int(mask.sum())}
+    return {
+        "median": float(np.median(rel)),
+        "p95": float(np.percentile(rel, 95)),
+        "n": int(mask.sum()),
+    }
 
 
 def main() -> int:
@@ -239,7 +243,7 @@ def main() -> int:
         color="#009E73",
         lw=1.5,
         ls="--",
-        label=fr"Theory const. $\xi$={xi_soil_q:.3f}",
+        label=rf"Theory const. $\xi$={xi_soil_q:.3f}",
     )
     ax.semilogx(
         freq,
@@ -258,9 +262,11 @@ def main() -> int:
     ax.legend(loc="upper left", fontsize=8, frameon=True)
     ax.grid(True, which="both", alpha=0.3)
     ax.annotate(
-        fr"peaks @ {peak_f:.2f} Hz" + "\n"
-        + fr"OS {peak_os:.1f}  Rayl. {peak_ray:.1f}" + "\n"
-        + fr"Q-const {peak_q:.1f}  0.025 {peak_025:.1f}",
+        rf"peaks @ {peak_f:.2f} Hz"
+        + "\n"
+        + rf"OS {peak_os:.1f}  Rayl. {peak_ray:.1f}"
+        + "\n"
+        + rf"Q-const {peak_q:.1f}  0.025 {peak_025:.1f}",
         xy=(0.98, 0.97),
         xycoords="axes fraction",
         ha="right",
@@ -285,7 +291,9 @@ def main() -> int:
         lw=1.6,
         label="Rock Rayleigh",
     )
-    ax.axhline(100 * xi_soil_q, color="#009E73", ls="--", lw=1.4, label=fr"Soil Q ξ={100*xi_soil_q:.2f}%")
+    ax.axhline(
+        100 * xi_soil_q, color="#009E73", ls="--", lw=1.4, label=rf"Soil Q ξ={100 * xi_soil_q:.2f}%"
+    )
     ax.axhline(100 * CONFIG_ZETA, color="#D55E00", ls=":", lw=1.6, label="Config ζ=2.5%")
     ax.axvline(f1, color="0.4", ls="--", lw=0.8)
     ax.axvline(f2, color="0.4", ls=":", lw=0.8)
@@ -293,13 +301,13 @@ def main() -> int:
     ax.set_ylim(0, 8)
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel("Damping ratio (%)")
-    ax.set_title(fr"Rayleigh at $f_1$={f1:.2f} Hz, $f_2$={f2:.0f} Hz")
+    ax.set_title(rf"Rayleigh at $f_1$={f1:.2f} Hz, $f_2$={f2:.0f} Hz")
     ax.legend(loc="upper right", fontsize=8, frameon=True)
     ax.grid(True, which="both", alpha=0.3)
 
     fig.suptitle(
-        fr"$V_{{s1}}$={VS1:.0f} m/s, $H$={H:.0f} m, $V_{{s2}}$={VS2:.0f} m/s, "
-        fr"$f_0$={f0:.2f} Hz  |  OpenSees global_avg",
+        rf"$V_{{s1}}$={VS1:.0f} m/s, $H$={H:.0f} m, $V_{{s2}}$={VS2:.0f} m/s, "
+        rf"$f_0$={f0:.2f} Hz  |  OpenSees global_avg",
         fontsize=10,
     )
     out_png = OUT / "af_rayleigh_equivalent.png"

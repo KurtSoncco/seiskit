@@ -54,6 +54,7 @@ from config import (  # noqa: E402
     metric_color,
     save_figure,
 )
+
 from seiskit.analysis import run_opensees_analysis  # noqa: E402
 from seiskit.builder import build_model_data  # noqa: E402
 from seiskit.config import AnalysisConfig  # noqa: E402

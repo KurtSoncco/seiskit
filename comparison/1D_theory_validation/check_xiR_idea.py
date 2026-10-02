@@ -77,8 +77,21 @@ def main() -> None:
     fig, axes = plt.subplots(1, 3, figsize=(12.6, 4.15), constrained_layout=True)
 
     ax = axes[0]
-    ax.semilogx(freq, 100 * xi_r(freq, a_code, b_code), color="#0072B2", lw=2.0, label=fr"code: $f_1$={f1_code:.2f}, $f_2$=10 Hz")
-    ax.semilogx(freq, 100 * xi_r(freq, a_idea, b_idea), color="#D55E00", lw=1.7, ls="--", label=fr"idea: $f_1$=$f_0$={f1_idea:.2f}, $f_2$=3 Hz")
+    ax.semilogx(
+        freq,
+        100 * xi_r(freq, a_code, b_code),
+        color="#0072B2",
+        lw=2.0,
+        label=rf"code: $f_1$={f1_code:.2f}, $f_2$=10 Hz",
+    )
+    ax.semilogx(
+        freq,
+        100 * xi_r(freq, a_idea, b_idea),
+        color="#D55E00",
+        lw=1.7,
+        ls="--",
+        label=rf"idea: $f_1$=$f_0$={f1_idea:.2f}, $f_2$=3 Hz",
+    )
     ax.axhline(100 * XI_TARGET, color="0.35", ls=":", lw=1.3, label=r"target $\xi$=2.5%")
     ax.axvline(f1_code, color="#0072B2", ls=":", lw=0.8)
     ax.axvline(f2_code, color="#0072B2", ls=":", lw=0.8)
@@ -94,19 +107,39 @@ def main() -> None:
 
     ax = axes[1]
     ax.loglog(freq, af_const, color="0.35", lw=1.6, label=r"hysteretic const. $\xi$=2.5%")
-    ax.loglog(freq, af_hyst_code, color="#0072B2", lw=2.0, label=r"$G^*=\rho V_s^2(1+2i\xi_R)$, anchors  $f_1$, 10 Hz")
-    ax.loglog(freq, af_hyst_idea, color="#D55E00", lw=1.5, ls="--", label=r"$G^*=\rho V_s^2(1+2i\xi_R)$, anchors $f_0$, 3 Hz")
+    ax.loglog(
+        freq,
+        af_hyst_code,
+        color="#0072B2",
+        lw=2.0,
+        label=r"$G^*=\rho V_s^2(1+2i\xi_R)$, anchors  $f_1$, 10 Hz",
+    )
+    ax.loglog(
+        freq,
+        af_hyst_idea,
+        color="#D55E00",
+        lw=1.5,
+        ls="--",
+        label=r"$G^*=\rho V_s^2(1+2i\xi_R)$, anchors $f_0$, 3 Hz",
+    )
     ax.set_xlim(0.1, 10)
     ax.set_ylim(0.5, 40)
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel(r"$|AF_\mathrm{within}|$")
-    ax.set_title(fr"Sobol 44  $f_0$={F0:.2f} Hz: high-mode suppression")
+    ax.set_title(rf"Sobol 44  $f_0$={F0:.2f} Hz: high-mode suppression")
     ax.legend(fontsize=7.2, loc="upper right")
     ax.grid(True, which="both", alpha=0.3)
 
     ax = axes[2]
     ax.loglog(freq, af_hyst_code, color="#0072B2", lw=2.0, label="hysteretic $\\xi_R(\\omega)$")
-    ax.loglog(freq, af_visc_code, color="#009E73", lw=1.6, ls="--", label=r"exact viscous $G(1+i\omega\beta)$")
+    ax.loglog(
+        freq,
+        af_visc_code,
+        color="#009E73",
+        lw=1.6,
+        ls="--",
+        label=r"exact viscous $G(1+i\omega\beta)$",
+    )
     ax.set_xlim(0.1, 10)
     ax.set_ylim(0.5, 40)
     ax.set_xlabel("Frequency (Hz)")
@@ -117,7 +150,7 @@ def main() -> None:
 
     fig.suptitle(
         r"Idea check: replace constant $\xi$ by $\xi_R(\omega)$ in $G^*$ "
-        fr"($V_{{s1}}$={VS1:.0f} m/s, $H$={H:.0f} m)",
+        rf"($V_{{s1}}$={VS1:.0f} m/s, $H$={H:.0f} m)",
         fontsize=11,
     )
     out = OUT / "idea_check_xiR_in_Gstar.png"
@@ -129,8 +162,12 @@ def main() -> None:
         return float(np.max(af[m])) if np.any(m) else float("nan")
 
     modes = [(2 * n - 1) * F0 for n in range(1, 6)]
-    print(f"f0={F0:.3f}  code anchors=({f1_code:.3f}, {f2_code:.1f})  idea anchors=({f1_idea:.3f}, {f2_idea:.1f})")
-    print(f"{'mode':>8} {'f':>7} {'const':>8} {'xiR_code':>10} {'xiR_idea':>10} {'xi_code%':>9} {'xi_idea%':>9}")
+    print(
+        f"f0={F0:.3f}  code anchors=({f1_code:.3f}, {f2_code:.1f})  idea anchors=({f1_idea:.3f}, {f2_idea:.1f})"
+    )
+    print(
+        f"{'mode':>8} {'f':>7} {'const':>8} {'xiR_code':>10} {'xiR_idea':>10} {'xi_code%':>9} {'xi_idea%':>9}"
+    )
     for i, fm in enumerate(modes, 1):
         if fm > 10:
             break
@@ -139,7 +176,7 @@ def main() -> None:
         print(
             f"{i:8d} {fm:7.2f} {peak_near(af_const, fm):8.2f} "
             f"{peak_near(af_hyst_code, fm):10.2f} {peak_near(af_hyst_idea, fm):10.2f} "
-            f"{100*xc:9.2f} {100*xi:9.2f}"
+            f"{100 * xc:9.2f} {100 * xi:9.2f}"
         )
     print(out)
 

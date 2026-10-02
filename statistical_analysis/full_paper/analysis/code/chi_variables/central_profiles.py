@@ -285,9 +285,7 @@ def _make_1x3_figure(*, h: float, vs1: float) -> tuple[plt.Figure, np.ndarray]:
         3,
         figsize=(width, height),
         sharey=True,
-        gridspec_kw=dict(
-            wspace=0.06, left=0.08, right=0.995, bottom=0.16, top=0.86
-        ),
+        gridspec_kw=dict(wspace=0.06, left=0.08, right=0.995, bottom=0.16, top=0.86),
     )
     # fig.text (not Figure.suptitle) to bypass the auto-format label patch,
     # which would re-substitute tokens inside the already-LaTeX title.
@@ -324,9 +322,7 @@ def plot_node_profiles(df: pd.DataFrame, *, h: float, vs1: float, out_dir: Path)
         for j, level in enumerate(levels):
             st = styles[level]
             cell = {**BASE_CELL, factor: level}
-            nodes, _seeds, arr = cell_matrix(
-                df_hv, cell["rH"], cell["CoV"], cell["aHV"]
-            )
+            nodes, _seeds, arr = cell_matrix(df_hv, cell["rH"], cell["CoV"], cell["aHV"])
             geo, _med, log_std = node_profiles(arr)
             gsd = np.exp(log_std)  # geometric ±1 log-SD factor
             offset = np.linspace(PLOT_NODE_MIN, PLOT_NODE_MAX, len(nodes))
@@ -364,7 +360,8 @@ def plot_node_profiles(df: pd.DataFrame, *, h: float, vs1: float, out_dir: Path)
             )
             handles.append(
                 Line2D(
-                    [0], [0],
+                    [0],
+                    [0],
                     color=st["color"],
                     ls=st["ls"],
                     lw=DATA_LINEWIDTH,
@@ -392,9 +389,16 @@ def plot_node_profiles(df: pd.DataFrame, *, h: float, vs1: float, out_dir: Path)
         )
         ax.add_artist(leg)
         ax.text(
-            0.02, 0.03, _held_text(factor),
-            transform=ax.transAxes, ha="left", va="bottom",
-            fontsize=TICK_LABELSIZE, linespacing=1.15, zorder=6, bbox=TEXT_BBOX,
+            0.02,
+            0.03,
+            _held_text(factor),
+            transform=ax.transAxes,
+            ha="left",
+            va="bottom",
+            fontsize=TICK_LABELSIZE,
+            linespacing=1.15,
+            zorder=6,
+            bbox=TEXT_BBOX,
         )
         ax.tick_params(labelsize=TICK_LABELSIZE)
         ax.grid(True, which="major", alpha=GRID_ALPHA, lw=0.6)

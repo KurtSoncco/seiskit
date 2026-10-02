@@ -48,6 +48,7 @@ from sobol import (  # noqa: E402
     ManifestEntry,
     build_manifest,
 )
+
 from seiskit.damping import (  # noqa: E402
     compute_damping_from_Q,
     compute_darendeli_column_dmin,
@@ -58,7 +59,11 @@ from seiskit.profile_randomization import (  # noqa: E402
     get_method,
     hallal_profile_config,
 )
-from seiskit.theory.layered_1d_tf import Layer, RockHalfspace, layered_transfer_function  # noqa: E402
+from seiskit.theory.layered_1d_tf import (  # noqa: E402
+    Layer,
+    RockHalfspace,
+    layered_transfer_function,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -142,10 +147,7 @@ def cache_2d_center_tf(*, force: bool = False) -> Path:
         print(f"[warn] freq range {freq[0]}–{freq[-1]} (expected {FREQ_LO}–{FREQ_HI})")
 
     center = np.asarray(tf_all[:, CENTER_LATERAL, :], dtype=np.float32)
-    print(
-        f"[2d] center lateral={CENTER_LATERAL}  shape={center.shape}  "
-        f"freq={freq.shape[0]}"
-    )
+    print(f"[2d] center lateral={CENTER_LATERAL}  shape={center.shape}  freq={freq.shape[0]}")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     with h5py.File(out, "w") as f:
@@ -328,9 +330,7 @@ def run(
         seeds_per_sample=DEFAULT_RF_SEEDS_PER_SAMPLE,
     )
     if len(manifest) != tf_2d.shape[0]:
-        raise RuntimeError(
-            f"Manifest length {len(manifest)} != tf_2d runs {tf_2d.shape[0]}"
-        )
+        raise RuntimeError(f"Manifest length {len(manifest)} != tf_2d runs {tf_2d.shape[0]}")
     samples = unique_samples(manifest)
     if smoke:
         samples = samples[:2]
@@ -362,8 +362,7 @@ def run(
             }
     else:
         t1 = time.time()
-        print(f"[ensembles] computing {len(samples)} samples × "
-              f"(toro+passeri)×{n_real} + dmult …")
+        print(f"[ensembles] computing {len(samples)} samples × (toro+passeri)×{n_real} + dmult …")
         results = Parallel(n_jobs=jobs, backend="loky", verbose=10)(
             delayed(_run_one_sample_ensembles)(e, freq, n_real) for e in samples
         )
@@ -478,11 +477,15 @@ def run(
             data = df[col].to_numpy()
             if data.dtype == object:
                 continue
-            f.create_dataset(col, data=data.astype(np.float64 if data.dtype.kind == "f" else data.dtype))
+            f.create_dataset(
+                col, data=data.astype(np.float64 if data.dtype.kind == "f" else data.dtype)
+            )
         f.attrs["n_rows"] = len(df)
         f.attrs["n_real_ensemble"] = n_real
         f.attrs["center_lateral"] = CENTER_LATERAL
-    print(f"[pearson] wrote {pearson_csv} and {pearson_h5} ({len(df)} rows) in {time.time() - t2:.1f}s")
+    print(
+        f"[pearson] wrote {pearson_csv} and {pearson_h5} ({len(df)} rows) in {time.time() - t2:.1f}s"
+    )
 
     # Summary
     for col in ("r_toro", "r_passeri", "r_dmult"):
@@ -490,7 +493,7 @@ def run(
         v = v[np.isfinite(v)]
         print(
             f"[summary] {col:12s}  n={len(v)}  mean={np.mean(v):.3f}  "
-            f"p50={np.median(v):.3f}  p16–p84={np.percentile(v,16):.3f}–{np.percentile(v,84):.3f}"
+            f"p50={np.median(v):.3f}  p16–p84={np.percentile(v, 16):.3f}–{np.percentile(v, 84):.3f}"
         )
     print(f"[done] total wall {time.time() - t0:.1f}s → {OUT_DIR}")
 

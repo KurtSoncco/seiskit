@@ -284,10 +284,7 @@ def summary_text(
             row
             for row in rows
             if not row["flat"]
-            and (
-                abs(float(row["x_geo_min"])) >= 90.0
-                or abs(float(row["x_geo_max"])) >= 90.0
-            )
+            and (abs(float(row["x_geo_min"])) >= 90.0 or abs(float(row["x_geo_max"])) >= 90.0)
         ]
         if on_edge:
             where = (
@@ -301,7 +298,9 @@ def summary_text(
                 "the geomean, so the trend is not a symmetric edge peak."
             )
         lines.append(
-            "A residual ensemble trend remains for " + "; ".join(parts) + ". "
+            "A residual ensemble trend remains for "
+            + "; ".join(parts)
+            + ". "
             + where
             + " The residual is smaller than the seed-to-seed spread. The spatial "
             "change in the atlas is still dominated by the random field."
@@ -386,7 +385,9 @@ def plot_check(
         linespacing=1.35,
     )
     handles = [
-        Line2D([0], [0], color=SAMPLE_COLOR, lw=DATA_LINEWIDTH, label=f"Seeds (subset of {N_TRACE})"),
+        Line2D(
+            [0], [0], color=SAMPLE_COLOR, lw=DATA_LINEWIDTH, label=f"Seeds (subset of {N_TRACE})"
+        ),
         Line2D([0], [0], color="0.2", ls="-", lw=DATA_LINEWIDTH, label="Geomean across seeds"),
         Line2D([0], [0], color="0.2", ls="--", lw=DATA_LINEWIDTH, label="Median across seeds"),
         Line2D([0], [0], color=REF_COLOR, lw=DATA_LINEWIDTH, label="1D baseline"),
@@ -414,23 +415,16 @@ def main() -> None:
         DEFAULT_AHV,
     )
     channels, seeds, series = load_cell(vs1=vs1, height=height, cov=cov, rh=rh, ahv=ahv)
-    stacks = {
-        metric: stack_by_distance(channels, seeds, series[metric]) for metric in METRICS
-    }
+    stacks = {metric: stack_by_distance(channels, seeds, series[metric]) for metric in METRICS}
     n_seeds = int(stacks[METRICS[0]][1].size)
     rows = []
     for metric in METRICS:
         x, _seed_ids, mat = stacks[metric]
         rows.append(summarize_metric(metric, x, mat))
 
-    text = summary_text(
-        rows, vs1=vs1, height=height, cov=cov, rh=rh, ahv=ahv, n_seeds=n_seeds
-    )
+    text = summary_text(rows, vs1=vs1, height=height, cov=cov, rh=rh, ahv=ahv, n_seeds=n_seeds)
     out_dir = figure_dir("ratio_atlas")
-    stem = (
-        f"boundary_check_h{height:.0f}_vs1_{vs1:.0f}"
-        f"_cov{_fmt_num(cov)}_rh{rh:.0f}_ahv{ahv:.0f}"
-    )
+    stem = f"boundary_check_h{height:.0f}_vs1_{vs1:.0f}_cov{_fmt_num(cov)}_rh{rh:.0f}_ahv{ahv:.0f}"
     text_path = out_dir / f"{stem}.txt"
     text_path.write_text(text, encoding="utf-8")
     print(text)

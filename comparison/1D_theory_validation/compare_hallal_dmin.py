@@ -107,18 +107,25 @@ def main() -> None:
     print(f"Vs1_tt={vs1:.1f}  Dmult={dm:.2f}")
     print(f"{'layer (m)':>14} {'Vs':>6} {'Hallal':>7} {'Dar1Hz':>7} {'Dar3Hz':>7} {'xi_TB':>6}")
     for k in range(len(rows)):
-        print(f"{z_top[k]:6.1f}-{z_bot[k]:6.1f} {vs[k]:6.0f} " + " ".join(
-            f"{100 * xi[key][k]:7.3f}" for key in ("hallal", "dar1", "dar3", "tb")))
+        print(
+            f"{z_top[k]:6.1f}-{z_bot[k]:6.1f} {vs[k]:6.0f} "
+            + " ".join(f"{100 * xi[key][k]:7.3f}" for key in ("hallal", "dar1", "dar3", "tb"))
+        )
 
     band = (f_h > 0.5) & (f_h < 10.0)
 
     def tf_and_misfit(x: np.ndarray, mult: float) -> tuple[np.ndarray, float]:
-        layers = [Layer(float(hh), float(v), cmp.RHO, float(mult * xx)) for hh, v, xx in zip(h[soil], vs[soil], x[soil])]
+        layers = [
+            Layer(float(hh), float(v), cmp.RHO, float(mult * xx))
+            for hh, v, xx in zip(h[soil], vs[soil], x[soil])
+        ]
         af = cmp.af_within(freq, layers)
         af_i = np.exp(np.interp(np.log(f_h[band]), np.log(freq), np.log(af)))
         return af, float(np.sqrt(np.mean((np.log(af_i) - np.log(a_h[band])) ** 2)))
 
-    fig, axes = plt.subplots(1, 3, figsize=(17, 5.6), constrained_layout=True, gridspec_kw={"width_ratios": [0.7, 1, 1]})
+    fig, axes = plt.subplots(
+        1, 3, figsize=(17, 5.6), constrained_layout=True, gridspec_kw={"width_ratios": [0.7, 1, 1]}
+    )
 
     ax = axes[0]
     z_fine = np.linspace(0.5, 125.0, 300)
@@ -126,12 +133,29 @@ def main() -> None:
     for key, f in (("dar1", 1.0), ("dar3", 3.0)):
         ax.plot(100 * cmp.dmin_at(z_fine, freq=f), z_fine, color=COLORS[key], lw=0.9, alpha=0.5)
     for key in ("dar1", "dar3", "tb"):
-        ax.plot(*cmp.depth_steps(100 * xi[key], z_edges), color=COLORS[key], lw=1.8,
-                label=labels[key] + (" (layer mid-depth)" if key != "tb" else ""))
-    ax.plot(*cmp.depth_steps(100 * xi["hallal"], z_edges), color=COLORS["hallal"],
-            lw=2.2, ls=(0, (4, 2)), zorder=6, label=labels["hallal"] + " (step)")
-    ax.plot(HALLAL_DMIN[:, 0], HALLAL_DMIN[:, 1], "o", color=COLORS["hallal"], ms=6, zorder=7,
-            label="digitized (layer bottoms)")
+        ax.plot(
+            *cmp.depth_steps(100 * xi[key], z_edges),
+            color=COLORS[key],
+            lw=1.8,
+            label=labels[key] + (" (layer mid-depth)" if key != "tb" else ""),
+        )
+    ax.plot(
+        *cmp.depth_steps(100 * xi["hallal"], z_edges),
+        color=COLORS["hallal"],
+        lw=2.2,
+        ls=(0, (4, 2)),
+        zorder=6,
+        label=labels["hallal"] + " (step)",
+    )
+    ax.plot(
+        HALLAL_DMIN[:, 0],
+        HALLAL_DMIN[:, 1],
+        "o",
+        color=COLORS["hallal"],
+        ms=6,
+        zorder=7,
+        label="digitized (layer bottoms)",
+    )
     ax.axhline(z_top[-1], color="0.5", lw=0.8, ls="--")
     ax.text(3.2, z_top[-1] - 1.5, "soil / rock", fontsize=8, color="0.4")
     ax.invert_yaxis()
@@ -151,7 +175,15 @@ def main() -> None:
         for key in ("hallal", "dar1", "dar3", "tb"):
             af, mis = tf_and_misfit(xi[key], mult)
             ls, lw, zo = ((0, (4, 2)), 2.2, 6) if key == "hallal" else ("-", 1.4, 4)
-            ax.loglog(freq, af, color=COLORS[key], lw=lw, ls=ls, zorder=zo, label=f"{labels[key]}  (ln-RMS {mis:.2f})")
+            ax.loglog(
+                freq,
+                af,
+                color=COLORS[key],
+                lw=lw,
+                ls=ls,
+                zorder=zo,
+                label=f"{labels[key]}  (ln-RMS {mis:.2f})",
+            )
             print(f"[{'x' + format(mult, '.1f')}] {key:6s} ln-RMS misfit = {mis:.3f}")
         ax.set_xlim(0.4, 12)
         ax.set_ylim(0.8, 200)

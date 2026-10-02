@@ -28,7 +28,9 @@ SIGMA_LN_TTS = COV  # same rule as Toro: use specified CoV as the ln-sigma
 
 
 def load_toro_mod():
-    spec = importlib.util.spec_from_file_location("plot_toro_taborda", ROOT / "plot_toro_taborda.py")
+    spec = importlib.util.spec_from_file_location(
+        "plot_toro_taborda", ROOT / "plot_toro_taborda.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     sys.modules["plot_toro_taborda"] = mod
     spec.loader.exec_module(mod)
@@ -56,7 +58,7 @@ def summarize(name: str, r: np.ndarray) -> None:
     r = r[np.isfinite(r)]
     print(
         f"{name:12s}  n={len(r)}  mean={np.mean(r):.3f}  "
-        f"p50={np.median(r):.3f}  p16–p84={np.percentile(r,16):.3f}–{np.percentile(r,84):.3f}  "
+        f"p50={np.median(r):.3f}  p16–p84={np.percentile(r, 16):.3f}–{np.percentile(r, 84):.3f}  "
         f"min={np.min(r):.3f}  max={np.max(r):.3f}"
     )
 
@@ -114,7 +116,7 @@ def main() -> None:
     print(
         f"  σ_ln(tts)={float(np.std(np.log(tts), ddof=1)):.3f}  "
         f"σ_ln(Vs1)={float(np.std(np.log(vs1), ddof=1)):.3f}  "
-        f"CoV(Vs1)={float(np.std(vs1, ddof=1)/np.mean(vs1)):.3f}  "
+        f"CoV(Vs1)={float(np.std(vs1, ddof=1) / np.mean(vs1)):.3f}  "
         f"(target {SIGMA_LN_TTS:.3f})\n"
         f"  soil layers={set(n_layers)}  H={sorted(set(np.round(interfaces, 2)))}"
     )
@@ -122,9 +124,9 @@ def main() -> None:
     peaks_d = np.max(af_d[:N_SWARM], axis=1)
     print(
         f"  A1 ξ_Q     p50={np.median(peaks_q):.1f}  "
-        f"p16–p84={np.percentile(peaks_q,16):.1f}–{np.percentile(peaks_q,84):.1f}\n"
+        f"p16–p84={np.percentile(peaks_q, 16):.1f}–{np.percentile(peaks_q, 84):.1f}\n"
         f"  A1 Dmin    p50={np.median(peaks_d):.1f}  "
-        f"p16–p84={np.percentile(peaks_d,16):.1f}–{np.percentile(peaks_d,84):.1f}"
+        f"p16–p84={np.percentile(peaks_d, 16):.1f}–{np.percentile(peaks_d, 84):.1f}"
     )
 
     r_q = np.array([pearson_ln(af_q[k], af_base_q) for k in range(n)])
@@ -177,7 +179,7 @@ def main() -> None:
     ax.set_ylim(t.H_SOIL + t.H_ROCK, 0.0)
     ax.set_xlabel(r"Travel time $t^*$ (s)")
     ax.set_ylabel("Depth (m)")
-    ax.set_title(fr"$t^*(z)$  ($\sigma_{{\ln t}}$=CoV={SIGMA_LN_TTS:.2f})")
+    ax.set_title(rf"$t^*(z)$  ($\sigma_{{\ln t}}$=CoV={SIGMA_LN_TTS:.2f})")
     ax.grid(True, alpha=0.3)
     ax.legend(loc="lower right", fontsize=8)
     print(
@@ -186,7 +188,17 @@ def main() -> None:
         f"(base {float(tts_base[n_soil]):.3f} s)"
     )
 
-    t.tf_panel(axes[2], freq, af_q[swarm], geo_q, p16_q, p84_q, af_base_q, r"Taborda–Bielak $\xi_Q=1/(2Q)$", "#0072B2")
+    t.tf_panel(
+        axes[2],
+        freq,
+        af_q[swarm],
+        geo_q,
+        p16_q,
+        p84_q,
+        af_base_q,
+        r"Taborda–Bielak $\xi_Q=1/(2Q)$",
+        "#0072B2",
+    )
     t.tf_panel(
         axes[3],
         freq,
@@ -199,10 +211,10 @@ def main() -> None:
         "#D55E00",
     )
     fig.suptitle(
-        fr"Passeri travel-time only (fixed $H$, one soil layer)  "
-        fr"$V_{{s,\mathrm{{med}}}}$={vs_mean:.0f} m/s,  $n$={N_SWARM}  |  "
-        fr"ensemble $\sigma_{{\ln t}}$={float(np.std(np.log(tts[:N_SWARM]), ddof=1)):.3f}  "
-        fr"(target {SIGMA_LN_TTS:.3f})",
+        rf"Passeri travel-time only (fixed $H$, one soil layer)  "
+        rf"$V_{{s,\mathrm{{med}}}}$={vs_mean:.0f} m/s,  $n$={N_SWARM}  |  "
+        rf"ensemble $\sigma_{{\ln t}}$={float(np.std(np.log(tts[:N_SWARM]), ddof=1)):.3f}  "
+        rf"(target {SIGMA_LN_TTS:.3f})",
         fontsize=11,
     )
     out_swarm = OUT / "af_passeri_taborda_vs.png"
@@ -221,7 +233,9 @@ def main() -> None:
         medianprops=dict(color="0.15", lw=1.6),
         whiskerprops=dict(color="0.25"),
         capprops=dict(color="0.25"),
-        flierprops=dict(marker="o", ms=3.5, markerfacecolor="0.5", markeredgecolor="none", alpha=0.7),
+        flierprops=dict(
+            marker="o", ms=3.5, markerfacecolor="0.5", markeredgecolor="none", alpha=0.7
+        ),
     )
     colors = ["#0072B2", "#D55E00"]
     for patch, c in zip(bp["boxes"], colors):
@@ -230,11 +244,11 @@ def main() -> None:
         patch.set_edgecolor("0.2")
     ax.set_ylim(-0.15, 1.05)
     ax.set_ylabel(r"Pearson $r(\ln|AF|_{\mathrm{Passeri}},\ \ln|AF|_{1\mathrm{D}})$")
-    ax.set_title(fr"Passeri vs 1D base  ($n$={N_PEARSON}, fixed $H$)")
+    ax.set_title(rf"Passeri vs 1D base  ($n$={N_PEARSON}, fixed $H$)")
     ax.grid(True, axis="y", alpha=0.3)
     for i, r in enumerate(data, start=1):
         ax.annotate(
-            fr"p50={np.median(r):.2f}",
+            rf"p50={np.median(r):.2f}",
             xy=(i, np.median(r)),
             xytext=(i + 0.28, np.median(r)),
             fontsize=8,

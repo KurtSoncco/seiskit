@@ -58,21 +58,21 @@ def main() -> None:
         colors = ("#D55E00", "#CC79A7")
         for xi, c in zip(XI_LIGHT, colors):
             af = theory_xi(freq, vs1, H, vs2, xi, 0.0)
-            ax.loglog(freq, af, color=c, lw=1.5, ls="--", label=fr"Theory $\xi$={100*xi:.1f}%")
+            ax.loglog(freq, af, color=c, lw=1.5, ls="--", label=rf"Theory $\xi$={100 * xi:.1f}%")
         ax.axvline(row["f0"], color="0.4", ls="--", lw=0.7)
         ax.set_xlim(0.1, 10)
         ax.set_ylim(0.5, 200)
         ax.grid(True, which="both", alpha=0.3)
         ax.set_title(
-            fr"{row['label']}: $V_{{s1}}$={row['vs1']:.0f}, $H$={row['H']:.0f} m"
+            rf"{row['label']}: $V_{{s1}}$={row['vs1']:.0f}, $H$={row['H']:.0f} m"
             + "\n"
-            + fr"$f_0$={row['f0']:.2f} Hz, $\xi_Q$={100*row['xi_soil_Q']:.2f}%",
+            + rf"$f_0$={row['f0']:.2f} Hz, $\xi_Q$={100 * row['xi_soil_Q']:.2f}%",
             fontsize=9,
         )
         ax.annotate(
-            fr"$2/(\pi\xi_Q)$={peak_rigid_approx(row['xi_soil_Q']):.0f}"
+            rf"$2/(\pi\xi_Q)$={peak_rigid_approx(row['xi_soil_Q']):.0f}"
             + "\n"
-            + fr"$2/(\pi\cdot 0.5\%)$={peak_rigid_approx(0.005):.0f}",
+            + rf"$2/(\pi\cdot 0.5\%)$={peak_rigid_approx(0.005):.0f}",
             xy=(0.03, 0.97),
             xycoords="axes fraction",
             ha="left",
@@ -104,14 +104,29 @@ def main() -> None:
     peaks = [float(np.max(theory_xi(freq, vs1, H, vs2, xi, 0.0))) for xi in xis]
 
     fig, ax = plt.subplots(figsize=(6.4, 4.4), constrained_layout=True)
-    ax.plot(100 * xis, peaks, "o-", color="#0072B2", lw=1.8, ms=6, label="Thomson–Haskell (this column)")
-    ax.plot(100 * xis, peak_rigid_approx(xis), "--", color="0.35", lw=1.4, label=r"$2/(\pi\xi)$ (rigid-rock)")
+    ax.plot(
+        100 * xis, peaks, "o-", color="#0072B2", lw=1.8, ms=6, label="Thomson–Haskell (this column)"
+    )
+    ax.plot(
+        100 * xis,
+        peak_rigid_approx(xis),
+        "--",
+        color="0.35",
+        lw=1.4,
+        label=r"$2/(\pi\xi)$ (rigid-rock)",
+    )
     ax.axhline(float(np.nanmax(d["af_os"])), color="0.45", lw=1.3, label="OpenSees Q-Rayleigh peak")
-    ax.axvline(100 * demo["xi_soil_Q"], color="#009E73", ls=":", lw=1.4, label=fr"Soil $\xi_Q$={100*demo['xi_soil_Q']:.2f}%")
+    ax.axvline(
+        100 * demo["xi_soil_Q"],
+        color="#009E73",
+        ls=":",
+        lw=1.4,
+        label=rf"Soil $\xi_Q$={100 * demo['xi_soil_Q']:.2f}%",
+    )
     ax.axvline(2.5, color="#D55E00", ls=":", lw=1.4, label="Config ζ=2.5%")
     ax.set_xlabel("Hysteretic damping ξ (%)")
     ax.set_ylabel(r"Peak $|AF_\mathrm{within}|$")
-    ax.set_title(fr"Demo column $V_{{s1}}$=230 m/s, $H$=15 m: peak vs ξ")
+    ax.set_title(r"Demo column $V_{s1}$=230 m/s, $H$=15 m: peak vs ξ")
     ax.set_xlim(0, 5.5)
     ax.set_ylim(0, 220)
     ax.grid(True, alpha=0.3)

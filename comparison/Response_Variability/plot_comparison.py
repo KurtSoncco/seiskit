@@ -1594,7 +1594,10 @@ def main() -> None:
         help="Comma-separated Sobol ids for profile/TF panels (default: 19,37,36,10,44)",
     )
     parser.add_argument(
-        "--extra-h5-dir", type=Path, action="append", default=[],
+        "--extra-h5-dir",
+        type=Path,
+        action="append",
+        default=[],
         help="Additional H5 dir (repeatable), e.g. results/h5_dmult_1hz",
     )
     parser.add_argument("--motion", type=str, default="M1")

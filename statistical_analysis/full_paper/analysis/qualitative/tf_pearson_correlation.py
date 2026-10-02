@@ -257,7 +257,11 @@ def plot_overall_box(df: pd.DataFrame, out_dir: Path, metric: str) -> Path:
     ax.text(
         0.98,
         0.03,
-        rf"$n={len(df):,}$" + "\n" + rf"median $= {median:.3f}$" + "\n" + rf"IQR $= [{q1:.3f}, {q3:.3f}]$",
+        rf"$n={len(df):,}$"
+        + "\n"
+        + rf"median $= {median:.3f}$"
+        + "\n"
+        + rf"IQR $= [{q1:.3f}, {q3:.3f}]$",
         transform=ax.transAxes,
         ha="right",
         va="bottom",
@@ -326,7 +330,9 @@ def plot_by_factor_box(df: pd.DataFrame, out_dir: Path, metric: str) -> Path:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Pearson r and relative L1 error between 2D and 1D |TF| curves.")
+    p = argparse.ArgumentParser(
+        description="Pearson r and relative L1 error between 2D and 1D |TF| curves."
+    )
     p.add_argument("--force", action="store_true", help="Recompute even if the cache CSV exists.")
     args = p.parse_args()
 
@@ -335,7 +341,9 @@ def main() -> None:
 
     df = compute_all(cache_path, force=args.force)
     for metric in ("r", "rel_l1"):
-        print(f"{metric}: n={len(df):,}  median={df[metric].median():.4f}  mean={df[metric].mean():.4f}")
+        print(
+            f"{metric}: n={len(df):,}  median={df[metric].median():.4f}  mean={df[metric].mean():.4f}"
+        )
 
     written: list[Path] = []
     for metric in ("r", "rel_l1"):

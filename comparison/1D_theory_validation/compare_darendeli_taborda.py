@@ -83,7 +83,13 @@ def sublayer_mids(H: float) -> tuple[np.ndarray, np.ndarray]:
 
 
 def column_layers(
-    h: np.ndarray, vs: np.ndarray, z_mid: np.ndarray, vs_rock: float, z_rock: float, base: str, mult: float
+    h: np.ndarray,
+    vs: np.ndarray,
+    z_mid: np.ndarray,
+    vs_rock: float,
+    z_rock: float,
+    base: str,
+    mult: float,
 ) -> tuple[list[Layer], RockHalfspace]:
     if base == "tb":
         xi_soil = np.array([xi_tb(v) for v in vs])
@@ -134,7 +140,9 @@ def matching_k(h, vs, z_mid, vs_rock, z_rock, f0, a_target) -> float:
 
 
 def load_extracted():
-    spec = importlib.util.spec_from_file_location("extracted_profile", ROOT / "plot_extracted_profile.py")
+    spec = importlib.util.spec_from_file_location(
+        "extracted_profile", ROOT / "plot_extracted_profile.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     sys.modules["extracted_profile"] = mod
     spec.loader.exec_module(mod)
@@ -179,8 +187,15 @@ def run_hallal(mod) -> dict:
     f_h, a_h = mod.clean_digitized_tf(raw[:, 0], raw[:, 1])
 
     curves = {}
-    for key, base, mult in (("tb", "tb", 1.0), ("tb_dm", "tb", dm), ("dar", "dar", 1.0), ("dar_dm", "dar", dm)):
-        ly, rk = column_layers(col["h"], col["vs"], col["z_mid"], col["vs_rock"], col["z_rock"], base, mult)
+    for key, base, mult in (
+        ("tb", "tb", 1.0),
+        ("tb_dm", "tb", dm),
+        ("dar", "dar", 1.0),
+        ("dar_dm", "dar", dm),
+    ):
+        ly, rk = column_layers(
+            col["h"], col["vs"], col["z_mid"], col["vs_rock"], col["z_rock"], base, mult
+        )
         curves[key] = af_within(FREQ, ly)
 
     band = (f_h > 0.5) & (f_h < 10.0)
@@ -189,14 +204,18 @@ def run_hallal(mod) -> dict:
         af_i = np.exp(np.interp(np.log(f_h[band]), np.log(FREQ), np.log(af)))
         misfit[key] = float(np.sqrt(np.mean((np.log(af_i) - np.log(a_h[band])) ** 2)))
 
-    print(f"Hallal column: Vs1_tt={col['vs1']:.1f}  Vs2={col['vs_rock']:.0f}  "
-          f"contrast={col['vs_rock'] / col['vs1']:.2f}  Dmult={dm:.2f}")
+    print(
+        f"Hallal column: Vs1_tt={col['vs1']:.1f}  Vs2={col['vs_rock']:.0f}  "
+        f"contrast={col['vs_rock'] / col['vs1']:.2f}  Dmult={dm:.2f}"
+    )
     xi_q_soil = np.array([xi_tb(v) for v in col["vs"]])
     dmin_soil = dmin_at(col["z_mid"])
     w = col["h"] / col["vs"]
-    print(f"  soil tt-avg: xi_TB={100 * np.sum(w * xi_q_soil) / w.sum():.2f}%  "
-          f"Dmin({F_REF:g}Hz,PI=0)={100 * np.sum(w * dmin_soil) / w.sum():.2f}%  "
-          f"rock: xi_TB={100 * xi_tb(col['vs_rock']):.2f}%  Dmin={100 * float(dmin_at(col['z_rock'], PI=0.0)):.2f}%")
+    print(
+        f"  soil tt-avg: xi_TB={100 * np.sum(w * xi_q_soil) / w.sum():.2f}%  "
+        f"Dmin({F_REF:g}Hz,PI=0)={100 * np.sum(w * dmin_soil) / w.sum():.2f}%  "
+        f"rock: xi_TB={100 * xi_tb(col['vs_rock']):.2f}%  Dmin={100 * float(dmin_at(col['z_rock'], PI=0.0)):.2f}%"
+    )
     for key, m in misfit.items():
         print(f"  ln-TF RMS misfit vs Hallal digitized [{key}]: {m:.3f}")
     return dict(col=col, dm=dm, f0=f0, curves=curves, f_h=f_h, a_h=a_h, raw=raw, misfit=misfit)
@@ -216,14 +235,21 @@ def run_sobol(cases: list[dict]) -> list[dict]:
         z_rock = H + 0.5 * c["bedrock_thickness"]
         dm = dmult_from_vs_contrast(vs1, vs2)
         f0 = vs1 / (4.0 * H)
-        row = dict(sobol_id=int(c["sobol_id"]), vs1=vs1, H=H, vs2=vs2, contrast=vs2 / vs1, dmult=dm, f0=f0)
+        row = dict(
+            sobol_id=int(c["sobol_id"]), vs1=vs1, H=H, vs2=vs2, contrast=vs2 / vs1, dmult=dm, f0=f0
+        )
         row["xi_tb_soil"] = xi_tb(vs1)
         row["xi_tb_rock"] = xi_tb(vs2)
         for pi in PI_LIST:
             row[f"dmin_soil_pi{pi:.0f}"] = float(np.mean(dmin_at(z_mid, PI=pi)))
         row["dmin_rock"] = float(dmin_at(z_rock, PI=0.0))
         row["R_soil"] = row["xi_tb_soil"] / row[f"dmin_soil_pi{PI_TF:.0f}"]
-        for key, base, mult in (("tb", "tb", 1.0), ("tb_dm", "tb", dm), ("dar", "dar", 1.0), ("dar_dm", "dar", dm)):
+        for key, base, mult in (
+            ("tb", "tb", 1.0),
+            ("tb_dm", "tb", dm),
+            ("dar", "dar", 1.0),
+            ("dar_dm", "dar", dm),
+        ):
             ly, rk = column_layers(h, vs, z_mid, vs2, z_rock, base, mult)
             fp, ap = f0_peak(FREQ, af_within(FREQ, ly), f0)
             row[f"A_{key}"] = ap
@@ -241,11 +267,15 @@ def summarize(rows: list[dict]) -> None:
     print("\nSobol columns (n=%d), PI=%g, f=%g Hz:" % (len(rows), PI_TF, F_REF))
     print("  R = xi_TB / Dmin (soil):        ", q("R_soil"))
     print("  Dmult:                          ", q("dmult"))
-    print("  A_peak ratio Dmult*xiTB / Dmult*Dmin:",
-          f"median={np.median([r['A_tb_dm'] / r['A_dar_dm'] for r in rows]):.3f}")
+    print(
+        "  A_peak ratio Dmult*xiTB / Dmult*Dmin:",
+        f"median={np.median([r['A_tb_dm'] / r['A_dar_dm'] for r in rows]):.3f}",
+    )
     print("  k on xi_TB matching Dmult*Dmin: ", q("k_equiv"))
-    print("  k_equiv / Dmult:                ",
-          f"median={np.median([r['k_equiv'] / r['dmult'] for r in rows]):.3f}")
+    print(
+        "  k_equiv / Dmult:                ",
+        f"median={np.median([r['k_equiv'] / r['dmult'] for r in rows]):.3f}",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -258,15 +288,28 @@ def fig_damping(rows: list[dict], hal: dict) -> Path:
 
     ax = axes[0]
     vs_grid = np.logspace(np.log10(100.0), np.log10(3000.0), 300)
-    ax.semilogx(vs_grid, 100 * np.array([xi_tb(v) for v in vs_grid]), color=COLORS["tb"], lw=2.2,
-                label=r"Taborda–Bielak $\xi_Q(V_s)$")
+    ax.semilogx(
+        vs_grid,
+        100 * np.array([xi_tb(v) for v in vs_grid]),
+        color=COLORS["tb"],
+        lw=2.2,
+        label=r"Taborda–Bielak $\xi_Q(V_s)$",
+    )
     sig_implied = 101.325 * (vs_grid / VS_A) ** (1.0 / VS_N)
     for pi, ls in zip(PI_LIST, ("-", "--", ":")):
-        ax.semilogx(vs_grid, 100 * compute_darendeli_dmin(sig_implied, PI=pi, OCR=OCR, freq=F_REF),
-                    color=COLORS["dar"], ls=ls, lw=1.6, label=f"Darendeli, PI={pi:.0f} (Vs-implied σ'm)")
+        ax.semilogx(
+            vs_grid,
+            100 * compute_darendeli_dmin(sig_implied, PI=pi, OCR=OCR, freq=F_REF),
+            color=COLORS["dar"],
+            ls=ls,
+            lw=1.6,
+            label=f"Darendeli, PI={pi:.0f} (Vs-implied σ'm)",
+        )
     ax.set_xlabel(r"$V_s$ (m/s)")
     ax.set_ylabel("Damping ratio (%)")
-    ax.set_title(f"(a) Damping vs Vs  [Vs = {VS_A:.0f}(σ'm/pa)$^{{{VS_N}}}$, f={F_REF:g} Hz]", fontsize=10)
+    ax.set_title(
+        f"(a) Damping vs Vs  [Vs = {VS_A:.0f}(σ'm/pa)$^{{{VS_N}}}$, f={F_REF:g} Hz]", fontsize=10
+    )
     ax.grid(True, which="both", alpha=0.3)
     ax.legend(fontsize=7.5)
 
@@ -275,7 +318,17 @@ def fig_damping(rows: list[dict], hal: dict) -> Path:
     H = np.array([r["H"] for r in rows])
     for pi, mk in zip(PI_LIST, ("o", "s", "^")):
         R = np.array([r["xi_tb_soil"] / r[f"dmin_soil_pi{pi:.0f}"] for r in rows])
-        sc = ax.scatter(vs1, R, c=H, cmap="viridis", marker=mk, s=26, edgecolor="k", lw=0.3, label=f"PI={pi:.0f}")
+        sc = ax.scatter(
+            vs1,
+            R,
+            c=H,
+            cmap="viridis",
+            marker=mk,
+            s=26,
+            edgecolor="k",
+            lw=0.3,
+            label=f"PI={pi:.0f}",
+        )
     ax.axhline(1.0, color="0.4", lw=1)
     ax.set_xlabel(r"Soil $V_{s1}$ (m/s)")
     ax.set_ylabel(r"$R = \xi_Q / D_\mathrm{min}(H/2)$ (soil)")
@@ -291,8 +344,13 @@ def fig_damping(rows: list[dict], hal: dict) -> Path:
     ax.plot(*depth_steps(100 * xi_q, z_edges), color=COLORS["tb"], lw=2, label=r"$\xi_Q$")
     for pi, ls in zip(PI_LIST, ("-", "--", ":")):
         d = dmin_at(col["z_mid"], PI=pi)
-        ax.plot(*depth_steps(100 * d, z_edges), color=COLORS["dar"], ls=ls, lw=1.5,
-                label=f"Dmin PI={pi:.0f}, {F_REF:g} Hz")
+        ax.plot(
+            *depth_steps(100 * d, z_edges),
+            color=COLORS["dar"],
+            ls=ls,
+            lw=1.5,
+            label=f"Dmin PI={pi:.0f}, {F_REF:g} Hz",
+        )
     d = dmin_at(col["z_mid"], PI=0.0, freq=1.0)
     ax.plot(*depth_steps(100 * d, z_edges), color="0.5", lw=1.2, label="Dmin PI=0, 1 Hz")
     ax.invert_yaxis()
@@ -310,7 +368,9 @@ def fig_damping(rows: list[dict], hal: dict) -> Path:
 
 def fig_hallal_tf(hal: dict) -> Path:
     fig, ax = plt.subplots(figsize=(8.4, 5.4), constrained_layout=True)
-    ax.plot(hal["raw"][:, 0], hal["raw"][:, 1], ".", color="0.8", ms=2.5, alpha=0.5, label="Hallal raw")
+    ax.plot(
+        hal["raw"][:, 0], hal["raw"][:, 1], ".", color="0.8", ms=2.5, alpha=0.5, label="Hallal raw"
+    )
     ax.loglog(hal["f_h"], hal["a_h"], color="0.1", lw=2.2, label="Hallal cleaned")
     dm = hal["dm"]
     labels = {
@@ -321,8 +381,14 @@ def fig_hallal_tf(hal: dict) -> Path:
     }
     for key, af in hal["curves"].items():
         ls = "--" if key.endswith("_dm") else "-"
-        ax.loglog(FREQ, af, color=COLORS[key], ls=ls, lw=1.7,
-                  label=f"{labels[key]}  (ln-RMS {hal['misfit'][key]:.2f})")
+        ax.loglog(
+            FREQ,
+            af,
+            color=COLORS[key],
+            ls=ls,
+            lw=1.7,
+            label=f"{labels[key]}  (ln-RMS {hal['misfit'][key]:.2f})",
+        )
     ax.set_xlim(0.4, 12)
     ax.set_ylim(0.8, 200)
     ax.set_xlabel("Frequency (Hz)")
@@ -355,8 +421,16 @@ def fig_sobol(rows: list[dict]) -> Path:
 
     ax = axes[1]
     for key, mk in (("tb", "o"), ("tb_dm", "s"), ("dar", "^"), ("dar_dm", "D")):
-        ax.scatter(contrast, [r[f"A_{key}"] for r in rows], color=COLORS[key], marker=mk, s=22,
-                   edgecolor="k", lw=0.3, label=key)
+        ax.scatter(
+            contrast,
+            [r[f"A_{key}"] for r in rows],
+            color=COLORS[key],
+            marker=mk,
+            s=22,
+            edgecolor="k",
+            lw=0.3,
+            label=key,
+        )
     ax.set_yscale("log")
     ax.set_xlabel(r"$V_{s2}/V_{s1}$")
     ax.set_ylabel(r"$A_{f_0}$")
@@ -366,8 +440,15 @@ def fig_sobol(rows: list[dict]) -> Path:
 
     ax = axes[2]
     ax.scatter(contrast, [r["dmult"] for r in rows], color="0.3", s=22, label="Dmult (on Dmin)")
-    ax.scatter(contrast, [r["k_equiv"] for r in rows], color=COLORS["tb"], s=22, edgecolor="k", lw=0.3,
-               label=r"$k$ on $\xi_Q$ matching Dmult$\cdot D_\mathrm{min}$")
+    ax.scatter(
+        contrast,
+        [r["k_equiv"] for r in rows],
+        color=COLORS["tb"],
+        s=22,
+        edgecolor="k",
+        lw=0.3,
+        label=r"$k$ on $\xi_Q$ matching Dmult$\cdot D_\mathrm{min}$",
+    )
     ax.set_xlabel(r"$V_{s2}/V_{s1}$")
     ax.set_ylabel("Multiplier")
     ax.set_yscale("log")
@@ -386,12 +467,16 @@ def main() -> None:
 
     global F_REF, OUT
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--f-ref", type=float, default=F_REF, help="Darendeli excitation frequency (Hz)")
+    parser.add_argument(
+        "--f-ref", type=float, default=F_REF, help="Darendeli excitation frequency (Hz)"
+    )
     F_REF = parser.parse_args().f_ref
     OUT = OUT / f"f{F_REF:g}Hz"
     apply_style()
     OUT.mkdir(parents=True, exist_ok=True)
-    print(f"Assumptions: rho={RHO:g}  GWT={GWT:g} m  K0={K0:g}  OCR={OCR:g}  f_ref={F_REF:g} Hz  PI_TF={PI_TF:g}")
+    print(
+        f"Assumptions: rho={RHO:g}  GWT={GWT:g} m  K0={K0:g}  OCR={OCR:g}  f_ref={F_REF:g} Hz  PI_TF={PI_TF:g}"
+    )
 
     mod = load_extracted()
     ly, rk, _ = mod.build_column()

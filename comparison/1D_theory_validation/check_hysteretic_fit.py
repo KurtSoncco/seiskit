@@ -50,7 +50,9 @@ def af_hysteretic(freq, rows, xi_of_f) -> np.ndarray:
 
 
 def log_misfit(af, a_obs) -> float:
-    return float(np.mean((np.log(np.clip(af, 1e-12, None)) - np.log(np.clip(a_obs, 1e-12, None))) ** 2))
+    return float(
+        np.mean((np.log(np.clip(af, 1e-12, None)) - np.log(np.clip(a_obs, 1e-12, None))) ** 2)
+    )
 
 
 def hallal_peaks(f, a, fmin=0.55, fmax=10.0):
@@ -114,7 +116,7 @@ def main() -> None:
     for fp, ap in peaks:
         z = invert_xi_at_peak(rows, fp, ap)
         xi_peaks.append(z)
-        print(f"peak {fp:.3f} Hz  Hallal={ap:.1f}  →  ξ={100*z:.3f}%")
+        print(f"peak {fp:.3f} Hz  Hallal={ap:.1f}  →  ξ={100 * z:.3f}%")
     f_pk = np.array([p[0] for p in peaks])
     z_pk = np.array(xi_peaks)
 
@@ -136,10 +138,12 @@ def main() -> None:
             # local max in ±8%
             m = (freq > 0.92 * fp) & (freq < 1.08 * fp)
             am = float(np.max(af[m])) if np.any(m) else float(af[ib])
-            print(f"{fp:7.2f} {ap:8.1f} {am:8.1f} {ap/am:7.2f}")
+            print(f"{fp:7.2f} {ap:8.1f} {am:8.1f} {ap / am:7.2f}")
 
-    print(f"\nbest constant ξ = {100*xi_c:.3f}%   log-MSE={log_misfit(af_c, a_h):.4f}")
-    print(f"power-law ξ(f) = {100*xi1:.3f}% × f^{{-{alpha:.3f}}}   log-MSE={log_misfit(af_p, a_h):.4f}")
+    print(f"\nbest constant ξ = {100 * xi_c:.3f}%   log-MSE={log_misfit(af_c, a_h):.4f}")
+    print(
+        f"power-law ξ(f) = {100 * xi1:.3f}% × f^{{-{alpha:.3f}}}   log-MSE={log_misfit(af_p, a_h):.4f}"
+    )
     print(f"peak-wise ξ(f) interpolated           log-MSE={log_misfit(af_i, a_h):.4f}")
     peak_table("constant ξ", f_h, af_c)
     peak_table("power-law ξ(f)", f_h, af_p)
@@ -156,7 +160,7 @@ def main() -> None:
         color="#0072B2",
         lw=1.5,
         zorder=4,
-        label=fr"hysteretic $\xi$={100*xi_c:.2f}% const.",
+        label=rf"hysteretic $\xi$={100 * xi_c:.2f}% const.",
     )
     ax.loglog(
         freq_plot,
@@ -165,7 +169,7 @@ def main() -> None:
         lw=1.7,
         ls="--",
         zorder=5,
-        label=fr"hysteretic $\xi(f)={100*xi1:.2f}\,f^{{-{alpha:.2f}}}$%",
+        label=rf"hysteretic $\xi(f)={100 * xi1:.2f}\,f^{{-{alpha:.2f}}}$%",
     )
     ax.loglog(
         freq_plot,
@@ -185,7 +189,13 @@ def main() -> None:
     ax.legend(loc="lower left", fontsize=7.5, frameon=True)
 
     ax = axes[1]
-    ax.semilogx(freq_plot, 100 * np.array([xi_c] * len(freq_plot)), color="#0072B2", lw=1.5, label="constant")
+    ax.semilogx(
+        freq_plot,
+        100 * np.array([xi_c] * len(freq_plot)),
+        color="#0072B2",
+        lw=1.5,
+        label="constant",
+    )
     ax.semilogx(
         freq_plot,
         100 * xi1 * (freq_plot / 1.0) ** (-alpha),

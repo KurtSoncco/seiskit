@@ -53,6 +53,7 @@ from config import (  # noqa: E402
     metric_label,
     save_figure,
 )
+
 from seiskit.plot_config import get_crameri_cmap  # noqa: E402
 
 warnings.filterwarnings("ignore")
@@ -121,7 +122,9 @@ def _level_codes(X: np.ndarray) -> np.ndarray:
         uniq = np.unique(finite)
         if uniq.size <= 3:
             mapping = {float(v): float(i) for i, v in enumerate(np.sort(uniq))}
-            out[:, j] = np.fromiter((mapping[float(v)] for v in col), dtype=np.float64, count=len(col))
+            out[:, j] = np.fromiter(
+                (mapping[float(v)] for v in col), dtype=np.float64, count=len(col)
+            )
         else:
             q1, q2 = np.quantile(finite, [1.0 / 3.0, 2.0 / 3.0])
             out[:, j] = np.digitize(col, [q1, q2]).astype(np.float64)
@@ -182,7 +185,7 @@ def _nice_limit(half: float) -> float:
     """
     need = max(float(half), 1e-6)
     exp = np.floor(np.log10(need))
-    base = 10.0 ** exp
+    base = 10.0**exp
     for m in NICE_STEPS:
         cand = m * base
         if cand + 1e-12 >= need:
@@ -234,7 +237,9 @@ def _beeswarm_panel(
     _box_axes(ax)
 
 
-def _column_xlims(qbm: dict[str, np.ndarray], ngb: dict[str, np.ndarray]) -> dict[str, tuple[float, float]]:
+def _column_xlims(
+    qbm: dict[str, np.ndarray], ngb: dict[str, np.ndarray]
+) -> dict[str, tuple[float, float]]:
     """Symmetric per-metric limits, shared by QBM and NGBoost in that column."""
     x_lims: dict[str, tuple[float, float]] = {}
     for metric in METRICS:
@@ -289,9 +294,7 @@ def plot_central_beeswarm(
     ax_leg = fig.add_subplot(gs[0])
     ax_leg.set_axis_off()
     gs_plots = gs[1].subgridspec(2, n_metrics, hspace=0.28, wspace=0.22)
-    axes = np.array(
-        [[fig.add_subplot(gs_plots[r, c]) for c in range(n_metrics)] for r in range(2)]
-    )
+    axes = np.array([[fig.add_subplot(gs_plots[r, c]) for c in range(n_metrics)] for r in range(2)])
 
     stores = ((qbm, levels_q), (ngb, levels_n))
     for row, ((store, levels), row_title) in enumerate(zip(stores, ROW_TITLES)):
@@ -312,7 +315,11 @@ def plot_central_beeswarm(
                 ax.tick_params(labelbottom=False)
                 ax.set_xlabel("")
             else:
-                ax.set_xlabel("SHAP value" if col == n_metrics // 2 else "", fontsize=LABEL_FONTSIZE, labelpad=2)
+                ax.set_xlabel(
+                    "SHAP value" if col == n_metrics // 2 else "",
+                    fontsize=LABEL_FONTSIZE,
+                    labelpad=2,
+                )
             if col == 0:
                 ax.set_ylabel(row_title, fontsize=LABEL_FONTSIZE, labelpad=2)
             else:

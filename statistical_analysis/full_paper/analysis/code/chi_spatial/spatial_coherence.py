@@ -326,9 +326,7 @@ def plot_coherence_factor_sweeps(lag: pd.DataFrame) -> None:
         for c, (factor, _xlabel, _log_x, levels, fixed) in enumerate(FACTOR_SWEEPS):
             ax = axes[r, c]
             for lv_i, lv in enumerate(levels):
-                sub = lag.loc[_center_slice_mask(lag, metric, factor, lv, fixed)].sort_values(
-                    "h_m"
-                )
+                sub = lag.loc[_center_slice_mask(lag, metric, factor, lv, fixed)].sort_values("h_m")
                 if sub.empty:
                     continue
                 ax.plot(

@@ -128,7 +128,7 @@ def main() -> None:
     print("layer  z_top    z_bot     H      Vs     rho     xi_Q")
     for n, zt, zb, h, vs, rho, xi in rows:
         tag = "rock" if n == rows[-1][0] else f"{n:4d}"
-        print(f"{tag:>5s} {zt:8.2f} {zb:8.2f} {h:7.2f} {vs:8.2f} {rho:6.0f} {100*xi:6.2f}%")
+        print(f"{tag:>5s} {zt:8.2f} {zb:8.2f} {h:7.2f} {vs:8.2f} {rho:6.0f} {100 * xi:6.2f}%")
     print(
         f"tt={tt:.4f} s  f0=1/(4tt)={f0:.3f} Hz  "
         f"first peak f={f_peak:.3f} Hz  |AF_within|={a_peak:.2f}"
@@ -147,7 +147,7 @@ def main() -> None:
     ax.axhline(z_soil, color="0.5", ls=":", lw=0.9)
     for n, zt, zb, h, vs, rho, xi in rows:
         ax.annotate(
-            fr"$\rho$={rho:.0f}",
+            rf"$\rho$={rho:.0f}",
             xy=(min(vs, 700.0), 0.5 * (zt + zb)),
             xytext=(8, 0),
             textcoords="offset points",
@@ -174,13 +174,23 @@ def main() -> None:
         label="Hallal digitized (raw)",
     )
     ax.loglog(f_h, a_h, color="0.15", lw=2.15, zorder=3, label="Hallal digitized (cleaned)")
-    ax.loglog(freq, af_w, color="#0072B2", lw=1.8, zorder=4, label=r"This work $AF_\mathrm{within}$")
-    ax.loglog(freq, af_o, color="#D55E00", lw=1.35, ls="--", zorder=4, label=r"This work $AF_\mathrm{outcrop}$")
+    ax.loglog(
+        freq, af_w, color="#0072B2", lw=1.8, zorder=4, label=r"This work $AF_\mathrm{within}$"
+    )
+    ax.loglog(
+        freq,
+        af_o,
+        color="#D55E00",
+        lw=1.35,
+        ls="--",
+        zorder=4,
+        label=r"This work $AF_\mathrm{outcrop}$",
+    )
     ax.axvline(f0, color="0.4", ls=":", lw=0.8)
     ax.plot(f_peak, a_peak, "o", color="#0072B2", ms=5, zorder=5)
     ax.plot(f_h[ih], a_h[ih], "o", color="0.15", ms=5, zorder=5)
     ax.annotate(
-        fr"Hallal $A_1$={a_h[ih]:.0f}" + "\n" + fr"here $A_1$={a_peak:.1f}",
+        rf"Hallal $A_1$={a_h[ih]:.0f}" + "\n" + rf"here $A_1$={a_peak:.1f}",
         xy=(f_h[ih], a_h[ih]),
         xytext=(1.55, a_h[ih] * 0.55),
         fontsize=8,

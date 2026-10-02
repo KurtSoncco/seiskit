@@ -56,16 +56,26 @@ def main() -> None:
         return
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    fig, axes = plt.subplots(2, 3, figsize=(16, 8.4), constrained_layout=True,
-                             gridspec_kw={"height_ratios": [1.4, 1]})
+    fig, axes = plt.subplots(
+        2, 3, figsize=(16, 8.4), constrained_layout=True, gridspec_kw={"height_ratios": [1.4, 1]}
+    )
     arms = [m for m in ARMS if m in set(df["method"])]
     for j, (col, ylabel, title) in enumerate(METRICS):
         ax = axes[0, j]
         for m in arms:
             label, color, mk = ARMS[m]
             sub = df[df["method"] == m].sort_values("contrast")
-            ax.scatter(sub["contrast"], sub[col], color=color, marker=mk, s=24, edgecolor="k", lw=0.3,
-                       label=label, zorder=3)
+            ax.scatter(
+                sub["contrast"],
+                sub[col],
+                color=color,
+                marker=mk,
+                s=24,
+                edgecolor="k",
+                lw=0.3,
+                label=label,
+                zorder=3,
+            )
         ax.axhline(0.0, color="0.2", lw=1)
         ax.set_xlabel(r"$V_{s2}/V_{s1}$")
         ax.set_ylabel(ylabel)
@@ -92,12 +102,19 @@ def main() -> None:
 
     stats = (
         df.groupby("method")[[c for c, _, _ in METRICS]]
-        .agg(lambda v: f"{np.median(v):+.3f} [{np.percentile(v, 16):+.3f}, {np.percentile(v, 84):+.3f}]")
+        .agg(
+            lambda v: f"{np.median(v):+.3f} [{np.percentile(v, 16):+.3f}, {np.percentile(v, 84):+.3f}]"
+        )
         .reindex(arms)
     )
     print("median [p16, p84] vs opensees_2d:")
     print(stats.to_string())
-    abs_a = df.assign(abs_a=df["delta_ln_A_peak"].abs()).groupby("method")["abs_a"].median().reindex(arms)
+    abs_a = (
+        df.assign(abs_a=df["delta_ln_A_peak"].abs())
+        .groupby("method")["abs_a"]
+        .median()
+        .reindex(arms)
+    )
     print("\nmedian |ln A_f0 error|:")
     print(abs_a.round(3).to_string())
     print(out)

@@ -108,9 +108,13 @@ def vs_depth_to_layers(vs_depth: np.ndarray, n_soil: int, dz: float, base: str):
         while j < n_soil and abs(soil[j] - soil[i]) <= 1e-6 * max(1.0, abs(soil[i])):
             j += 1
         v = float(soil[i])
-        layers.append(Layer((j - i) * dz, v, RHO_SOIL, layer_xi(base, v, 0.5 * (i + j) * dz, RHO_SOIL)))
+        layers.append(
+            Layer((j - i) * dz, v, RHO_SOIL, layer_xi(base, v, 0.5 * (i + j) * dz, RHO_SOIL))
+        )
         i = j
-    rock = RockHalfspace(rock_vs, RHO_ROCK, layer_xi(base, rock_vs, n_soil * dz + 0.5 * H_ROCK, RHO_ROCK))
+    rock = RockHalfspace(
+        rock_vs, RHO_ROCK, layer_xi(base, rock_vs, n_soil * dz + 0.5 * H_ROCK, RHO_ROCK)
+    )
     return layers, rock
 
 
@@ -145,7 +149,7 @@ def tf_panel(ax, freq, af, med, p16, p84, af_base, title, color):
     ax.grid(True, which="both", alpha=0.3)
     ax.legend(loc="lower left", fontsize=7.5, frameon=True)
     ax.annotate(
-        fr"$A_1$ p50={np.median(np.max(af, axis=1)):.0f}",
+        rf"$A_1$ p50={np.median(np.max(af, axis=1)):.0f}",
         xy=(0.97, 0.97),
         xycoords="axes fraction",
         ha="right",
@@ -169,7 +173,9 @@ def run_case(case: ToroCase, vs_mean: float, freq: np.ndarray) -> None:
         randomize_bedrock_depth=case.randomize_bedrock_depth,
         vary_bedrock_vs=False,
     )
-    print(f"\n=== {case.key}: NHPP={case.randomize_layer_thickness}  H={case.randomize_bedrock_depth} ===")
+    print(
+        f"\n=== {case.key}: NHPP={case.randomize_layer_thickness}  H={case.randomize_bedrock_depth} ==="
+    )
 
     af_q = np.empty((N_REAL, len(freq)))
     af_d = np.empty((N_REAL, len(freq)))
@@ -201,9 +207,9 @@ def run_case(case: ToroCase, vs_mean: float, freq: np.ndarray) -> None:
     peaks_d = np.max(af_d, axis=1)
     print(
         f"  A1 ξ_Q     p50={np.median(peaks_q):.1f}  "
-        f"p16–p84={np.percentile(peaks_q,16):.1f}–{np.percentile(peaks_q,84):.1f}\n"
+        f"p16–p84={np.percentile(peaks_q, 16):.1f}–{np.percentile(peaks_q, 84):.1f}\n"
         f"  A1 Dmin    p50={np.median(peaks_d):.1f}  "
-        f"p16–p84={np.percentile(peaks_d,16):.1f}–{np.percentile(peaks_d,84):.1f}"
+        f"p16–p84={np.percentile(peaks_d, 16):.1f}–{np.percentile(peaks_d, 84):.1f}"
     )
 
     med_q = np.exp(np.mean(np.log(np.clip(af_q, 1e-12, None)), axis=0))
@@ -227,11 +233,21 @@ def run_case(case: ToroCase, vs_mean: float, freq: np.ndarray) -> None:
     ax.set_xlim(0.0, 2800.0)
     ax.set_xlabel(r"$V_s$ (m/s)")
     ax.set_ylabel("Depth (m)")
-    ax.set_title(fr"{case.vs_title}  ($\sigma_{{\ln V_s}}$=CoV={SIGMA_LN_VS:.2f})")
+    ax.set_title(rf"{case.vs_title}  ($\sigma_{{\ln V_s}}$=CoV={SIGMA_LN_VS:.2f})")
     ax.grid(True, alpha=0.3)
     ax.legend(loc="lower right", fontsize=8)
 
-    tf_panel(axes[1], freq, af_q, med_q, p16_q, p84_q, af_base_q, r"Taborda–Bielak $\xi_Q=1/(2Q)$", "#0072B2")
+    tf_panel(
+        axes[1],
+        freq,
+        af_q,
+        med_q,
+        p16_q,
+        p84_q,
+        af_base_q,
+        r"Taborda–Bielak $\xi_Q=1/(2Q)$",
+        "#0072B2",
+    )
     tf_panel(
         axes[2],
         freq,
@@ -244,8 +260,8 @@ def run_case(case: ToroCase, vs_mean: float, freq: np.ndarray) -> None:
         "#D55E00",
     )
     fig.suptitle(
-        fr"{case.title}  $V_{{s,\mathrm{{med}}}}$={vs_mean:.0f} m/s,  $n$={N_REAL}  |  "
-        fr"ensemble $\sigma_{{\ln V_{{s1}}}}$={stats['sigma_ln_vs1']:.3f}  (target {SIGMA_LN_VS:.3f})",
+        rf"{case.title}  $V_{{s,\mathrm{{med}}}}$={vs_mean:.0f} m/s,  $n$={N_REAL}  |  "
+        rf"ensemble $\sigma_{{\ln V_{{s1}}}}$={stats['sigma_ln_vs1']:.3f}  (target {SIGMA_LN_VS:.3f})",
         fontsize=11,
     )
     out = OUT / case.filename

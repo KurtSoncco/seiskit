@@ -31,8 +31,8 @@ import sys
 import time
 from pathlib import Path
 
-import hdf5plugin  # noqa: F401
 import h5py
+import hdf5plugin  # noqa: F401
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -49,11 +49,16 @@ from sobol import (  # noqa: E402
     DEFAULT_SOBOL_SAMPLE_COUNT,
     build_manifest,
 )
+
 from seiskit.damping import (  # noqa: E402
     compute_damping_from_Q,
     compute_quality_factor,
 )
-from seiskit.theory.layered_1d_tf import Layer, RockHalfspace, layered_transfer_function  # noqa: E402
+from seiskit.theory.layered_1d_tf import (  # noqa: E402
+    Layer,
+    RockHalfspace,
+    layered_transfer_function,
+)
 
 BOX_ROOT = Path(
     os.getenv(
@@ -65,9 +70,7 @@ H5_DIR = BOX_ROOT / "h5"
 OUT_DIR = BOX_ROOT / "hallal_vs_2d"
 TF_DIR = BOX_ROOT / "transfer_function"
 # Local SSD checkpoint (survives Box sync failures; resume after reboot)
-LOCAL_CKPT_DIR = Path(
-    os.getenv("PRETELL_CKPT_DIR", str(Path.home() / ".cache" / "hallal_vs_2d"))
-)
+LOCAL_CKPT_DIR = Path(os.getenv("PRETELL_CKPT_DIR", str(Path.home() / ".cache" / "hallal_vs_2d")))
 
 RHO = 2000.0
 DZ = 1.0
@@ -142,10 +145,7 @@ def merge_soil_layers(
             wsum += v * dz
     thicknesses.append(t)
     values.append(wsum / t)
-    return [
-        Layer(float(th), float(vv), RHO, xi_of_vs(vv))
-        for th, vv in zip(thicknesses, values)
-    ]
+    return [Layer(float(th), float(vv), RHO, xi_of_vs(vv)) for th, vv in zip(thicknesses, values)]
 
 
 def column_tf(
@@ -191,9 +191,9 @@ def _process_one(
     n_soil: int,
     freq: np.ndarray,
     cols: np.ndarray,
-) -> tuple[int, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | tuple[int, None, None, None, None]:
-    import hdf5plugin  # noqa: F401  — must import in each loky worker
-
+) -> (
+    tuple[int, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | tuple[int, None, None, None, None]
+):
     path = H5_DIR / f"run_{index}.h5"
     if not path.is_file():
         return index, None, None, None, None
@@ -297,8 +297,7 @@ def run(*, smoke: bool = False, force: bool = False, n_jobs: int | None = None) 
     cols = pretell_column_indices(n_samp)
     batch = max(1, int(os.getenv("PRETELL_BATCH", "128")))
     print(
-        f"[pretell] n_samples={n_samp}  cols[{cols[0]}..{cols[-1]}]  "
-        f"n_jobs={jobs}  batch={batch}"
+        f"[pretell] n_samples={n_samp}  cols[{cols[0]}..{cols[-1]}]  n_jobs={jobs}  batch={batch}"
     )
 
     freq = np.asarray(np.load(TF_DIR / "freq.npy"), dtype=np.float64)
@@ -338,8 +337,7 @@ def run(*, smoke: bool = False, force: bool = False, n_jobs: int | None = None) 
         for start in range(0, len(pending), batch):
             chunk = pending[start : start + batch]
             results = Parallel(n_jobs=jobs, backend="loky", verbose=5)(
-                delayed(_process_one)(e.index, e.soil_layer_count, freq, cols)
-                for e in chunk
+                delayed(_process_one)(e.index, e.soil_layer_count, freq, cols) for e in chunk
             )
             for idx, geo, p16, p84, sig in results:
                 if geo is None or idx >= n_runs:
@@ -415,7 +413,7 @@ def run(*, smoke: bool = False, force: bool = False, n_jobs: int | None = None) 
         print(
             f"[summary] r_pretell  n={len(v)}  mean={np.mean(v):.3f}  "
             f"p50={np.median(v):.3f}  "
-            f"p16–p84={np.percentile(v,16):.3f}–{np.percentile(v,84):.3f}"
+            f"p16–p84={np.percentile(v, 16):.3f}–{np.percentile(v, 84):.3f}"
         )
     print(f"[done] → {OUT_DIR}")
 

@@ -25,7 +25,9 @@ N_REAL = 200
 
 
 def load_toro():
-    spec = importlib.util.spec_from_file_location("plot_toro_taborda", ROOT / "plot_toro_taborda.py")
+    spec = importlib.util.spec_from_file_location(
+        "plot_toro_taborda", ROOT / "plot_toro_taborda.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     sys.modules["plot_toro_taborda"] = mod
     spec.loader.exec_module(mod)
@@ -46,7 +48,7 @@ def summarize(name: str, r: np.ndarray) -> None:
     r = r[np.isfinite(r)]
     print(
         f"{name:12s}  n={len(r)}  mean={np.mean(r):.3f}  "
-        f"p50={np.median(r):.3f}  p16–p84={np.percentile(r,16):.3f}–{np.percentile(r,84):.3f}  "
+        f"p50={np.median(r):.3f}  p16–p84={np.percentile(r, 16):.3f}–{np.percentile(r, 84):.3f}  "
         f"min={np.min(r):.3f}  max={np.max(r):.3f}"
     )
 
@@ -55,8 +57,8 @@ def hist_panel(ax, r, color, title):
     r = r[np.isfinite(r)]
     bins = np.linspace(-0.1, 1.0, 23)
     ax.hist(r, bins=bins, color=color, edgecolor="white", alpha=0.9)
-    ax.axvline(np.median(r), color="0.15", lw=1.6, ls="--", label=fr"median={np.median(r):.2f}")
-    ax.axvline(np.mean(r), color="0.15", lw=1.2, ls=":", label=fr"mean={np.mean(r):.2f}")
+    ax.axvline(np.median(r), color="0.15", lw=1.6, ls="--", label=rf"median={np.median(r):.2f}")
+    ax.axvline(np.mean(r), color="0.15", lw=1.2, ls=":", label=rf"mean={np.mean(r):.2f}")
     ax.set_xlim(-0.1, 1.0)
     ax.set_xlabel(r"Pearson $r(\ln|AF|_{\mathrm{Toro}},\ \ln|AF|_{1\mathrm{D}})$")
     ax.set_ylabel("Count")

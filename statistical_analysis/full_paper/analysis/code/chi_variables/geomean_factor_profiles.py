@@ -137,10 +137,30 @@ def plot_profiles(df: pd.DataFrame, *, out_dir: Path) -> Path:
 
             seed_array = np.asarray(seed_stats, dtype=float)
             node_array = np.asarray(node_stats, dtype=float)
-            ax.fill_between(x_values, seed_array[:, 0], seed_array[:, 2], color=color, alpha=0.08, linewidth=0)
-            ax.fill_between(x_values, node_array[:, 0], node_array[:, 2], color=color, alpha=0.08, linewidth=0)
-            ax.plot(x_values, seed_array[:, 1], color=color, lw=DATA_LINEWIDTH, ls="-", marker="o", ms=3.5)
-            ax.plot(x_values, node_array[:, 1], color=color, lw=DATA_LINEWIDTH, ls="--", marker="s", ms=3.5)
+            ax.fill_between(
+                x_values, seed_array[:, 0], seed_array[:, 2], color=color, alpha=0.08, linewidth=0
+            )
+            ax.fill_between(
+                x_values, node_array[:, 0], node_array[:, 2], color=color, alpha=0.08, linewidth=0
+            )
+            ax.plot(
+                x_values,
+                seed_array[:, 1],
+                color=color,
+                lw=DATA_LINEWIDTH,
+                ls="-",
+                marker="o",
+                ms=3.5,
+            )
+            ax.plot(
+                x_values,
+                node_array[:, 1],
+                color=color,
+                lw=DATA_LINEWIDTH,
+                ls="--",
+                marker="s",
+                ms=3.5,
+            )
             ax.plot(x_values, global_values, color=color, lw=1.1, ls=":", marker="D", ms=3.0)
 
         ax.set_xlabel(xlabel, fontsize=LABEL_FONTSIZE)

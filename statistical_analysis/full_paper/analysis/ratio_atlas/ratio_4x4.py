@@ -105,10 +105,7 @@ def seed_blocks(n_blocks: int, *, first: int = 1) -> list[list[int]]:
             f"{n_blocks} blocks of {N_PANELS} starting at seed {first} "
             f"exceed seeds 1–{N_SEEDS_AVAILABLE}"
         )
-    return [
-        list(range(first + i * N_PANELS, first + (i + 1) * N_PANELS))
-        for i in range(n_blocks)
-    ]
+    return [list(range(first + i * N_PANELS, first + (i + 1) * N_PANELS)) for i in range(n_blocks)]
 
 
 def out_stem(
@@ -152,8 +149,7 @@ def load_cell(
         )
         if not np.any(mask):
             raise ValueError(
-                f"no rows for Vs1={vs1:g}, H={height:g}, CoV={cov:g}, "
-                f"rH={rh:g}, aHV={ahv:g}"
+                f"no rows for Vs1={vs1:g}, H={height:g}, CoV={cov:g}, rH={rh:g}, aHV={ahv:g}"
             )
         channels = np.asarray(g["channel"][:][mask], dtype=int)
         seeds = np.asarray(g["seed"][:][mask], dtype=int)
@@ -282,9 +278,7 @@ def plot_atlas(
         Line2D([0], [0], color=color, lw=DATA_LINEWIDTH, label=metric_label(metric)),
     ]
     if ylim[0] <= 1.0 <= ylim[1]:
-        handles.append(
-            Line2D([0], [0], color=REF_COLOR, lw=DATA_LINEWIDTH, label="1D baseline")
-        )
+        handles.append(Line2D([0], [0], color=REF_COLOR, lw=DATA_LINEWIDTH, label="1D baseline"))
     header.legend(
         handles=handles,
         loc="lower center",
@@ -371,9 +365,7 @@ def main() -> None:
                 ahv=args.ahv,
                 ylim=ylim,
             )
-            stem = out_stem(
-                args.vs1, args.height, args.cov, args.rh, args.ahv, seed_ids, metric
-            )
+            stem = out_stem(args.vs1, args.height, args.cov, args.rh, args.ahv, seed_ids, metric)
             save_figure(fig, stem, out_dir=out_dir)
             plt.close(fig)
 

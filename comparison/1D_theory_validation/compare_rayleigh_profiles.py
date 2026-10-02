@@ -96,7 +96,9 @@ def _load_center_pair(run_dir: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray
     return base[:, 0], surf[:, 1], base[:, 1]
 
 
-def build_grids(case: ProfileCase) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, float, np.ndarray]:
+def build_grids(
+    case: ProfileCase,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, float, np.ndarray]:
     n_soil = max(1, int(round(case.H / DZ)))
     n_rock = max(1, int(round(BEDROCK_THICKNESS / DZ)))
     vs = np.array([case.vs1] * n_soil + [case.vs2] * n_rock, dtype=float).reshape(-1, 1)
@@ -112,7 +114,9 @@ def build_grids(case: ProfileCase) -> tuple[np.ndarray, np.ndarray, np.ndarray, 
 def soil_rock_xi(vs: np.ndarray, mask: np.ndarray) -> tuple[float, float]:
     soil = vs[~mask]
     rock = vs[mask]
-    xi_s = compute_average_damping_harmonic([compute_quality_factor(float(v)) for v in soil.ravel()])
+    xi_s = compute_average_damping_harmonic(
+        [compute_quality_factor(float(v)) for v in soil.ravel()]
+    )
     xi_r = compute_damping_from_Q(compute_quality_factor(float(np.median(rock))))
     return float(xi_s), float(xi_r)
 
@@ -242,24 +246,37 @@ def plot_all(rows: list[dict]) -> Path:
         d = np.load(row["npz"])
         freq, af_os = d["freq"], d["af_os"]
         ax.loglog(freq, af_os, color="0.45", lw=1.15, label="OpenSees 1D")
-        ax.loglog(freq, d["af_th_rayleigh"], color="#0072B2", lw=1.9, label=r"Theory Rayleigh $\xi(f)$")
-        ax.loglog(freq, d["af_th_const_Q"], color="#009E73", lw=1.3, ls="--", label=r"Theory const. $Q$")
-        ax.loglog(freq, d["af_th_const_0p025"], color="#D55E00", lw=1.3, ls=":", label=r"Theory $\xi$=0.025")
+        ax.loglog(
+            freq, d["af_th_rayleigh"], color="#0072B2", lw=1.9, label=r"Theory Rayleigh $\xi(f)$"
+        )
+        ax.loglog(
+            freq, d["af_th_const_Q"], color="#009E73", lw=1.3, ls="--", label=r"Theory const. $Q$"
+        )
+        ax.loglog(
+            freq,
+            d["af_th_const_0p025"],
+            color="#D55E00",
+            lw=1.3,
+            ls=":",
+            label=r"Theory $\xi$=0.025",
+        )
         ax.axvline(row["f0"], color="0.4", ls="--", lw=0.7)
         ax.set_xlim(0.1, 10)
         ax.set_ylim(0.5, 40)
         ax.grid(True, which="both", alpha=0.3)
         ax.set_title(
-            fr"{row['label']}: $V_{{s1}}$={row['vs1']:.0f}, $H$={row['H']:.0f} m, "
-            fr"$V_{{s2}}$={row['vs2']:.0f}" + "\n"
-            + fr"$f_0$={row['f0']:.2f} Hz, $\xi_Q$={100*row['xi_soil_Q']:.2f}%",
+            rf"{row['label']}: $V_{{s1}}$={row['vs1']:.0f}, $H$={row['H']:.0f} m, "
+            rf"$V_{{s2}}$={row['vs2']:.0f}"
+            + "\n"
+            + rf"$f_0$={row['f0']:.2f} Hz, $\xi_Q$={100 * row['xi_soil_Q']:.2f}%",
             fontsize=9,
         )
         if ax is axes[0, 0]:
             ax.legend(loc="center right", fontsize=7.5, frameon=True)
         ax.annotate(
-            fr"$\Delta A_\mathrm{{Rayl}}$={100*row['rel_peak_ray']:+.1f}%" + "\n"
-            + fr"$\Delta A_{{0.025}}$={100*row['rel_peak_025']:+.1f}%",
+            rf"$\Delta A_\mathrm{{Rayl}}$={100 * row['rel_peak_ray']:+.1f}%"
+            + "\n"
+            + rf"$\Delta A_{{0.025}}$={100 * row['rel_peak_025']:+.1f}%",
             xy=(0.03, 0.97),
             xycoords="axes fraction",
             ha="left",

@@ -127,16 +127,18 @@ def main() -> None:
 
         ax.loglog(freq, af_os, color="0.45", lw=1.4, label="OpenSees Rayleigh")
         ax.loglog(freq, af_visc, color="#0072B2", lw=2.0, label="Theory viscous Rayleigh")
-        ax.loglog(freq, af_hyst, color="#D55E00", lw=1.4, ls="--", label=r"Theory hysteretic $\xi(f)$")
+        ax.loglog(
+            freq, af_hyst, color="#D55E00", lw=1.4, ls="--", label=r"Theory hysteretic $\xi(f)$"
+        )
         ax.axvline(f0, color="0.4", ls="--", lw=0.7)
         ax.set_xlim(0.1, 10)
         ax.set_ylim(0.5, 40)
         ax.grid(True, which="both", alpha=0.3)
         ax.set_title(
-            fr"{row['label']}: $f_0$={f0:.2f} Hz, $\xi_Q$={100*row['xi_soil_Q']:.2f}%"
+            rf"{row['label']}: $f_0$={f0:.2f} Hz, $\xi_Q$={100 * row['xi_soil_Q']:.2f}%"
             + "\n"
-            + fr"$\Delta A$ visc={100*summary[-1]['rel_peak_visc']:+.1f}%, "
-            + fr"hyst={100*summary[-1]['rel_peak_hyst']:+.1f}%",
+            + rf"$\Delta A$ visc={100 * summary[-1]['rel_peak_visc']:+.1f}%, "
+            + rf"hyst={100 * summary[-1]['rel_peak_hyst']:+.1f}%",
             fontsize=9,
         )
         if ax is axes[0, 0]:
@@ -201,7 +203,9 @@ def main() -> None:
     fig.savefig(out_zoom, dpi=160)
     plt.close(fig)
 
-    (OUT / "damping_model_check.json").write_text(json.dumps({"demo": demo, "all": summary}, indent=2))
+    (OUT / "damping_model_check.json").write_text(
+        json.dumps({"demo": demo, "all": summary}, indent=2)
+    )
     print(json.dumps(summary, indent=2))
     print(out_png)
     print(out_zoom)
