@@ -101,30 +101,50 @@ fi
 run "spatial_ols_qbm" "$PY" "$CODE/chi_qbm/spatial_ols.py"
 run "compare_models" "$PY" "$CODE/chi_qbm/compare_models.py"
 
-# 7. NGBoost — skip retrain if pickles exist
-if [[ "${FORCE_RETRAIN:-0}" == "1" ]] || ! have_models "$BOX_FIG/chi_ngboost/models" 5; then
-  run "train_ngboost" "$PY" "$CODE/chi_ngboost/train_ngboost.py"
+# 7. NGBoost — between-seed / within-seed models for figures; pooled node_z model
+#    only for chi_joint / chi_sr / Sobol / surfaces. Skip retrain if pickles exist.
+if [[ "${FORCE_RETRAIN:-0}" == "1" ]] \
+  || ! have_models "$BOX_FIG/chi_ngboost/between/models" 5 \
+  || ! have_models "$BOX_FIG/chi_ngboost/within/models" 5; then
+  run "train_ngboost" "$PY" "$CODE/chi_ngboost/train_ngboost.py" --partition all
 else
-  skip "train_ngboost" "models already on Box; FORCE_RETRAIN=1 to redo"
+  skip "train_ngboost" "partition models already on Box; FORCE_RETRAIN=1 to redo"
+fi
+if [[ "${FORCE_RETRAIN:-0}" == "1" ]] || ! have_models "$BOX_FIG/chi_ngboost/models" 5; then
+  run "train_ngboost_pooled" "$PY" "$CODE/chi_ngboost/train_ngboost.py" --partition pooled
+else
+  skip "train_ngboost_pooled" "models already on Box; FORCE_RETRAIN=1 to redo"
 fi
 run "evaluate_ngboost" "$PY" "$CODE/chi_ngboost/evaluate_ngboost.py"
 run "export_surfaces" "$PY" "$CODE/chi_ngboost/export_surfaces.py"
 run "calibration_crps_pit" "$PY" "$CODE/chi_ngboost/calibration_crps_pit.py"
 run "exceedance_friedman" "$PY" "$CODE/chi_ngboost/exceedance_friedman.py"
+# Spread models over all replicates (s_W over all seeds, s_B over all nodes).
+if [[ "${FORCE_RETRAIN:-0}" == "1" ]] \
+  || ! have_models "$BOX_FIG/chi_ngboost/spread/within/models" 6 \
+  || ! have_models "$BOX_FIG/chi_ngboost/spread/between/models" 5; then
+  run "train_spread" "$PY" "$CODE/chi_ngboost/train_spread.py"
+else
+  skip "train_spread" "spread models already on Box; FORCE_RETRAIN=1 to redo"
+fi
+run "node_robustness" "$PY" "$CODE/chi_ngboost/node_robustness.py"
+run "spread_figures" "$PY" "$CODE/chi_ngboost/spread_figures.py"
 
 # 8. SHAP / ALE
 run "shap_ngboost" "$PY" "$CODE/chi_shap/shap_ngboost.py"
-run "shap_qbm" "$PY" "$CODE/chi_shap/shap_qbm.py"
-run "shap_compare" "$PY" "$CODE/chi_shap/shap_compare.py"
 run "shap_beeswarm" "$PY" "$CODE/chi_shap/shap_beeswarm.py"
 run "ale_effects" "$PY" "$CODE/chi_shap/ale_effects.py"
 run "ale_dispersion" "$PY" "$CODE/chi_shap/ale_dispersion.py"
 run "ale_2d" "$PY" "$CODE/chi_shap/ale_2d.py"
 run "shap_median_vs_tail" "$PY" "$CODE/chi_shap/shap_median_vs_tail.py"
 run "plot_interactions" "$PY" "$CODE/chi_shap/plot_interactions.py"
+run "spread_effects" "$PY" "$CODE/chi_shap/spread_effects.py"
 
 # 9. SR optional
 if [[ "${RUN_SR:-0}" == "1" ]]; then
+  # SR shortlist: legacy pooled QBM vs pooled NGBoost SHAP (not a manuscript figure)
+  run "shap_qbm" "$PY" "$CODE/chi_shap/shap_qbm.py"
+  run "shap_compare" "$PY" "$CODE/chi_shap/shap_compare.py"
   run "train_sr" "$PY" "$CODE/chi_sr/train_sr.py"
   run "evaluate_sr" "$PY" "$CODE/chi_sr/evaluate_sr.py"
 else

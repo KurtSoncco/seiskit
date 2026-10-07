@@ -1,14 +1,14 @@
 \begin{table*}[!ht]
-\caption{Synthesis of variance decomposition roles, dual-model SHAP ranks (lower = more important; averaged over metrics), ALE effect amplitudes, and validated wave-scattering mechanisms.\label{tab:synthesis}}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccc@{}}
+\caption{Synthesis of variance decomposition roles and what drives each kind of spread: SHAP ranks of the spread-model means (lower = more important; averaged over metrics) and three-level ALE amplitudes in $\ln s$ units ($0.69$ = spread doubles), for the between-seed spread $\mu_B=\mathrm{E}[\ln s_B]$ (B, all nodes) and the within-seed spread $\mu_W=\mathrm{E}[\ln s_W]$ (W, all seeds), with validated wave-scattering mechanisms.\label{tab:synthesis}}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccccc@{}}
 \toprule
-Parameter & Variance role & Mean SHAP rank (QBM $q_{50}$) & Mean SHAP rank (NGBoost $\mu$) & Mean ALE amp.\ (median) & Physical mechanism (editable) \\
+Parameter & Variance role & SHAP rank $\mu_B$ & SHAP rank $\mu_W$ & ALE amp.\ (B) & ALE amp.\ (W) & Physical mechanism (editable) \\
 \midrule
-$V_{s1}$ & Median / impedance (low within-seed share) & 2.0 & 2.0 & 0.197 & Anchors 1D impedance / $f_0=V_{s1}/4H$; dominates median location shifts \\
-$H$ & Median / resonance anchor & 2.2 & 2.0 & 0.145 & Sets resonant period with $V_{s1}$; baseline site-period normalization \\
-$CoV$ & Primary $\bar s_W^2$ driver & 2.4 & 2.6 & 0.070 & Drives wave-phase randomization, within-seed variance, and upper-tail spread \\
-$r_h$ & Coherence / interaction scale & 5.2 & 5.4 & 0.006 & Sets interference scale; controls coherence decay and $r_h\times CoV$ coupling \\
-$a_{hv}$ & Between/within variance ratio & 3.6 & 3.6 & 0.027 & Directional focusing; modulates between- vs within-realization variance ratio \\
+$V_{s1}$ & Median / impedance (low within-seed share) & 3.0 & 3.8 & 0.482 & 0.544 & Anchors 1D impedance / $f_0=V_{s1}/4H$; dominates median location shifts \\
+$H$ & Median / resonance anchor & 3.8 & 2.8 & 0.508 & 1.383 & Sets resonant period with $V_{s1}$; baseline site-period normalization \\
+$CoV$ & Primary $\bar s_W^2$ driver & 1.4 & 2.0 & 0.906 & 0.861 & Drives wave-phase randomization, within-seed variance, and upper-tail spread \\
+$r_h$ & Coherence / interaction scale & 4.6 & 4.6 & 0.398 & 0.346 & Sets interference scale; controls coherence decay and $r_h\times CoV$ coupling \\
+$a_{hv}$ & Between/within variance ratio & 2.2 & 1.8 & 0.841 & 0.980 & Directional focusing; modulates between- vs within-realization variance ratio \\
 \bottomrule
 \end{tabular*}
 \end{table*}

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 _FULL = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_FULL))
@@ -74,34 +75,42 @@ def _booktabs(header: list[str], rows: list[list[str]], caption: str, label: str
     return "\n".join(lines)
 
 
+PARTITIONS = ("between", "within")
+PARTITION_TEX = {"between": "Between-seed", "within": "Within-seed (seed 1)"}
+SPREAD_KINDS = ("within", "between")
+SPREAD_TEX = {"within": r"Spread $s_W$ (all seeds)", "between": r"Spread $s_B$ (all nodes)"}
+
+
 def export_table2() -> Path:
     ceil = pd.read_csv(FIG / "chi_ols" / "r2_ceiling" / "reliability_ceiling.csv")
-    full = ceil[ceil["scope"] == "full"].set_index("metric")
+    by_scope = {p: ceil[ceil["scope"] == p].set_index("metric") for p in PARTITIONS}
     rows = []
     for m in METRICS:
-        r = full.loc[m]
-        rows.append(
-            [
-                _metric_tex(m),
+        row = [_metric_tex(m)]
+        for p in PARTITIONS:
+            r = by_scope[p].loc[m]
+            row += [
                 f"{r['reliability_ceiling']:.3f}",
                 f"{r['reliability_ceiling_bc']:.3f}",
-                f"{r['r2_stage1']:.3f}",
-                f"{r['efficiency']:.3f}",
-                f"{r['frac_within_noise']:.3f}",
+                f"{r['frac_noise']:.3f}",
             ]
-        )
+        rows.append(row)
     tex = _booktabs(
         [
             "Metric",
-            r"$R^2_{\mathrm{ceiling}}$",
-            r"$R^2_{\mathrm{ceiling,bc}}$",
-            r"$R^2_{\mathrm{Stage\,1}}$",
-            "Efficiency",
-            r"Noise frac.\ ($\bar s_W^2/\sigma^2_{\mathrm{tot}}$)",
+            r"$R^2_{\mathrm{ceil}}$ (B)",
+            r"$R^2_{\mathrm{ceil,bc}}$ (B)",
+            r"Noise frac.\ (B)",
+            r"$R^2_{\mathrm{ceil}}$ (W)",
+            r"$R^2_{\mathrm{ceil,bc}}$ (W)",
+            r"Noise frac.\ (W)",
         ],
         rows,
-        r"Reliability ceiling $R^2_{\mathrm{ceiling}}$ across intensity metrics "
-        r"(full array scope). Efficiency is Stage-1 OLS $R^2$ relative to the ceiling.",
+        r"Reliability ceiling $R^2_{\mathrm{ceiling}}$ per variance partition. "
+        r"(B) between-seed: center node, all $N_s$ seeds as replicates of each design cell; "
+        r"noise is between-seed variance. "
+        r"(W) within-seed: one seed, all $N_x$ nodes as replicates; noise is within-seed "
+        r"(spatial) variance. Noise frac.\ $=1-R^2_{\mathrm{ceiling}}$ of that partition.",
         "tab:r_ceiling",
     )
     path = TABLES / "tab2_r_ceiling.tex"
@@ -192,114 +201,147 @@ def export_table4() -> Path:
 
 
 def export_table5() -> Path:
-    crps = pd.read_csv(FIG / "chi_ngboost" / "calibration" / "crps_pit_summary.csv").set_index(
-        "metric"
-    )
-    ngb = pd.read_csv(FIG / "chi_ngboost" / "train_ngboost" / "holdout_metrics.csv").set_index(
-        "metric"
-    )
-    cmp = pd.read_csv(FIG / "chi_qbm" / "compare_models" / "comparison_metrics.csv")
-    qbm = cmp[cmp["model"] == "qbm"].set_index("metric")
-    ceil = (
-        pd.read_csv(FIG / "chi_ols" / "r2_ceiling" / "reliability_ceiling.csv")
-        .query("scope == 'full'")
-        .set_index("metric")
-    )
+    ceil = pd.read_csv(FIG / "chi_ols" / "r2_ceiling" / "reliability_ceiling.csv")
     rows = []
-    for m in METRICS:
-        c, n, q, r = crps.loc[m], ngb.loc[m], qbm.loc[m], ceil.loc[m]
-        rows.append(
-            [
-                _metric_tex(m),
-                f"{r['reliability_ceiling']:.3f}",
-                f"{q['r2']:.3f}",
-                f"{n['r2_mean']:.3f}",
-                f"{q['efficiency']:.3f}",
-                f"{n['r2_mean'] / r['reliability_ceiling']:.3f}",
-                f"{c['mean_crps']:.3f}",
-                f"{c['ks_stat']:.3f}",
-                f"{n['pi90_coverage']:.3f}",
-            ]
-        )
+    csv_rows = []
+    for p in PARTITIONS:
+        base = FIG / "chi_ngboost" / p
+        crps = pd.read_csv(base / "calibration" / "crps_pit_summary.csv").set_index("metric")
+        ngb = pd.read_csv(base / "train_ngboost" / "holdout_metrics.csv").set_index("metric")
+        c_p = ceil[ceil["scope"] == p].set_index("metric")
+        for m in METRICS:
+            c, n, r = crps.loc[m], ngb.loc[m], c_p.loc[m]
+            eff = n["r2_mean"] / r["reliability_ceiling"]
+            rows.append(
+                [
+                    _metric_tex(m),
+                    PARTITION_TEX[p],
+                    f"{r['reliability_ceiling']:.3f}",
+                    f"{n['r2_mean']:.3f}",
+                    f"{eff:.3f}",
+                    f"{c['mean_crps']:.3f}",
+                    f"{c['ks_stat']:.3f}",
+                    f"{n['pi90_coverage']:.3f}",
+                ]
+            )
+            csv_rows.append(
+                {
+                    "partition": p,
+                    "metric": m,
+                    "r2_ceiling": r["reliability_ceiling"],
+                    "r2_ngboost": n["r2_mean"],
+                    "efficiency": eff,
+                    "mean_crps": c["mean_crps"],
+                    "pit_ks": c["ks_stat"],
+                    "pi90_coverage": n["pi90_coverage"],
+                }
+            )
+    for kind in SPREAD_KINDS:
+        base = FIG / "chi_ngboost" / "spread" / kind
+        hold = pd.read_csv(base / "holdout_metrics.csv").set_index("metric")
+        pit = pd.read_csv(base / "test_predictions.csv")
+        for m in METRICS:
+            h = hold.loc[m]
+            ks = stats.kstest(pit.loc[pit["metric"] == m, "pit"], "uniform").statistic
+            rows.append(
+                [
+                    _metric_tex(m),
+                    SPREAD_TEX[kind],
+                    f"{h['ceiling']:.3f}",
+                    f"{h['r2_mean']:.3f}",
+                    f"{h['efficiency']:.3f}",
+                    f"{h['crps']:.3f}",
+                    f"{ks:.3f}",
+                    f"{h['pi90_coverage']:.3f}",
+                ]
+            )
+            csv_rows.append(
+                {
+                    "partition": f"spread_{kind}",
+                    "metric": m,
+                    "r2_ceiling": h["ceiling"],
+                    "r2_ngboost": h["r2_mean"],
+                    "efficiency": h["efficiency"],
+                    "mean_crps": h["crps"],
+                    "pit_ks": ks,
+                    "pi90_coverage": h["pi90_coverage"],
+                }
+            )
     tex = _booktabs(
         [
             "Metric",
+            "Model",
             r"$R^2_{\mathrm{ceiling}}$",
-            r"$R^2$ QBM",
             r"$R^2$ NGBoost",
-            r"Eff.\ QBM",
-            r"Eff.\ NGBoost",
+            r"Eff.",
             "CRPS",
             r"PIT KS",
             r"PI90 cov.",
         ],
         rows,
-        r"Model adequacy: holdout $R^2$ for QBM / NGBoost relative to the irreducible "
-        r"noise floor, plus NGBoost CRPS, PIT Kolmogorov--Smirnov statistic, and "
-        r"nominal 90\% prediction-interval coverage.",
+        r"NGBoost adequacy: holdout $R^2$ of $\mu$ relative to the same-scope reliability "
+        r"ceiling, CRPS, PIT Kolmogorov--Smirnov statistic, and nominal 90\% "
+        r"prediction-interval coverage. Between-seed: $Y=\ln\chi$ at the center node, "
+        r"seed-grouped holdout. Within-seed (seed 1): $Y$ for a single realization, holdout of "
+        r"contiguous node blocks (supplementary example). Spread $s_W$: $\ln s_W$ per "
+        r"(cell, seed) over all seeds, held-out seeds; $f_0$ uses a two-part model and its "
+        r"$R^2$/PI90 refer to nonzero spreads. Spread $s_B$: $\ln s_B$ per (cell, node) over "
+        r"all nodes, held-out node blocks. Spread ceilings use the seeds (resp.\ nodes) as "
+        r"replicates.",
         "tab:model_adequacy",
     )
     path = TABLES / "tab5_model_adequacy.tex"
     path.write_text(tex, encoding="utf-8")
+    pd.DataFrame(csv_rows).to_csv(TABLES / "tab5_model_adequacy.csv", index=False)
     return path
 
 
 def export_table6() -> Path:
-    """Synthesis matrix: variance role + dual SHAP ranks + mechanism placeholder."""
-    pd.read_csv(FIG / "chi_variables" / "central_variability" / "cell_summary.csv")
-    # Average frac_W and frac_mu over cells, per metric — then mean across metrics for factor narrative
-    # Use SHAP importance ranks averaged over metrics
-    q50 = pd.read_csv(FIG / "chi_shap" / "shap_qbm" / "shap_importance_q50.csv")
-    ngb = pd.read_csv(FIG / "chi_shap" / "shap_ngboost" / "shap_importance_mean.csv")
-    ale = pd.read_csv(FIG / "chi_shap" / "ale_effects" / "ale_effect_range.csv")
+    """Synthesis matrix: variance role + spread-model μ SHAP rank / ALE amplitude (B, W)."""
 
-    # Map feature_z -> factor
     def factorize(feat: str) -> str:
         return feat.replace("_z", "") if feat.endswith("_z") else feat
 
-    q_rank = (
-        q50.assign(factor=q50["feature"].map(factorize))
-        .groupby("factor")["rank"]
-        .mean()
-        .sort_values()
-    )
-    n_rank = (
-        ngb[ngb["target"] == "mu"]
-        .assign(factor=lambda d: d["feature"].map(factorize))
-        .groupby("factor")["rank"]
-        .mean()
-        .sort_values()
-    )
-    # Variance contribution: correlate factors via mean frac across cells is not factor-wise;
-    # use ALE effect range as quantitative sensitivity proxy + CoV/rH/aHV narrative from decomp
+    base = FIG / "chi_shap" / "spread_effects"
+    imp = pd.read_csv(base / "spread_shap_importance.csv")
+    ale = pd.read_csv(base / "ale_spread_range.csv")
+    imp = imp[imp["target"] == "mu"].assign(factor=lambda d: d["feature"].map(factorize))
+    ale = ale[ale["target"] == "mu"].assign(factor=lambda d: d["feature"].map(factorize))
+    n_rank: dict[str, pd.Series] = {}
+    ale_amp: dict[str, pd.Series] = {}
+    for p in PARTITIONS:
+        n_rank[p] = imp[imp["kind"] == p].groupby("factor")["rank"].mean()
+        ale_amp[p] = ale[ale["kind"] == p].groupby("factor")["effect_range"].mean()
+
     var_note = {
         "Vs1": "Median / impedance (low within-seed share)",
         "Height": "Median / resonance anchor",
         "CoV": r"Primary $\bar s_W^2$ driver",
         "rH": r"Coherence / interaction scale",
         "aHV": r"Between/within variance ratio",
-        "node": "Spatial trend (emulator)",
     }
-    ale_amp = (
-        ale.assign(factor=ale["feature"].map(factorize)).groupby("factor")["effect_range"].mean()
-    )
+    factor_tex = {
+        "Vs1": r"$V_{s1}$",
+        "Height": r"$H$",
+        "CoV": r"$CoV$",
+        "rH": r"$r_h$",
+        "aHV": r"$a_{hv}$",
+    }
+
+    def _fmt(series: pd.Series, f: str, spec: str) -> str:
+        return format(series[f], spec) if f in series.index else "—"
 
     factors = ["Vs1", "Height", "CoV", "rH", "aHV"]
     rows = []
     for f in factors:
         rows.append(
             [
-                {
-                    "Vs1": r"$V_{s1}$",
-                    "Height": r"$H$",
-                    "CoV": r"$CoV$",
-                    "rH": r"$r_h$",
-                    "aHV": r"$a_{hv}$",
-                }[f],
+                factor_tex[f],
                 var_note.get(f, "—"),
-                f"{q_rank.get(f, np.nan):.1f}" if f in q_rank.index else "—",
-                f"{n_rank.get(f, np.nan):.1f}" if f in n_rank.index else "—",
-                f"{ale_amp.get(f, np.nan):.3f}" if f in ale_amp.index else "—",
+                _fmt(n_rank["between"], f, ".1f"),
+                _fmt(n_rank["within"], f, ".1f"),
+                _fmt(ale_amp["between"], f, ".3f"),
+                _fmt(ale_amp["within"], f, ".3f"),
                 MECHANISM.get(f, ""),
             ]
         )
@@ -307,27 +349,31 @@ def export_table6() -> Path:
         [
             "Parameter",
             "Variance role",
-            r"Mean SHAP rank (QBM $q_{50}$)",
-            r"Mean SHAP rank (NGBoost $\mu$)",
-            r"Mean ALE amp.\ (median)",
+            r"SHAP rank $\mu_B$",
+            r"SHAP rank $\mu_W$",
+            r"ALE amp.\ (B)",
+            r"ALE amp.\ (W)",
             "Physical mechanism (editable)",
         ],
         rows,
-        r"Synthesis of variance decomposition roles, dual-model SHAP ranks "
-        r"(lower = more important; averaged over metrics), ALE effect amplitudes, "
-        r"and validated wave-scattering mechanisms.",
+        r"Synthesis of variance decomposition roles and what drives each kind of spread: "
+        r"SHAP ranks of the spread-model means (lower = more important; averaged over metrics) "
+        r"and three-level ALE amplitudes in $\ln s$ units ($0.69$ = spread doubles), for the "
+        r"between-seed spread $\mu_B=\mathrm{E}[\ln s_B]$ (B, all nodes) and the within-seed "
+        r"spread $\mu_W=\mathrm{E}[\ln s_W]$ (W, all seeds), with validated wave-scattering "
+        r"mechanisms.",
         "tab:synthesis",
     )
     path = TABLES / "tab6_synthesis.tex"
     path.write_text(tex, encoding="utf-8")
-    # Also dump a CSV for editing
     pd.DataFrame(
         {
             "factor": factors,
             "variance_role": [var_note[f] for f in factors],
-            "shap_rank_qbm_q50": [q_rank.get(f, np.nan) for f in factors],
-            "shap_rank_ngboost_mu": [n_rank.get(f, np.nan) for f in factors],
-            "ale_amp_median": [ale_amp.get(f, np.nan) for f in factors],
+            "shap_rank_spread_mu_between": [n_rank["between"].get(f, np.nan) for f in factors],
+            "shap_rank_spread_mu_within": [n_rank["within"].get(f, np.nan) for f in factors],
+            "ale_amp_spread_between": [ale_amp["between"].get(f, np.nan) for f in factors],
+            "ale_amp_spread_within": [ale_amp["within"].get(f, np.nan) for f in factors],
             "mechanism": [MECHANISM[f] for f in factors],
         }
     ).to_csv(TABLES / "tab6_synthesis.csv", index=False)
@@ -349,7 +395,7 @@ def write_artifact_map() -> Path:
         "| Fig5 | `qualitative/one_seed_all_nodes/3x3/tf_raw_3x3_h50_vs1_230.pdf` | other 8 cases |",
         "| Fig6 | `qualitative/center_node_all_seeds/3x3/tf_raw_3x3_h50_vs1_230.pdf` | other 8 cases |",
         "| Fig7 | `qualitative/all_seeds_all_nodes/3x3/tf_raw_3x3_h50_vs1_230.pdf` | other 8 cases |",
-        "| Fig9 | `chi_variables/factor_violins/chi_violins_{freq,im}.pdf` | — |",
+        "| Fig9 | `chi_variables/factor_violins/chi_violins_{one_seed_all_nodes,center_node_all_seeds}.pdf` | `distribution_histograms/hist_*.pdf` (same two samples) |",
         "| Table2 | `manuscript/tables/tab2_r_ceiling.tex` ← `chi_ols/r2_ceiling/` | — |",
         "| Fig10 | `chi_variables/central_profiles/seed_profiles/abs_TF_seed_profile_h50_vs1_230.pdf` | other cases/metrics |",
         "| Fig11 | `chi_variables/central_profiles/node_profiles/abs_TF_node_profile_h50_vs1_230.pdf` | other cases |",
@@ -358,14 +404,18 @@ def write_artifact_map() -> Path:
         "| Table3 | `manuscript/tables/tab3_acf.tex` | — |",
         "| Fig14 | `chi_spatial/spatial_coherence/coherence_vs_lag_*.pdf` | — |",
         "| Table4 | `manuscript/tables/tab4_literature_coherence.tex` ← `chi_spatial/literature_coherence/` | compare PDF |",
-        "| Table5 | `manuscript/tables/tab5_model_adequacy.tex` | PIT histograms |",
-        "| Fig15 | `chi_shap/shap_beeswarm/shap_beeswarm_central.pdf` | — |",
-        "| Fig16 | `chi_shap/ale_effects/ale_*.pdf` | — |",
-        "| Fig17 | `chi_shap/shap_median_vs_tail/shap_median_vs_tail_delta_{abs,signed}.pdf` | `shap_median_vs_tail_ngboost_delta_*.pdf` |",
-        "| Fig18 | `chi_shap/ale_dispersion/ale_dispersion_<metric>.pdf` | — |",
-        "| Fig19 | `chi_shap/interactions/interactions.pdf` | — |",
-        "| Fig20 | `chi_shap/ale_2d/ale_2d_<metric>.pdf` | — |",
-        "| Table6 | `manuscript/tables/tab6_synthesis.tex` | `tab6_synthesis.csv` |",
+        "| Table5 | `manuscript/tables/tab5_model_adequacy.tex` ← `chi_ngboost/{between,within}/`, `chi_ngboost/spread/{within,between}/` | PIT histograms per partition |",
+        "| Fig15 | `chi_shap/shap_beeswarm/between/shap_beeswarm.pdf` | `shap_beeswarm/within/` (seed 1, single realization) |",
+        "| Fig16 | `chi_shap/ale_effects/between/ale_<metric>.pdf` | `ale_effects/within/` (seed 1) |",
+        "| Fig17 | `chi_shap/shap_median_vs_tail/between/shap_median_vs_tail_delta_{abs,signed}.pdf` | `shap_median_vs_tail/within/` (seed 1) |",
+        "| Fig18 | `chi_shap/ale_dispersion/between/ale_{scale,q95}_<metric>.pdf` | `ale_dispersion/within/` (seed 1) |",
+        "| Fig19 | `chi_shap/interactions/between/interactions.pdf` | `interactions/within/` (seed 1) |",
+        "| Fig20 | `chi_shap/ale_2d/between/ale_2d_<metric>.pdf` | `ale_2d/within/` (seed 1) |",
+        "| Spread-a | `chi_ngboost/spread/figures/spread_by_factor_{within,between}.pdf` | — |",
+        "| Spread-b | `chi_shap/spread_effects/spread_beeswarm.pdf` | `spread_beeswarm_sigma.pdf` |",
+        "| Spread-c | `chi_shap/spread_effects/ale_spread_<metric>.pdf` | `f0_spread_hurdle.pdf` |",
+        "| Spread-supp | — | `chi_ngboost/spread/figures/{sB_node_profile,spread_calibration,representativeness}.pdf`, `chi_ngboost/node_robustness/node_robustness.pdf` |",
+        "| Table6 | `manuscript/tables/tab6_synthesis.tex` ← `chi_shap/spread_effects/` | `tab6_synthesis.csv` |",
         "| App1 | `chi_variables/mean_variance_adequacy/mean_variance_adequacy.pdf` | — |",
         "| App2 | `appendix_im/peak_found_rates.pdf` | — |",
         "",
