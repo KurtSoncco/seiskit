@@ -1,12 +1,11 @@
-"""Median vs tail SHAP deltas for QBM and NGBoost.
+"""Median vs tail SHAP deltas for NGBoost, per partition (between-seed, within-seed).
 
 Contrasts are τ=0.05−τ=0.50 and τ=0.95−τ=0.50, each as a 2×5 figure (abs /
-signed). QBM reuses TreeSHAP CSVs from ``chi_shap/shap_qbm``. NGBoost explains
-the Normal quantile \\(q_\tau=\\mu+z_\tau\\sigma\\) with permutation SHAP (same
-subsample recipe as ``shap_ngboost.py``). Pass ``--force`` to recompute
-NGBoost quantile SHAP instead of loading cached CSVs.
+signed). NGBoost explains the Normal quantile \\(q_\tau=\\mu+z_\tau\\sigma\\)
+with permutation SHAP composed from μ and σ attributions. Pass ``--force`` to
+recompute instead of loading cached CSVs.
 
-Writes under figure_dir("chi_shap", "shap_median_vs_tail").
+Writes under figure_dir("chi_shap", "shap_median_vs_tail", <partition>).
 """
 
 from __future__ import annotations
@@ -16,7 +15,6 @@ import warnings
 from pathlib import Path
 
 import joblib
-import lightgbm as lgb
 import matplotlib
 
 matplotlib.use("Agg")
@@ -30,16 +28,16 @@ from scipy.stats import norm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
-    FEATURES,
+    FEATURE_DISPLAY,
     METRICS,
-    add_design_columns,
+    NGB_FEATURES,
+    PARTITION_LABELS,
+    PARTITIONS,
     importance_table,
-    load_or_make_split,
-    load_ratios,
-    make_shap_sample,
+    load_partition,
     ngboost_model_path,
     out_dir,
-    qbm_model_path,
+    partition_shap_sample,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -60,16 +58,6 @@ apply_full_paper_style(auto_format=True, frame="open", grid=False)
 FORCE = "--force" in sys.argv
 NGB_EXPLAIN_N = 400
 NGB_BG_N = 100
-NGB_SAMPLE_SEED = 3
-
-FEATURE_DISPLAY = {
-    "Vs1_z": r"$V_{s1}$",
-    "Height_z": r"$H$",
-    "CoV_z": "CoV",
-    "rH_z": r"$r_{h}$",
-    "aHV_z": r"$a_{hv}$",
-    "node_z": r"$x_{\mathrm{node}}$",
-}
 
 # (id, tail target, row label) — Δ = tail − median
 CONTRASTS = (
@@ -79,71 +67,19 @@ CONTRASTS = (
 QUANTILE_TAUS = {"q05": 0.05, "q50": 0.50, "q95": 0.95}
 
 
-def _as_booster(obj) -> lgb.Booster:
-    if isinstance(obj, lgb.Booster):
-        return obj
-    if hasattr(obj, "booster_"):
-        return obj.booster_
-    return obj
-
-
-def _load_or_compute_qbm_importance(target: str) -> pd.DataFrame:
-    """Load shap_qbm CSV for *target* (`q05` / `q50` / `q95`), else compute TreeSHAP."""
-    shap_dir = out_dir("shap_qbm")
-    path = shap_dir / f"shap_importance_{target}.csv"
-    if path.is_file():
-        tab = pd.read_csv(path)
-        if len(tab) and {"metric", "feature", "mean_abs_shap"}.issubset(tab.columns):
-            print(f"Loaded {path}")
-            return tab
-
-    print(f"Computing TreeSHAP for {target} …")
-    df = add_design_columns(load_ratios())
-    _, te = load_or_make_split(df)
-    _, ex_idx, _ = make_shap_sample(df, te)
-    X_ex = df.iloc[ex_idx][FEATURES].to_numpy(dtype=float)
-    rows = []
-    for metric in METRICS:
-        mpath = qbm_model_path(target, metric)
-        if not mpath.is_file():
-            print(f"  missing {mpath}")
-            continue
-        booster = _as_booster(joblib.load(mpath))
-        explainer = shap.TreeExplainer(booster)
-        sv = np.asarray(explainer.shap_values(X_ex), dtype=float)
-        rows.append(importance_table(sv, FEATURES, metric=metric, model="qbm", target=target))
-    if not rows:
-        raise FileNotFoundError(f"No QBM models / SHAP CSVs for target={target}")
-    return pd.concat(rows, ignore_index=True)
-
-
-def _ngb_holdout_xy(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    """Match ``shap_ngboost.py``: 100 background / 400 explain rows."""
-    _, te = load_or_make_split(df)
-    bg_idx, ex_idx, _ = make_shap_sample(df, te)
-    rng = np.random.default_rng(NGB_SAMPLE_SEED)
-    if len(ex_idx) > NGB_EXPLAIN_N:
-        ex_idx = rng.choice(ex_idx, size=NGB_EXPLAIN_N, replace=False)
-    if len(bg_idx) > NGB_BG_N:
-        bg_idx = rng.choice(bg_idx, size=NGB_BG_N, replace=False)
-    X_bg = df.iloc[bg_idx][FEATURES].to_numpy(dtype=float)
-    X_ex = df.iloc[ex_idx][FEATURES].to_numpy(dtype=float)
-    return X_bg, X_ex
-
-
 def _explain_ngb(predict_fn, X_bg: np.ndarray, X_ex: np.ndarray) -> np.ndarray:
     explainer = shap.Explainer(predict_fn, X_bg, algorithm="permutation")
     explanation = explainer(X_ex, max_evals=2 * X_ex.shape[1] + 1)
     return np.asarray(explanation.values, dtype=float)
 
 
-def _load_or_compute_ngboost_quantiles() -> dict[str, pd.DataFrame]:
+def _load_or_compute_quantiles(partition: str) -> dict[str, pd.DataFrame]:
     """Permutation SHAP of \\(q_\\tau=\\mu+z_\\tau\\sigma\\) via μ and σ composition.
 
     SHAP is linear, so \\(\\phi(q_\\tau)=\\phi(\\mu)+z_\\tau\\phi(\\sigma)\\). Caching
-    writes ``shap_importance_q{05,50,95}.csv`` under ``shap_ngboost``.
+    writes ``shap_importance_q{05,50,95}.csv`` under ``shap_ngboost/<partition>``.
     """
-    ngb_dir = out_dir("shap_ngboost")
+    ngb_dir = out_dir("shap_ngboost", partition)
     paths = {t: ngb_dir / f"shap_importance_{t}.csv" for t in QUANTILE_TAUS}
     if not FORCE and all(p.is_file() for p in paths.values()):
         out = {}
@@ -156,15 +92,17 @@ def _load_or_compute_ngboost_quantiles() -> dict[str, pd.DataFrame]:
         else:
             return out
 
-    print("Computing NGBoost permutation SHAP for μ and σ (compose q05/q50/q95) …")
-    df = add_design_columns(load_ratios())
-    X_bg, X_ex = _ngb_holdout_xy(df)
+    print(f"Computing NGBoost permutation SHAP for μ and σ [{partition}] …")
+    df = load_partition(partition)
+    bg_idx, ex_idx, _ = partition_shap_sample(df, partition, explain_n=NGB_EXPLAIN_N, bg_n=NGB_BG_N)
+    X_bg = df.iloc[bg_idx][NGB_FEATURES].to_numpy(dtype=float)
+    X_ex = df.iloc[ex_idx][NGB_FEATURES].to_numpy(dtype=float)
     z05 = float(norm.ppf(0.05))
     z95 = float(norm.ppf(0.95))
     rows: dict[str, list[pd.DataFrame]] = {t: [] for t in QUANTILE_TAUS}
 
     for metric in METRICS:
-        mpath = ngboost_model_path(metric)
+        mpath = ngboost_model_path(partition, metric)
         if not mpath.is_file():
             raise FileNotFoundError(f"Missing NGBoost model: {mpath}")
         model: NGBRegressor = joblib.load(mpath)
@@ -187,7 +125,9 @@ def _load_or_compute_ngboost_quantiles() -> dict[str, pd.DataFrame]:
             "q95": sv_mu + z95 * sv_sig,
         }
         for t, sv in composed.items():
-            rows[t].append(importance_table(sv, FEATURES, metric=metric, model="ngboost", target=t))
+            rows[t].append(
+                importance_table(sv, NGB_FEATURES, metric=metric, model="ngboost", target=t)
+            )
 
     out = {}
     for t, chunks in rows.items():
@@ -198,15 +138,6 @@ def _load_or_compute_ngboost_quantiles() -> dict[str, pd.DataFrame]:
     return out
 
 
-def _feature_color(feat: str) -> str:
-    if feat == "node_z":
-        return "0.35"
-    try:
-        return factor_color(feat)
-    except KeyError:
-        return "0.45"
-
-
 def _column_xlim(values: np.ndarray) -> tuple[float, float]:
     finite = np.asarray(values, dtype=float)
     finite = finite[np.isfinite(finite)]
@@ -215,46 +146,31 @@ def _column_xlim(values: np.ndarray) -> tuple[float, float]:
     lo, hi = float(np.min(finite)), float(np.max(finite))
     span = max(hi - lo, max(abs(lo), abs(hi), 1e-12))
     pad = 0.10 * span
-    lo, hi = lo - pad, hi + pad
-    lo = min(lo, 0.0)
-    hi = max(hi, 0.0)
+    lo, hi = min(lo - pad, 0.0), max(hi + pad, 0.0)
     if hi - lo < 1e-15:
         return (-0.05, 0.05)
     return lo, hi
 
 
-def _plot_deltas(
-    diff: pd.DataFrame,
-    *,
-    value_col: str,
-    xlabel: str,
-    stem: str,
-    out: Path,
-) -> None:
+def _plot_deltas(diff: pd.DataFrame, *, value_col: str, xlabel: str, stem: str, out: Path) -> None:
     """2×5: rows = (0.05−0.50, 0.95−0.50), columns = χ metrics."""
     n_metrics = len(METRICS)
-    fig, axes = plt.subplots(
-        2,
-        n_metrics,
-        figsize=figsize(height=4.85),
-        sharey=True,
-        squeeze=False,
-    )
+    fig, axes = plt.subplots(2, n_metrics, figsize=figsize(height=4.85), sharey=True, squeeze=False)
     fig.subplots_adjust(left=0.12, right=0.995, bottom=0.08, top=0.96, wspace=0.06, hspace=0.10)
 
-    y = np.arange(len(FEATURES))
-    yticklabels = [FEATURE_DISPLAY.get(f, f) for f in FEATURES]
-    colors = [_feature_color(f) for f in FEATURES]
+    y = np.arange(len(NGB_FEATURES))
+    yticklabels = [FEATURE_DISPLAY.get(f, f) for f in NGB_FEATURES]
+    colors = [factor_color(f) for f in NGB_FEATURES]
 
     for col, metric in enumerate(METRICS):
         col_vals = []
-        for _row, (cid, _tail, _lab) in enumerate(CONTRASTS):
+        for cid, _tail, _lab in CONTRASTS:
             sub = diff[(diff["metric"] == metric) & (diff["contrast"] == cid)]
-            sub = sub.set_index("feature").reindex(FEATURES)
+            sub = sub.set_index("feature").reindex(NGB_FEATURES)
             col_vals.append(sub[value_col].to_numpy(dtype=float))
         xlim = _column_xlim(np.concatenate(col_vals))
 
-        for row, ((cid, _tail, row_lab), vals) in enumerate(zip(CONTRASTS, col_vals)):
+        for row, ((_cid, _tail, row_lab), vals) in enumerate(zip(CONTRASTS, col_vals)):
             ax = axes[row, col]
             ax.barh(y, vals, color=colors, height=0.7, edgecolor="none")
             ax.axvline(0.0, color="0.55", linewidth=0.5)
@@ -268,9 +184,7 @@ def _plot_deltas(
                 ax.tick_params(labelbottom=False)
             else:
                 ax.set_xlabel(
-                    xlabel if col == n_metrics // 2 else "",
-                    fontsize=LABEL_FONTSIZE,
-                    labelpad=1,
+                    xlabel if col == n_metrics // 2 else "", fontsize=LABEL_FONTSIZE, labelpad=1
                 )
             if col == 0:
                 ax.set_yticklabels(yticklabels, fontsize=TICK_LABELSIZE)
@@ -292,7 +206,7 @@ def _build_diff(by_target: dict[str, pd.DataFrame]) -> pd.DataFrame:
         for cid, tail_key, _lab in CONTRASTS:
             tail = by_target[tail_key]
             hi = tail[tail["metric"] == metric].set_index("feature")
-            for feat in FEATURES:
+            for feat in NGB_FEATURES:
                 if feat not in med.index or feat not in hi.index:
                     continue
                 abs_med = float(med.loc[feat, "mean_abs_shap"])
@@ -325,53 +239,49 @@ def _build_diff(by_target: dict[str, pd.DataFrame]) -> pd.DataFrame:
     return diff.sort_values(["contrast", "metric", "rank_abs_delta"])
 
 
-def _write_pair(
-    diff: pd.DataFrame,
-    out: Path,
-    *,
-    csv_name: str,
-    stem_abs: str,
-    stem_signed: str,
-) -> None:
-    diff.to_csv(out / csv_name, index=False)
+def run_partition(partition: str) -> None:
+    out = out_dir("shap_median_vs_tail", partition)
+    diff = _build_diff(_load_or_compute_quantiles(partition))
+    diff.to_csv(out / "shap_median_vs_tail.csv", index=False)
     _plot_deltas(
         diff,
         value_col="delta_mean_abs_shap",
         xlabel="SHAP value",
-        stem=stem_abs,
+        stem="shap_median_vs_tail_delta_abs",
         out=out,
     )
     _plot_deltas(
         diff,
         value_col="delta_mean_signed_shap",
         xlabel="SHAP value",
-        stem=stem_signed,
+        stem="shap_median_vs_tail_delta_signed",
         out=out,
     )
 
-
-def _summary_block(
-    title: str, source: str, diff: pd.DataFrame, files: list[tuple[str, str]]
-) -> list[str]:
     top = (
         diff.sort_values("delta_mean_abs_shap", ascending=False)
         .groupby(["contrast", "metric"], as_index=False)
         .head(3)
     )
-    file_rows = "\n".join(f"| `{name}` | {desc} |" for name, desc in files)
-    return [
-        f"# {title}",
+    sigma_meaning = (
+        "between-seed spread at the center node"
+        if partition == "between"
+        else "within-seed spread across nodes"
+    )
+    lines = [
+        f"# NGBoost SHAP: median vs tails — {PARTITION_LABELS[partition]}",
         "",
         "## Definitions",
         "",
-        source,
+        r"- Source: NGBoost permutation SHAP of the Normal quantile "
+        r"\(q_\tau(\mathbf{x})=\mu(\mathbf{x})+z_\tau\sigma(\mathbf{x})\), with "
+        r"\(\phi(q_\tau)=\phi(\mu)+z_\tau\phi(\sigma)\). "
+        f"Here σ is the {sigma_meaning}.",
         r"- Contrasts: \(\Delta\overline{|\phi|}=\overline{|\phi|}_\tau-\overline{|\phi|}_{0.50}\) "
         r"and \(\Delta\overline{\phi}=\overline{\phi}_\tau-\overline{\phi}_{0.50}\) "
         r"for \(\tau\in\{0.05,0.95\}\).",
-        r"- Layout: one 2×5 figure per aggregation (abs / signed); rows = "
-        r"\(0.05-0.50\) and \(0.95-0.50\); columns = χ metrics.",
-        r"- Positive \(\Delta\overline{|\phi|}\): feature is more important at that "
-        r"tail quantile than at the median.",
+        r"- Because \(q_{0.50}\equiv\mu\) and \(z_{0.05}=-z_{0.95}\), signed deltas for "
+        "the two tails are exact opposites; absolute deltas are not.",
         "",
         "## Largest |SHAP| increases toward each tail",
         "",
@@ -381,87 +291,18 @@ def _summary_block(
         "",
         "| File | Content |",
         "|------|---------|",
-        file_rows,
-        "",
-    ]
-
-
-def main() -> None:
-    out = out_dir("shap_median_vs_tail")
-
-    qbm = {t: _load_or_compute_qbm_importance(t) for t in QUANTILE_TAUS}
-    qbm_diff = _build_diff(qbm)
-    _write_pair(
-        qbm_diff,
-        out,
-        csv_name="shap_median_vs_tail.csv",
-        stem_abs="shap_median_vs_tail_delta_abs",
-        stem_signed="shap_median_vs_tail_delta_signed",
-    )
-
-    ngb = _load_or_compute_ngboost_quantiles()
-    ngb_diff = _build_diff(ngb)
-    _write_pair(
-        ngb_diff,
-        out,
-        csv_name="shap_median_vs_tail_ngboost.csv",
-        stem_abs="shap_median_vs_tail_ngboost_delta_abs",
-        stem_signed="shap_median_vs_tail_ngboost_delta_signed",
-    )
-
-    lines = _summary_block(
-        "QBM SHAP: median (τ=0.50) vs tails (τ=0.05, τ=0.95)",
-        r"- Source: **QBM** TreeSHAP from `chi_shap/shap_qbm` (computed on demand if CSVs are missing).",
-        qbm_diff,
-        [
-            ("shap_median_vs_tail.csv", "QBM q05/q50/q95 SHAP and both tail−median deltas"),
-            ("shap_median_vs_tail_delta_abs.pdf", "QBM 2×5 Δ mean |SHAP|"),
-            ("shap_median_vs_tail_delta_signed.pdf", "QBM 2×5 Δ signed SHAP"),
-        ],
-    )
-    lines += [
-        "## Conclusions (QBM)",
-        "",
-        "- Features with large positive \\(\\Delta\\overline{|\\phi|}\\) are candidate "
-        "tail drivers; near-zero deltas indicate rank-stable importance.",
-        "- Lower-tail (\\(0.05-0.50\\)) and upper-tail (\\(0.95-0.50\\)) rows need not agree.",
-        "- Signed deltas can flip when the tail model reverses the average direction "
-        "of a feature's contribution relative to the median.",
-        "",
-    ]
-    lines += _summary_block(
-        "NGBoost SHAP: median (τ=0.50) vs tails (τ=0.05, τ=0.95)",
-        r"- Source: **NGBoost** permutation SHAP of the Normal quantile "
-        r"\(q_\tau(\mathbf{x})=\mu(\mathbf{x})+z_\tau\sigma(\mathbf{x})\), with "
-        r"\(\phi(q_\tau)=\phi(\mu)+z_\tau\phi(\sigma)\) (same holdout subsample as "
-        r"`shap_ngboost.py`). Cached as `chi_shap/shap_ngboost/shap_importance_q*.csv`.",
-        ngb_diff,
-        [
-            (
-                "shap_median_vs_tail_ngboost.csv",
-                "NGBoost q05/q50/q95 SHAP and both tail−median deltas",
-            ),
-            ("shap_median_vs_tail_ngboost_delta_abs.pdf", "NGBoost 2×5 Δ mean |SHAP|"),
-            ("shap_median_vs_tail_ngboost_delta_signed.pdf", "NGBoost 2×5 Δ signed SHAP"),
-        ],
-    )
-    lines += [
-        "## Conclusions (NGBoost)",
-        "",
-        r"- Because \(q_{0.50}\equiv\mu\) and \(z_{0.05}=-z_{0.95}\), signed "
-        r"\(\Delta\overline{\phi}\) for the two tails are exact opposites "
-        r"(\(\Delta_{0.05}=-\Delta_{0.95}=z_{0.05}\overline{\phi}(\sigma)\)).",
-        r"- Absolute deltas are **not** mirrors: \(\overline{|\phi(\mu)+z\phi(\sigma)|}"
-        r"-\overline{|\phi(\mu)|}\) depends on the per-row alignment of μ and σ "
-        r"attributions.",
+        "| `shap_median_vs_tail.csv` | q05/q50/q95 SHAP and both tail−median deltas |",
+        "| `shap_median_vs_tail_delta_abs.pdf` | 2×5 Δ mean \\|SHAP\\| |",
+        "| `shap_median_vs_tail_delta_signed.pdf` | 2×5 Δ signed SHAP |",
         "",
     ]
     (out / "summary.md").write_text("\n".join(lines), encoding="utf-8")
-    print("QBM")
-    print(qbm_diff.to_string(index=False))
-    print("NGBoost")
-    print(ngb_diff.to_string(index=False))
     print(f"Wrote {out}")
+
+
+def main() -> None:
+    for partition in PARTITIONS:
+        run_partition(partition)
 
 
 if __name__ == "__main__":

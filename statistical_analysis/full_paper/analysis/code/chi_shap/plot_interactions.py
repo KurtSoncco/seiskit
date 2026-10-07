@@ -1,12 +1,13 @@
-"""Friedman H ranking + TreeSHAP / proxy interaction heatmaps (Fig19).
+"""Friedman H ranking + NGBoost proxy interaction heatmap (Fig19), per partition.
 
-One Nature 5×3 figure: rows = χ metrics, columns = Friedman H bars,
-QBM TreeSHAP heatmap, NGBoost product-proxy heatmap. All data axes share
-the same physical height; heatmap columns share feature order and limits;
-Friedman bars share pair order and H limits.
+One Nature 5×2 figure per partition (between-seed, within-seed): rows = χ
+metrics, columns = Friedman H bars and NGBoost product-proxy heatmap. All data
+axes share the same physical height; heatmaps share feature order; Friedman
+bars share pair order and H limits.
 
-Reads existing CSVs from exceedance_friedman, shap_qbm, shap_ngboost and
-writes under ``figure_dir("chi_shap", "interactions")``.
+Reads ``chi_ngboost/<partition>/exceedance_friedman/friedman_H_pairs.csv`` and
+``chi_shap/shap_ngboost/<partition>/shap_interactions_top.csv``; writes under
+``figure_dir("chi_shap", "interactions", <partition>)``.
 """
 
 from __future__ import annotations
@@ -24,16 +25,23 @@ from matplotlib.colors import Normalize
 from matplotlib.ticker import MaxNLocator, ScalarFormatter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import FEATURES, METRICS, out_dir  # noqa: E402
+from common import (  # noqa: E402
+    FEATURE_DISPLAY,
+    METRICS,
+    NGB_FEATURES,
+    PARTITION_LABELS,
+    PARTITIONS,
+    out_dir,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from config import (  # noqa: E402
-    BOX_ROOT,
     LABEL_FONTSIZE,
     TICK_LABELSIZE,
     add_panel_label,
     apply_full_paper_style,
     figsize,
+    figure_dir,
     metric_color,
     metric_label,
     save_figure,
@@ -43,35 +51,20 @@ from seiskit.plot_config import get_crameri_cmap  # noqa: E402
 
 apply_full_paper_style(auto_format=True, frame="boxed", grid=False)
 
-FRIEDMAN = (
-    BOX_ROOT
-    / "full_paper"
-    / "figures"
-    / "chi_ngboost"
-    / "exceedance_friedman"
-    / "friedman_H_pairs.csv"
-)
-QBM_INT = (
-    BOX_ROOT / "full_paper" / "figures" / "chi_shap" / "shap_qbm" / "shap_interactions_top.csv"
-)
-NGB_INT = (
-    BOX_ROOT / "full_paper" / "figures" / "chi_shap" / "shap_ngboost" / "shap_interactions_top.csv"
-)
-
-DISPLAY = {
-    "Vs1_z": r"$V_{s1}$",
-    "Height_z": r"$H$",
-    "CoV_z": "CoV",
-    "rH_z": r"$r_h$",
-    "aHV_z": r"$a_{hv}$",
-    "node_z": "node",
-}
-
+FEATURES = NGB_FEATURES
+DISPLAY = FEATURE_DISPLAY
 COL_TITLES = (
     r"Friedman $H$",
-    r"QBM TreeSHAP $|\phi_{jk}|$",
     r"NGBoost proxy $|\phi_i\phi_j|$",
 )
+
+
+def _friedman_path(partition: str) -> Path:
+    return figure_dir("chi_ngboost", partition, "exceedance_friedman") / "friedman_H_pairs.csv"
+
+
+def _ngb_int_path(partition: str) -> Path:
+    return out_dir("shap_ngboost", partition) / "shap_interactions_top.csv"
 
 
 def _labels() -> list[str]:
@@ -103,13 +96,8 @@ def _h_aligned(friedman: pd.DataFrame, metric: str, pairs: list[tuple[str, str]]
     return np.array([lookup.get(p, np.nan) for p in pairs], dtype=float)
 
 
-def _select_pairs(
-    tab: pd.DataFrame, metric: str, *, preferred: str, fallback: str | None
-) -> pd.DataFrame:
-    q = tab[(tab["metric"] == metric) & (tab["target"] == preferred)]
-    if q.empty and fallback is not None:
-        q = tab[(tab["metric"] == metric) & (tab["target"] == fallback)]
-    return q
+def _select_pairs(tab: pd.DataFrame, metric: str, *, target: str) -> pd.DataFrame:
+    return tab[(tab["metric"] == metric) & (tab["target"] == target)]
 
 
 def _matrix_from_pairs(
@@ -173,19 +161,18 @@ def _layout_panels(fig: plt.Figure, axes: np.ndarray) -> None:
     heat_stack = sq_w + _CBAR_PAD + _CBAR_WIDTH
     span = _RIGHT - _LEFT
     gutter = _GUTTER
-    bar_w = span - 2.0 * gutter - 2.0 * heat_stack
+    bar_w = span - gutter - heat_stack
     min_bar = 0.90 * sq_w
     if bar_w < min_bar:
         bar_w = min_bar
-        gutter = (span - bar_w - 2.0 * heat_stack) / 2.0
+        gutter = span - bar_w - heat_stack
 
     x_bar = _LEFT
-    x_qbm = x_bar + bar_w + gutter
-    x_ngb = x_qbm + heat_stack + gutter
-    xs = (x_bar, x_qbm, x_ngb)
-    widths = (bar_w, sq_w, sq_w)
+    x_ngb = x_bar + bar_w + gutter
+    xs = (x_bar, x_ngb)
+    widths = (bar_w, sq_w)
     for r in range(axes.shape[0]):
-        for c in range(3):
+        for c in range(axes.shape[1]):
             axes[r, c].set_position([xs[c], y0s[r], widths[c], height])
 
 
@@ -207,9 +194,9 @@ def _add_cbar(fig: plt.Figure, ax: plt.Axes, im) -> None:
 
 def plot_interactions_grid(
     friedman: pd.DataFrame,
-    qbm: pd.DataFrame,
     ngb: pd.DataFrame,
     *,
+    partition: str,
     out: Path,
 ) -> None:
     pairs = _shared_pairs(friedman)
@@ -218,28 +205,26 @@ def plot_interactions_grid(
     pair_labels = [_pair_label(a, b) for a, b in pairs]
     h_lim = 0.5
     n_metrics = len(METRICS)
+    n_cols = len(COL_TITLES)
     last = n_metrics - 1
 
-    cmaps = []
-    for name, reverse in (("lajolla", True), ("oslo", True)):
-        cmap = get_crameri_cmap(name, reverse=reverse).copy()
-        cmap.set_bad("#f4f4f4")
-        cmaps.append(cmap)
+    cmap = get_crameri_cmap("oslo", reverse=True).copy()
+    cmap.set_bad("#f4f4f4")
 
     fig = plt.figure(figsize=figsize(height=6.65))
     gs = fig.add_gridspec(
         n_metrics,
-        3,
+        n_cols,
         wspace=0.30,
         hspace=0.48,
         left=_LEFT,
         right=_RIGHT,
-        top=0.955,
+        top=0.935,
         bottom=0.05,
     )
-    axes = np.empty((n_metrics, 3), dtype=object)
+    axes = np.empty((n_metrics, n_cols), dtype=object)
     for r in range(n_metrics):
-        for c in range(3):
+        for c in range(n_cols):
             axes[r, c] = fig.add_subplot(
                 gs[r, c],
                 sharex=axes[0, c] if r else None,
@@ -248,7 +233,6 @@ def plot_interactions_grid(
 
     images: list[tuple[plt.Axes, object]] = []
     for r, metric in enumerate(METRICS):
-        # Column 0: Friedman H, shared pair order and xlim
         ax = axes[r, 0]
         hvals = _h_aligned(friedman, metric, pairs)
         y = np.arange(n_pairs, dtype=float)
@@ -276,35 +260,31 @@ def plot_interactions_grid(
             ax.tick_params(labelbottom=False)
             ax.set_xlabel("")
 
-        q = _select_pairs(qbm, metric, preferred="q50", fallback="mean")
-        n = _select_pairs(ngb, metric, preferred="mu", fallback=None)
-        mats = (
-            _matrix_from_pairs(q, value_col="mean_abs_interaction"),
-            _matrix_from_pairs(n, value_col="mean_abs_interaction"),
+        mat = _matrix_from_pairs(
+            _select_pairs(ngb, metric, target="mu"), value_col="mean_abs_interaction"
         )
-        for c, (mat, cmap) in enumerate(zip(mats, cmaps), start=1):
-            ax = axes[r, c]
-            finite = mat[np.isfinite(mat)]
-            vmax = float(np.max(finite)) if finite.size else 1.0
-            if vmax <= 0:
-                vmax = 1.0
-            im = ax.imshow(
-                np.ma.masked_invalid(mat),
-                cmap=cmap,
-                norm=Normalize(vmin=0.0, vmax=vmax),
-                aspect="auto",
-                interpolation="nearest",
-                origin="upper",
-            )
-            _style_heatmap(ax, n_feat, show_x=(r == last), show_y=True)
-            if r == 0:
-                ax.set_title(COL_TITLES[c], fontsize=LABEL_FONTSIZE, pad=8)
-            images.append((ax, im))
+        ax = axes[r, 1]
+        finite = mat[np.isfinite(mat)]
+        vmax = float(np.max(finite)) if finite.size else 1.0
+        if vmax <= 0:
+            vmax = 1.0
+        im = ax.imshow(
+            np.ma.masked_invalid(mat),
+            cmap=cmap,
+            norm=Normalize(vmin=0.0, vmax=vmax),
+            aspect="auto",
+            interpolation="nearest",
+            origin="upper",
+        )
+        _style_heatmap(ax, n_feat, show_x=(r == last), show_y=True)
+        if r == 0:
+            ax.set_title(COL_TITLES[1], fontsize=LABEL_FONTSIZE, pad=8)
+        images.append((ax, im))
 
-        add_panel_label(axes[r, 0], r * 3, x=0.97, y=0.96, alpha=0.75)
-        add_panel_label(axes[r, 1], r * 3 + 1, x=0.97, y=0.96, alpha=0.75)
-        add_panel_label(axes[r, 2], r * 3 + 2, x=0.97, y=0.96, alpha=0.75)
+        for c in range(n_cols):
+            add_panel_label(axes[r, c], r * n_cols + c, x=0.97, y=0.96, alpha=0.75)
 
+    fig.suptitle(PARTITION_LABELS[partition], fontsize=LABEL_FONTSIZE, y=0.995)
     _layout_panels(fig, axes)
     for ax, im in images:
         _add_cbar(fig, ax, im)
@@ -313,18 +293,13 @@ def plot_interactions_grid(
     plt.close(fig)
 
 
-def main() -> None:
-    out = out_dir("interactions")
-    friedman = pd.read_csv(FRIEDMAN)
-    qbm = pd.read_csv(QBM_INT)
-    ngb = pd.read_csv(NGB_INT)
+def run_partition(partition: str) -> None:
+    out = out_dir("interactions", partition)
+    friedman = pd.read_csv(_friedman_path(partition))
+    ngb = pd.read_csv(_ngb_int_path(partition))
 
-    print("Interactions 5×3 grid …")
-    plot_interactions_grid(friedman, qbm, ngb, out=out)
-
-    for stale in out.glob("interactions_*.pdf"):
-        stale.unlink()
-        print(f"Removed {stale.name}")
+    print(f"Interactions 5×2 grid [{partition}] …")
+    plot_interactions_grid(friedman, ngb, partition=partition, out=out)
 
     top = (
         friedman.sort_values(["metric", "H"], ascending=[True, False])
@@ -334,14 +309,14 @@ def main() -> None:
     top.to_csv(out / "friedman_H_top5.csv", index=False)
 
     lines = [
-        "# Parameter interactions (Fig19)",
+        f"# Parameter interactions — {PARTITION_LABELS[partition]} (Fig19)",
         "",
-        "Single 5×3 figure (`interactions.pdf`):",
+        "Single 5×2 figure (`interactions.pdf`):",
         "- Rows: χ metrics (same order as Fig15).",
-        r"- Columns: Friedman $H$ bars, QBM TreeSHAP $|\phi_{jk}|$, NGBoost product-proxy.",
-        "- Friedman bars share pair order (union of computed pairs, ranked by mean $H$) and $H$ limits.",
-        "- Heatmaps share feature order and axis limits; colour scales are per panel (magnitudes are not comparable across metrics).",
-        "- All data axes are forced to the same physical height.",
+        r"- Columns: Friedman $H$ bars (NGBoost $\mu$), NGBoost product-proxy heatmap.",
+        "- Friedman bars share pair order (ranked by mean $H$) and $H$ limits.",
+        "- Heatmaps share feature order; colour scales are per panel.",
+        "- Features: five design factors only (no node coordinate).",
         "",
         "## Top Friedman pairs",
         "",
@@ -350,6 +325,11 @@ def main() -> None:
     ]
     (out / "summary.md").write_text("\n".join(lines), encoding="utf-8")
     print(f"Wrote {out}")
+
+
+def main() -> None:
+    for partition in PARTITIONS:
+        run_partition(partition)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,9 @@
-"""Shared helpers for chi_shap (NGBoost + QBM attributions)."""
+"""Shared helpers for chi_shap.
+
+Manuscript figures use the single-partition NGBoost models (between-seed /
+within-seed, design factors only). QBM helpers remain for the legacy
+``shap_qbm`` / ``shap_compare`` tables.
+"""
 
 from __future__ import annotations
 
@@ -14,21 +19,39 @@ if str(_CODE) not in sys.path:
 
 from _shared import (  # noqa: E402,F401
     CHI_QBM_MODELS,
+    FACTORS,
     FEATURES,
     METRICS,
     N_NODES,
+    NGB_FEATURES,
+    PARTITION_LABELS,
+    PARTITIONS,
     SPLIT_SEED,
+    SPREAD_KINDS,
+    SPREAD_LABELS,
     TAUS,
     TEST_SIZE,
     ZCOLS,
     add_design_columns,
     fmt,
     load_or_make_split,
+    load_partition,
     load_ratios,
+    load_spread,
     log_response,
+    partition_split,
     r2_score,
+    spread_split,
 )
 from config import figure_dir  # noqa: E402
+
+FEATURE_DISPLAY = {
+    "Vs1_z": r"$V_{s1}$",
+    "Height_z": r"$H$",
+    "CoV_z": "CoV",
+    "rH_z": r"$r_h$",
+    "aHV_z": r"$a_{hv}$",
+}
 
 SHAP_BG_N = 200
 SHAP_EXPLAIN_N = 1500
@@ -38,14 +61,62 @@ TOP_K_FEATURES = 4
 TOP_K_INTERACTIONS = 3
 
 
-def out_dir(stem: str) -> Path:
-    return figure_dir("chi_shap", stem)
+def out_dir(stem: str, partition: str | None = None) -> Path:
+    if partition is None:
+        return figure_dir("chi_shap", stem)
+    return figure_dir("chi_shap", stem, partition)
 
 
-def ngboost_models_dir() -> Path:
-    path = figure_dir("chi_ngboost", "models")
+def ngboost_models_dir(partition: str) -> Path:
+    path = figure_dir("chi_ngboost", partition, "models")
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def ngboost_model_path(partition: str, metric: str) -> Path:
+    return ngboost_models_dir(partition) / f"ngboost_{metric}.pkl"
+
+
+def spread_model_path(kind: str, metric: str, part: str = "normal") -> Path:
+    """Spread NGBoost from chi_ngboost/train_spread.py (part: 'normal' or 'zero')."""
+    stem = "spread" if part == "normal" else "spread_zero"
+    return figure_dir("chi_ngboost", "spread", kind, "models") / f"{stem}_{metric}.pkl"
+
+
+def factor_levels(df: pd.DataFrame) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """``{feature_z: (z_levels, raw_levels)}`` for the three-level design factors."""
+    out = {}
+    for f in FACTORS:
+        pairs = df[[f"{f}_z", f]].drop_duplicates().sort_values(f"{f}_z")
+        out[f"{f}_z"] = (pairs[f"{f}_z"].to_numpy(dtype=float), pairs[f].to_numpy(dtype=float))
+    return out
+
+
+def format_level(value: float) -> str:
+    return f"{int(value)}" if float(value).is_integer() else f"{value:g}"
+
+
+def partition_shap_sample(
+    df: pd.DataFrame, partition: str, *, explain_n: int, bg_n: int, seed: int = SHAP_SAMPLE_SEED
+) -> tuple[np.ndarray, np.ndarray, dict]:
+    """Background + explain rows from the partition holdout (disjoint when possible)."""
+    _, te = partition_split(df, partition)
+    rng = np.random.default_rng(seed)
+    te = np.asarray(te)
+    if len(te) >= bg_n + explain_n:
+        pick = rng.choice(te, size=bg_n + explain_n, replace=False)
+        bg, ex = pick[:bg_n], pick[bg_n:]
+    else:
+        bg = rng.choice(te, size=min(bg_n, len(te)), replace=False)
+        ex = te
+    meta = {
+        "partition": partition,
+        "bg_n": int(len(bg)),
+        "explain_n": int(len(ex)),
+        "sample_seed": seed,
+        "features": NGB_FEATURES,
+    }
+    return bg, ex, meta
 
 
 def qbm_model_path(kind: str, metric: str) -> Path:
@@ -53,10 +124,6 @@ def qbm_model_path(kind: str, metric: str) -> Path:
     if kind == "mean":
         return CHI_QBM_MODELS / f"lgbm_mean_{metric}_seed.pkl"
     return CHI_QBM_MODELS / f"lgbm_{kind}_{metric}_seed.pkl"
-
-
-def ngboost_model_path(metric: str) -> Path:
-    return ngboost_models_dir() / f"ngboost_{metric}.pkl"
 
 
 def make_shap_sample(df: pd.DataFrame, te: np.ndarray) -> tuple[np.ndarray, np.ndarray, dict]:
