@@ -294,3 +294,84 @@ def test_frozen_h_adjacent_ln_corr_high():
     ln = np.log(np.clip(stack, 1e-6, None))
     corr = float(np.corrcoef(ln[:, 0], ln[:, 1])[0, 1])
     assert corr > 0.7
+
+
+def test_bedrock_depth_model_validation():
+    with pytest.raises(ValueError, match="bedrock_depth_model"):
+        _cfg(bedrock_depth_model="normal")
+    with pytest.raises(ValueError, match="dip_half_span_m"):
+        _cfg(bedrock_depth_model="dip", dip_half_span_m=0.0)
+    with pytest.raises(ValueError, match="dip_angle_max_deg"):
+        _cfg(bedrock_depth_model="dip", dip_angle_min_deg=3.0, dip_angle_max_deg=-3.0)
+    cfg = _cfg(bedrock_depth_model="DIP")
+    assert cfg.bedrock_depth_model == "dip"
+
+
+def test_dip_interface_depth_bounds_mean_and_shape():
+    from seiskit.profile_randomization.nhpp import _sample_interface_depth
+
+    H = 40.0
+    half_span = 250.0
+    angle_max = 3.0
+    max_shift = half_span * np.tan(np.radians(angle_max))
+    cfg = _cfg(
+        thickness=H,
+        bedrock_thickness=30.0,
+        randomize_bedrock_depth=True,
+        bedrock_depth_model="dip",
+        dip_angle_min_deg=-angle_max,
+        dip_angle_max_deg=angle_max,
+        dip_half_span_m=half_span,
+    )
+    rng = np.random.default_rng(0)
+    depths = np.array([_sample_interface_depth(cfg, rng) for _ in range(8000)])
+    assert depths.min() >= H - max_shift - 1e-9
+    assert depths.max() <= H + max_shift + 1e-9
+    assert abs(float(np.mean(depths)) - H) < 0.35
+    # x tan θ is more concentrated at H than Uniform[H±max_shift]
+    n_center = int(np.sum(np.abs(depths - H) < 0.25 * max_shift))
+    n_edge = int(np.sum(np.abs(depths - H) > 0.75 * max_shift))
+    assert n_center > n_edge
+
+
+def test_toro_passeri_use_dip_interface_depth():
+    cfg = _cfg(
+        thickness=40.0,
+        bedrock_thickness=30.0,
+        randomize_layer_thickness=False,
+        randomize_bedrock_depth=True,
+        bedrock_depth_model="dip",
+        vary_bedrock_vs=False,
+    )
+    max_shift = cfg.dip_half_span_m * np.tan(np.radians(cfg.dip_angle_max_deg))
+    rng_t = np.random.default_rng(11)
+    rng_p = np.random.default_rng(11)
+    toro_depths = [generate_toro_profile(cfg, rng_t).interface_depth for _ in range(200)]
+    passeri_depths = [generate_passeri_profile(cfg, rng_p).interface_depth for _ in range(200)]
+    for depths in (toro_depths, passeri_depths):
+        arr = np.asarray(depths)
+        assert arr.min() >= 40.0 - max_shift - 1e-9
+        assert arr.max() <= 40.0 + max_shift + 1e-9
+        assert abs(float(np.mean(arr)) - 40.0) < 1.0
+        assert float(np.std(arr)) > 1.0  # not stuck at nominal H
+
+
+def test_passeri_dip_depth_independent_of_bedrock_vs():
+    from seiskit.profile_randomization.passeri import _passeri_joint_bedrock_draw
+
+    cfg = _cfg(
+        thickness=40.0,
+        bedrock_thickness=30.0,
+        randomize_bedrock_depth=True,
+        bedrock_depth_model="dip",
+        vary_bedrock_vs=True,
+    )
+    rng = np.random.default_rng(0)
+    depths = []
+    vss = []
+    for _ in range(5000):
+        depth, vs = _passeri_joint_bedrock_draw(cfg, rng)
+        depths.append(depth)
+        vss.append(vs)
+    corr = float(np.corrcoef(depths, np.log(vss))[0, 1])
+    assert abs(corr) < 0.08

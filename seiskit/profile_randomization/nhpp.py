@@ -132,6 +132,12 @@ def _sample_interface_depth(config: ProfileRandomizationConfig, rng: np.random.G
     min_t = max(config.min_layer_thickness, config.dz)
     if not config.randomize_bedrock_depth:
         return float(config.thickness)
+    if config.bedrock_depth_model == "dip":
+        # ood_dipping geometry: interface = H + x tan(θ), θ and x independent uniforms.
+        theta_deg = float(rng.uniform(config.dip_angle_min_deg, config.dip_angle_max_deg))
+        x_m = float(rng.uniform(-config.dip_half_span_m, config.dip_half_span_m))
+        iface = float(config.thickness) + x_m * np.tan(np.radians(theta_deg))
+        return float(np.clip(iface, min_t, z_total - min_t))
     mu = np.log(max(config.thickness, min_t))
     iface = float(np.exp(mu + config.sigma_ln_interface_depth * rng.standard_normal()))
     return float(np.clip(iface, min_t, z_total - min_t))

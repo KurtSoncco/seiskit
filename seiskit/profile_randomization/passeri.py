@@ -24,7 +24,12 @@ def _passeri_joint_bedrock_draw(
     config: ProfileRandomizationConfig,
     rng: np.random.Generator,
 ) -> tuple[float, float]:
-    """Joint lognormal draw for bedrock interface depth and Vs (Passeri rho=0.508)."""
+    """Joint draw for bedrock interface depth and Vs.
+
+    Default depth is lognormal and jointly correlated with bedrock Vs
+    (Passeri rho=0.508). With ``bedrock_depth_model=\"dip\"``, depth follows
+    the dipping-interface geometry and bedrock Vs is drawn independently.
+    """
     z_total = _total_column_depth(config)
     min_t = max(config.min_layer_thickness, config.dz)
     nominal_depth = float(config.thickness)
@@ -36,6 +41,10 @@ def _passeri_joint_bedrock_draw(
         return _sample_interface_depth(config, rng), nominal_vs
     if not config.randomize_bedrock_depth and config.vary_bedrock_vs:
         return nominal_depth, _sample_bedrock_vs(config, rng)
+
+    # Dip depth is geometric, not lognormal: keep Vs marginal, drop depth–Vs rho.
+    if config.bedrock_depth_model == "dip":
+        return _sample_interface_depth(config, rng), _sample_bedrock_vs(config, rng)
 
     mu_depth = np.log(max(config.thickness, min_t))
     mu_vs = np.log(max(config.vs_bedrock, 1e-6))

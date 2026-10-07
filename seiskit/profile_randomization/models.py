@@ -26,6 +26,12 @@ class ProfileRandomizationConfig:
     # Randomization options
     randomize_layer_thickness: bool = True
     randomize_bedrock_depth: bool = True
+    # Bedrock-depth law: "lognormal" (default Toro/Passeri) or "dip"
+    # (H + x tan θ from ood_dipping geometry).
+    bedrock_depth_model: str = "lognormal"
+    dip_angle_min_deg: float = -3.0
+    dip_angle_max_deg: float = 3.0
+    dip_half_span_m: float = 250.0
     # NHPP parameters
     sigma_ln_interface_depth: float = 0.05
     sigma_ln_bedrock_vs: float = 0.10
@@ -52,6 +58,16 @@ class ProfileRandomizationConfig:
             raise ValueError("Grid spacing `dz` must be strictly positive.")
         if self.thickness <= 0 or self.bedrock_thickness <= 0:
             raise ValueError("Thickness parameters must be strictly positive.")
+        model = str(self.bedrock_depth_model).strip().lower()
+        if model not in {"lognormal", "dip"}:
+            raise ValueError(
+                f"bedrock_depth_model must be 'lognormal' or 'dip', got {self.bedrock_depth_model!r}."
+            )
+        object.__setattr__(self, "bedrock_depth_model", model)
+        if self.dip_half_span_m <= 0:
+            raise ValueError("dip_half_span_m must be strictly positive.")
+        if self.dip_angle_max_deg < self.dip_angle_min_deg:
+            raise ValueError("dip_angle_max_deg must be >= dip_angle_min_deg.")
 
 
 @dataclass(frozen=True)
