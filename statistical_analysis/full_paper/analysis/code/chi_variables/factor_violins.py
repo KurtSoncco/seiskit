@@ -1,10 +1,12 @@
 """Violin grids of χ ratios across design-factor levels (Fig9).
 
-Single Nature-width figure under ``figure_dir("chi_variables", "factor_violins")``:
+Two Nature-width figures under ``figure_dir("chi_variables", "factor_violins")``
+(rows all five metrics; cols design factors):
 
-- ``chi_violins.pdf`` — rows all five metrics; cols design factors
+- ``chi_violins_one_seed_all_nodes.pdf`` — first seed, all nodes (within-seed)
+- ``chi_violins_center_node_all_seeds.pdf`` — center node, all seeds (between-seed)
 
-Each panel: all node×seed observations at that factor level (marginal over
+Each panel: observations of that sample at that factor level (marginal over
 other factors), violin shape from a fixed subsample, P5 / median / P95 from
 the full finite sample connected across levels.
 
@@ -25,6 +27,8 @@ from matplotlib.collections import PolyCollection
 from matplotlib.lines import Line2D
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _shared import SAMPLE_LABELS, SAMPLES, Sample, select_sample  # noqa: E402
 from config import (  # noqa: E402
     BOX_ROOT,
     DATA_LINEWIDTH,
@@ -187,7 +191,8 @@ def draw_panel(
     ax.set_axisbelow(True)
 
 
-def make_figure(df: pd.DataFrame, *, out_dir: Path) -> list[Path]:
+def make_figure(df: pd.DataFrame, *, sample: Sample, out_dir: Path) -> list[Path]:
+    df = select_sample(df, sample)
     metrics = tuple(METRICS)
     nrows, ncols = len(metrics), len(FACTORS)
     # 5×5 grid: stay under journal max height (~6.69 in)
@@ -204,7 +209,7 @@ def make_figure(df: pd.DataFrame, *, out_dir: Path) -> list[Path]:
         left=0.09,
         right=0.98,
         bottom=0.06,
-        top=0.94,
+        top=0.92,
         wspace=0.10,
         hspace=0.16,
     )
@@ -246,9 +251,11 @@ def make_figure(df: pd.DataFrame, *, out_dir: Path) -> list[Path]:
         frameon=False,
         fontsize=LABEL_FONTSIZE,
         bbox_to_anchor=(0.5, 0.995),
+        title=SAMPLE_LABELS[sample],
+        title_fontsize=LABEL_FONTSIZE,
     )
 
-    return save_figure(fig, "chi_violins", out_dir=out_dir)
+    return save_figure(fig, f"chi_violins_{sample}", out_dir=out_dir)
 
 
 def main() -> None:
@@ -257,9 +264,10 @@ def main() -> None:
     df = load_ratios()
     print(f"  rows={len(df):,}")
 
-    print("Writing combined violin figure …")
-    make_figure(df, out_dir=out_dir)
-    plt.close("all")
+    for sample in SAMPLES:
+        print(f"Writing violin figure [{sample}] …")
+        make_figure(df, sample=sample, out_dir=out_dir)
+        plt.close("all")
 
 
 if __name__ == "__main__":

@@ -8,13 +8,12 @@ Four sampling modes (samples + geomean±1σ over that pool)::
   all_seeds_all_nodes    — all seeds × all nodes (flattened)
 
 Each 3×3 figure is an \\(r_h \\times a_{hv}\\) grid. Within a panel, all CoV
-levels are overlaid (Paul Tol Bright color + linestyle); the homogeneous 1D
+levels are overlaid (high-contrast color + linestyle); the homogeneous 1D
 baseline is a thick black line.
 """
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 from typing import Literal
@@ -82,17 +81,11 @@ DOC_WIDTH_3X3, FIG_HEIGHT_3X3 = figsize(aspect=0.95)
 FREQ_LIM = (1e-1, 1e1)
 TF_LIM = (5e-1, 5e2)
 
-# CoV palettes (0.1, 0.2, 0.3); all colorblind-safe, black reserved for 1D.
-# Trial: A/B are darker Okabe–Ito picks (override via env COV_PALETTE).
-COV_PALETTES: dict[str, tuple[str, str, str]] = {
-    "tol_bright": (TOL_BRIGHT["blue"], TOL_BRIGHT["green"], TOL_BRIGHT["red"]),
-    "A": ("#332288", "#E69F00", "#117733"),  # indigo / orange / dark green
-    "B": ("#E69F00", "#117733", "#AA3377"),  # orange / dark green / purple
-}
-COV_PALETTE = os.environ.get("COV_PALETTE", "A")
+# CoV colors (0.1, 0.2, 0.3): colorblind-safe, no red–green pair; black reserved for 1D.
+COV_COLORS = ("#004488", "#EE7733", "#AA3377")  # deep blue / vivid orange / purple
 COV_STYLE: dict[float, dict[str, str]] = {
     cov: {"color": color, "ls": ls, "label": f"CoV = {cov}"}
-    for cov, color, ls in zip(COV_LIST, COV_PALETTES[COV_PALETTE], ("-", "--", "-."))
+    for cov, color, ls in zip(COV_LIST, COV_COLORS, ("-", "--", "-."))
 }
 COLOR_1D = "#000000"
 LW_1D = 2.0

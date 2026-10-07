@@ -4,7 +4,9 @@ Reads ``cell_summary.csv`` (no HDF5 recompute) and writes Nature-styled PDFs
 under ``figure_dir("chi_variables", "variability")``:
 
 - ``decomposition/`` — stacked seed/node variance fractions (+ s_total boxes)
-- ``components_by_factor/`` — rms components vs design factors (freq / IM)
+- ``components_by_factor/`` — rms components vs design factors (freq / IM), one
+  figure per law of total variance (``*_seed``: s_W, σ_μ, σ_total; ``*_node``:
+  s_B, σ_ν, σ_total)
 - ``fractions_by_factor/`` — seed- and node-split fractions vs factors
 - ``factor_cross/`` — rH / CoV / aHV sweeps of s_total and seed fractions
   at fixed (Height, Vs1)
@@ -89,10 +91,22 @@ LEGEND_FRAME = {
 # Bars stay s (̄s_W, ̄s_B). Former σ² terms display as σ (rms), not s.
 COMP_STYLES = {
     "s_W_bar": {"ls": "-", "marker": "o", "label": r"$\overline{s}_W$"},
-    "s_mu": {"ls": "--", "marker": "s", "label": r"$\sigma_\mu$"},
-    "s_B_bar": {"ls": ":", "marker": "^", "label": r"$\overline{s}_B$"},
-    "s_total": {"ls": "-", "marker": "D", "label": r"$\sigma_{\mathrm{total}}$", "lw": 1.2},
-    "s_nu": {"ls": "-.", "marker": "x", "label": r"$\sigma_\nu$", "alpha": 0.45},
+    "s_mu": {"ls": ":", "marker": "s", "label": r"$\sigma_\mu$"},
+    "s_B_bar": {"ls": "-", "marker": "^", "label": r"$\overline{s}_B$"},
+    "s_nu": {"ls": ":", "marker": "x", "label": r"$\sigma_\nu$"},
+    "s_total": {"ls": "--", "marker": "D", "label": r"$\sigma_{\mathrm{total}}$"},
+}
+
+# Each law of total variance on its own figure: s_W and s_B are not an additive pair.
+COMP_PARTITIONS = {
+    "seed": (
+        ("s_W_bar", "s_mu", "s_total"),
+        r"Seed split: $\sigma^2_{\mathrm{total}}=\overline{s^2_W}+\sigma^2_\mu$",
+    ),
+    "node": (
+        ("s_B_bar", "s_nu", "s_total"),
+        r"Node split: $\sigma^2_{\mathrm{total}}=\overline{s^2_B}+\sigma^2_\nu$",
+    ),
 }
 
 # Seed/node fraction colors (neutral, not metric-specific)
@@ -313,26 +327,18 @@ def _plot_stacked_split(
 
 def plot_components_by_factor(df: pd.DataFrame) -> None:
     out_dir = _out("components_by_factor")
-    _plot_metric_factor_grid(
-        df,
-        metrics=FREQ_METRICS,
-        cols=("s_W_bar", "s_mu", "s_B_bar", "s_total"),
-        include_s_nu=True,
-        stem="components_freq",
-        aspect=0.55,
-        out_dir=out_dir,
-        y_share_row=True,
-    )
-    _plot_metric_factor_grid(
-        df,
-        metrics=IM_METRICS,
-        cols=("s_W_bar", "s_mu", "s_B_bar", "s_total"),
-        include_s_nu=True,
-        stem="components_im",
-        aspect=0.72,
-        out_dir=out_dir,
-        y_share_row=True,
-    )
+    for split, (cols, title) in COMP_PARTITIONS.items():
+        for group, metrics, aspect in (("freq", FREQ_METRICS, 0.55), ("im", IM_METRICS, 0.72)):
+            _plot_metric_factor_grid(
+                df,
+                metrics=metrics,
+                cols=cols,
+                title=title,
+                stem=f"components_{group}_{split}",
+                aspect=aspect,
+                out_dir=out_dir,
+                y_share_row=True,
+            )
 
 
 def _plot_metric_factor_grid(
@@ -340,14 +346,14 @@ def _plot_metric_factor_grid(
     *,
     metrics: tuple[str, ...],
     cols: tuple[str, ...],
-    include_s_nu: bool,
+    title: str,
     stem: str,
     aspect: float,
     out_dir: Path,
     y_share_row: bool,
     ylim: tuple[float, float] | None = None,
 ) -> None:
-    plot_cols = list(cols) + (["s_nu"] if include_s_nu else [])
+    plot_cols = list(cols)
     nrows, ncols = len(metrics), len(FACTORS)
     fig, axes = plt.subplots(
         nrows,
@@ -364,7 +370,7 @@ def _plot_metric_factor_grid(
         left=0.09,
         right=0.98,
         bottom=0.12,
-        top=0.90,
+        top=0.85,
         wspace=0.12,
         hspace=0.18,
     )
@@ -385,7 +391,7 @@ def _plot_metric_factor_grid(
                     markersize=3.5,
                     lw=style.get("lw", DATA_LINEWIDTH),
                     alpha=style.get("alpha", 0.95),
-                    zorder=5 if col != "s_nu" else 3,
+                    zorder=5,
                 )
                 ax.plot(levels, meds, **kw)
                 row_vals.extend(meds.tolist())
@@ -441,6 +447,9 @@ def _plot_metric_factor_grid(
         ncol=len(handles),
         fontsize=TICK_LABELSIZE,
         bbox_to_anchor=(0.5, 0.995),
+        handlelength=4,
+        title=title,
+        title_fontsize=TICK_LABELSIZE,
         **LEGEND_FRAME,
     )
 
