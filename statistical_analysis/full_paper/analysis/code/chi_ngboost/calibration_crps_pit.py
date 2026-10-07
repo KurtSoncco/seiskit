@@ -1,8 +1,9 @@
-"""Holdout CRPS and PIT calibration for Normal NGBoost (Y = ln χ).
+"""Holdout CRPS and PIT calibration for the single-partition NGBoost models.
 
-Loads the seed-grouped holdout via ``load_or_make_split``, predicts
-Normal(μ, σ) per metric, and reports closed-form CRPS plus PIT =
-Φ((y−μ)/σ). Writes under figure_dir("chi_ngboost", "calibration").
+For each partition (between-seed, within-seed) loads that partition's holdout
+(``partition_split``), predicts Normal(μ, σ) per metric, and reports
+closed-form CRPS plus PIT = Φ((y−μ)/σ). Writes under
+figure_dir("chi_ngboost", <partition>, "calibration").
 """
 
 from __future__ import annotations
@@ -20,14 +21,15 @@ from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
-    FEATURES,
     METRICS,
-    add_design_columns,
-    load_or_make_split,
-    load_ratios,
+    NGB_FEATURES,
+    PARTITION_LABELS,
+    PARTITIONS,
+    load_partition,
     log_response,
-    models_dir,
+    model_path,
     out_dir,
+    partition_split,
 )
 from train_ngboost import predict_params  # noqa: E402
 
@@ -97,19 +99,19 @@ def _plot_pit_histograms(pit_by_metric: dict[str, np.ndarray], out: Path) -> Non
     plt.close(fig)
 
 
-def main() -> None:
-    out = out_dir("calibration")
-    print("Loading data …")
-    df = add_design_columns(load_ratios())
-    tr, te = load_or_make_split(df)
-    X_te = df.iloc[te][FEATURES].to_numpy(dtype=float)
+def calibrate(partition: str) -> None:
+    out = out_dir("calibration", partition)
+    print(f"Loading {PARTITION_LABELS[partition]} …")
+    df = load_partition(partition)
+    _, te = partition_split(df, partition)
+    X_te = df.iloc[te][NGB_FEATURES].to_numpy(dtype=float)
 
     rows = []
     pit_by_metric: dict[str, np.ndarray] = {}
     detail_rows = []
 
     for metric in METRICS:
-        mpath = models_dir() / f"ngboost_{metric}.pkl"
+        mpath = model_path(partition, metric)
         if not mpath.is_file():
             raise FileNotFoundError(f"Missing NGBoost model: {mpath}")
         model: NGBRegressor = joblib.load(mpath)
@@ -162,13 +164,14 @@ def main() -> None:
     _plot_pit_histograms(pit_by_metric, out)
 
     lines = [
-        "# NGBoost CRPS and PIT calibration",
+        f"# NGBoost CRPS and PIT calibration — {PARTITION_LABELS[partition]}",
         "",
         "## Definitions",
         "",
         r"- Predictive family: Normal NGBoost on \(Y=\ln\chi\) with parameters "
         r"\((\mu(\mathbf{x}),\sigma(\mathbf{x}))\).",
-        r"- Holdout: same seed-grouped split as `chi_qbm` (`load_or_make_split`).",
+        r"- Holdout: held-out seeds (between) or held-out node blocks (within); "
+        "see `train_ngboost/split.json`.",
         r"- CRPS (closed form for Normal): "
         r"\(\mathrm{CRPS}=\sigma\bigl[z(2\Phi(z)-1)+2\phi(z)-1/\sqrt{\pi}\bigr]\), "
         r"\(z=(y-\mu)/\sigma\).",
@@ -204,6 +207,11 @@ def main() -> None:
     (out / "summary.md").write_text("\n".join(lines), encoding="utf-8")
     print(tab.to_string(index=False))
     print(f"Wrote {out}")
+
+
+def main() -> None:
+    for partition in PARTITIONS:
+        calibrate(partition)
 
 
 if __name__ == "__main__":

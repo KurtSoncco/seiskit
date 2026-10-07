@@ -1,15 +1,26 @@
-"""Train Normal NGBoost on full-array χ ratios (Y = ln χ).
+"""Train Normal NGBoost on χ ratios (Y = ln χ).
 
-Features = z-scored factors + node_z. Seed-grouped holdout matches chi_qbm.
-Training uses a stratified subsample of training rows for tractability;
-holdout metrics use the full test set.
+Default (``--partition all``) trains two single-partition models so the
+predictive scale σ is one variance, never both:
 
-Writes models under figure_dir("chi_ngboost", "models") and CSV + summary.md
-under figure_dir("chi_ngboost", "train_ngboost").
+- ``between`` — center node × all seeds; σ is between-seed dispersion.
+  Holdout = held-out seeds (same seed lists as chi_qbm when available).
+- ``within`` — first seed × all nodes; σ is within-seed (node-to-node)
+  dispersion around the design-cell mean. Holdout = held-out contiguous node
+  blocks (a single seed has no seed groups).
+
+Both use the five z-scored design factors only (no ``node_z``). Models go to
+``figure_dir("chi_ngboost", <partition>, "models")`` and CSV + summary.md to
+``figure_dir("chi_ngboost", <partition>, "train_ngboost")``.
+
+``--partition pooled`` refits the legacy full-array node×seed model
+(features + ``node_z``, 10% subsample) used by chi_joint / chi_sr / Sobol;
+its σ mixes both variances, so it is not used for manuscript figures.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import time
@@ -34,6 +45,11 @@ from common import (  # noqa: E402
     N_CELLS,
     N_NODES,
     N_SEEDS,
+    NGB_FEATURES,
+    NODE_BLOCK,
+    PARTITION_LABELS,
+    PARTITION_SAMPLE,
+    PARTITIONS,
     TAUS,
     TRAIN_SUBSAMPLE_FRAC,
     TRAIN_SUBSAMPLE_SEED,
@@ -41,11 +57,15 @@ from common import (  # noqa: E402
     VAL_SEED,
     add_design_columns,
     load_or_make_split,
+    load_partition,
     load_ratios,
     log_response,
     mean_abs_lag1_residuals,
+    model_path,
     models_dir,
     out_dir,
+    partition_groups,
+    partition_split,
     pinball_loss,
     r2_score,
     rmse,
@@ -124,7 +144,170 @@ def pi_coverage(y: np.ndarray, mu: np.ndarray, sigma: np.ndarray, alpha: float =
     return float(np.mean((y >= lo) & (y <= hi)))
 
 
-def main() -> None:
+def _pinballs(y: np.ndarray, mu: np.ndarray, sigma: np.ndarray) -> dict[str, float]:
+    from scipy import stats
+
+    return {
+        f"pinball_q{int(tau * 100):02d}": pinball_loss(y, mu + sigma * stats.norm.ppf(tau), tau)
+        for tau in TAUS
+    }
+
+
+def _empirical_scale_check(
+    df: pd.DataFrame, y: np.ndarray, model: NGBRegressor
+) -> dict[str, float]:
+    """Per-cell empirical SD of Y (ddof=0) vs predicted σ for that cell."""
+    work = df[["cell", *NGB_FEATURES]].copy()
+    work["y"] = y
+    work = work[np.isfinite(work["y"])]
+    s_emp = work.groupby("cell")["y"].std(ddof=0)
+    cells = work.drop_duplicates("cell").set_index("cell").loc[s_emp.index]
+    _, sig = predict_params(model, cells[NGB_FEATURES].to_numpy(dtype=float))
+    ratio = sig / np.maximum(s_emp.to_numpy(dtype=float), 1e-8)
+    return {
+        "median_s_emp": float(np.median(s_emp)),
+        "median_sigma_hat": float(np.median(sig)),
+        "median_sigma_over_s": float(np.median(ratio)),
+    }
+
+
+def train_partition(partition: str) -> None:
+    out = out_dir("train_ngboost", partition)
+    print(f"Loading {PARTITION_LABELS[partition]} …")
+    df = load_partition(partition)
+    tr, te = partition_split(df, partition)
+    groups = partition_groups(df, partition)
+    X_all = df[NGB_FEATURES].to_numpy(dtype=float)
+
+    gss = GroupShuffleSplit(n_splits=1, test_size=VAL_FRAC, random_state=VAL_SEED)
+    fit_rel, val_rel = next(gss.split(tr, groups=groups[tr]))
+    fit_idx, val_idx = tr[fit_rel], tr[val_rel]
+
+    group_name = "seed" if partition == "between" else f"node_block_{NODE_BLOCK}"
+    split = {
+        "partition": partition,
+        "sample": PARTITION_SAMPLE[partition],
+        "holdout_groups": group_name,
+        "n_train": int(len(tr)),
+        "n_test": int(len(te)),
+        "test_groups": sorted(int(g) for g in np.unique(groups[te])),
+    }
+    if partition == "within":
+        split["seed"] = int(df["seed"].iloc[0])
+    (out / "split.json").write_text(json.dumps(split, indent=2), encoding="utf-8")
+
+    rows, lag_rows = [], []
+    meta = {
+        "partition": partition,
+        "sample": PARTITION_SAMPLE[partition],
+        "features": NGB_FEATURES,
+        "max_estimators": MAX_ESTIMATORS,
+        "early_stopping_rounds": EARLY_STOPPING_ROUNDS,
+        "n_rows": int(len(df)),
+        "n_fit": int(len(fit_idx)),
+        "n_val": int(len(val_idx)),
+        "n_test": int(len(te)),
+        "metrics": {},
+    }
+
+    for metric in METRICS:
+        print(f"=== NGBoost [{partition}] {metric} ===")
+        y = log_response(df, metric)
+        m_fit = _finite_mask(y[fit_idx], X_all[fit_idx])
+        m_val = _finite_mask(y[val_idx], X_all[val_idx])
+        m_te = _finite_mask(y[te], X_all[te])
+
+        t0 = time.perf_counter()
+        model, n_trees = fit_one(
+            X_all[fit_idx][m_fit],
+            y[fit_idx][m_fit],
+            X_all[val_idx][m_val],
+            y[val_idx][m_val],
+        )
+        fit_s = time.perf_counter() - t0
+        path = model_path(partition, metric)
+        joblib.dump(model, path)
+        print(f"  saved {path.name}  trees={n_trees}  {fit_s:.1f}s")
+
+        mu_te, sig_te = predict_params(model, X_all[te][m_te])
+        y_te = y[te][m_te]
+        rows.append(
+            {
+                "metric": metric,
+                "n_trees": n_trees,
+                "fit_seconds": fit_s,
+                "n_fit": int(m_fit.sum()),
+                "n_test": int(m_te.sum()),
+                "nll": normal_nll(y_te, mu_te, sig_te),
+                "r2_mean": r2_score(y_te, mu_te),
+                "rmse": rmse(y_te, mu_te),
+                "pi90_coverage": pi_coverage(y_te, mu_te, sig_te, alpha=0.10),
+                **_pinballs(y_te, mu_te, sig_te),
+                **_empirical_scale_check(df, y, model),
+                "model_path": str(path),
+            }
+        )
+        if partition == "within":
+            mu_all, _ = predict_params(model, X_all)
+            lag = mean_abs_lag1_residuals(df, y - mu_all, seed=0)
+            lag_rows.append({"metric": metric, **lag})
+        meta["metrics"][metric] = {"n_trees": n_trees, "fit_seconds": fit_s, "model": path.name}
+
+    hold = pd.DataFrame(rows)
+    hold.to_csv(out / "holdout_metrics.csv", index=False)
+    if lag_rows:
+        pd.DataFrame(lag_rows).to_csv(out / "residual_spatial_acf.csv", index=False)
+    (out / "train_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    if partition == "between":
+        scope = (
+            rf"- Sample: center node, all \(N_s={N_SEEDS}\) seeds × {N_CELLS} cells. "
+            r"\(\hat\sigma\) estimates between-seed dispersion of \(Y\) at that node."
+        )
+        holdout = r"- Holdout: seed-grouped 25% test (same seeds as `chi_qbm` when available)."
+        scale_ref = r"empirical between-seed SD at the center node"
+    else:
+        scope = (
+            rf"- Sample: seed {split['seed']}, all \(N_x={N_NODES}\) nodes × {N_CELLS} cells. "
+            r"\(\hat\sigma\) estimates within-seed dispersion of \(Y\) around the cell mean "
+            r"(the \(s_W\) check)."
+        )
+        holdout = (
+            rf"- Holdout: 25% of contiguous {NODE_BLOCK}-node blocks (one seed has no seed groups; "
+            "blocks limit leakage from spatial correlation)."
+        )
+        scale_ref = r"empirical within-seed SD \(s_{W}\) of that seed"
+
+    lines = [
+        f"# NGBoost training summary — {PARTITION_LABELS[partition]}",
+        "",
+        "## Definitions",
+        "",
+        scope,
+        r"- Model: Normal NGBoost \(Y\mid\mathbf{x}\sim\mathcal{N}(\mu(\mathbf{x}),\sigma^2(\mathbf{x}))\) "
+        r"with features = five z-scored design factors (no `node_z`).",
+        r"- Score: logarithmic score (natural-gradient boosting).",
+        holdout,
+        r"- NLL / \(R^2\) / RMSE / PI90 / pinball: as in the pooled model, on the holdout.",
+        rf"- `median_sigma_over_s`: median over cells of \(\hat\sigma\) / {scale_ref} (in-sample).",
+        "",
+        "## Holdout metrics",
+        "",
+        hold.drop(columns=["model_path"]).to_markdown(index=False, floatfmt=".4f"),
+        "",
+    ]
+    if lag_rows:
+        lines += [
+            "## Residual spatial structure (all nodes, train + test)",
+            "",
+            pd.DataFrame(lag_rows).to_markdown(index=False, floatfmt=".4f"),
+            "",
+        ]
+    (out / "summary.md").write_text("\n".join(lines), encoding="utf-8")
+    print(f"Wrote {out}")
+
+
+def train_pooled() -> None:
     out = out_dir("train_ngboost")
     mdir = models_dir()
     print("Loading join_master …")
@@ -268,6 +451,22 @@ def main() -> None:
     ]
     (out / "summary.md").write_text("\n".join(lines), encoding="utf-8")
     print(f"Wrote {out}")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument(
+        "--partition",
+        choices=[*PARTITIONS, "all", "pooled"],
+        default="all",
+        help="between / within / all (both, default) / pooled (legacy node×seed model)",
+    )
+    args = p.parse_args()
+    if args.partition == "pooled":
+        train_pooled()
+        return
+    for partition in PARTITIONS if args.partition == "all" else (args.partition,):
+        train_partition(partition)
 
 
 if __name__ == "__main__":

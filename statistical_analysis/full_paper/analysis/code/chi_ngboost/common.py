@@ -28,43 +28,80 @@ from _shared import (  # noqa: E402,F401
     N_CELLS,
     N_NODES,
     N_SEEDS,
+    NGB_FEATURES,
+    NODE_BLOCK,
+    PARTITION_LABELS,
+    PARTITION_SAMPLE,
+    PARTITIONS,
     SPLIT_SEED,
+    SPREAD_KINDS,
+    SPREAD_LABELS,
+    SPREAD_REPLICATE,
+    SPREAD_ZERO_TOL,
     TAUS,
     TEST_SIZE,
     VAL_FRAC,
     VAL_SEED,
     ZCOLS,
     add_design_columns,
+    first_seed,
     fmt,
     lag1_pearson,
     load_or_make_split,
+    load_partition,
     load_ratios,
+    load_spread,
     log_response,
+    partition_groups,
+    partition_split,
     pinball_loss,
     r2_score,
     rmse,
     seed_grouped_split_indices,
+    spread_split,
 )
-from _shared import (
+from _shared import (  # noqa: E402
     save_split as _save_split,
 )
 from config import figure_dir  # noqa: E402
 
-# Subsample for NGBoost fit speed (full holdout still evaluated).
+# Subsample for NGBoost fit speed (full holdout still evaluated). Pooled model only.
 TRAIN_SUBSAMPLE_FRAC = 0.10
 TRAIN_SUBSAMPLE_SEED = 2
 MAX_ESTIMATORS = 200
 EARLY_STOPPING_ROUNDS = 20
 
 
-def out_dir(stem: str) -> Path:
-    return figure_dir("chi_ngboost", stem)
+def out_dir(stem: str, partition: str | None = None) -> Path:
+    if partition is None:
+        return figure_dir("chi_ngboost", stem)
+    return figure_dir("chi_ngboost", partition, stem)
 
 
-def models_dir() -> Path:
-    path = figure_dir("chi_ngboost", "models")
+def models_dir(partition: str | None = None) -> Path:
+    """Pooled node×seed models when *partition* is None (chi_joint / chi_sr / Sobol)."""
+    if partition is None:
+        path = figure_dir("chi_ngboost", "models")
+    else:
+        path = figure_dir("chi_ngboost", partition, "models")
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def model_path(partition: str, metric: str) -> Path:
+    return models_dir(partition) / f"ngboost_{metric}.pkl"
+
+
+def spread_dir(kind: str, *parts: str) -> Path:
+    path = figure_dir("chi_ngboost", "spread", kind, *parts)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def spread_model_path(kind: str, metric: str, part: str = "normal") -> Path:
+    """part: 'normal' (ln s) or 'zero' (f0 Bernoulli for s < SPREAD_ZERO_TOL)."""
+    stem = "spread" if part == "normal" else "spread_zero"
+    return spread_dir(kind, "models") / f"{stem}_{metric}.pkl"
 
 
 def surfaces_dir() -> Path:
