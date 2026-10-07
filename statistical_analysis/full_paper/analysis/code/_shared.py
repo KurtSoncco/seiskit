@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Literal, cast
 
 import h5py
 import numpy as np
@@ -36,6 +37,9 @@ CHI_QBM_ROOT = BOX_ROOT / "full_paper" / "figures" / "chi_qbm"
 CHI_QBM_MODELS = CHI_QBM_ROOT / "models"
 CHI_QBM_TRAIN = CHI_QBM_ROOT / "train_qbm"
 CHI_QBM_COMPARE = CHI_QBM_ROOT / "compare_models"
+CENTRAL_VARIABILITY = BOX_ROOT / "full_paper" / "figures" / "chi_variables" / "central_variability"
+WITHIN_PER_SEED_PATH = CENTRAL_VARIABILITY / "within_per_seed.csv"
+BETWEEN_PER_NODE_PATH = CENTRAL_VARIABILITY / "between_per_node.csv"
 
 N_NODES = 101
 N_SEEDS = 100
@@ -53,6 +57,117 @@ SPLIT_SEED = 0
 VAL_SEED = 1
 LAG1_FAIL_THRESH = 0.2
 
+# Single-partition samples. Pooling node×seed rows mixes within-seed spatial
+# scatter with between-seed realization scatter, so figures use one or the other.
+Sample = Literal["one_seed_all_nodes", "center_node_all_seeds"]
+SAMPLES: tuple[Sample, ...] = ("one_seed_all_nodes", "center_node_all_seeds")
+SAMPLE_PARTITION: dict[Sample, str] = {
+    "one_seed_all_nodes": "within",
+    "center_node_all_seeds": "between",
+}
+SAMPLE_LABELS: dict[Sample, str] = {
+    "one_seed_all_nodes": rf"one seed, all $N_x={N_NODES}$ nodes (within-seed)",
+    "center_node_all_seeds": rf"center node, all $N_s={N_SEEDS}$ seeds (between-seed)",
+}
+
+
+def first_seed(df: pd.DataFrame) -> int:
+    """Lowest seed id present (the qualitative figures' seed 0)."""
+    return int(np.min(df["seed"].to_numpy()))
+
+
+def select_sample(df: pd.DataFrame, sample: Sample) -> pd.DataFrame:
+    """Rows for one seed × all nodes, or center node × all seeds."""
+    if sample == "one_seed_all_nodes":
+        return df.loc[df["seed"] == first_seed(df)].reset_index(drop=True)
+    if sample == "center_node_all_seeds":
+        return df.loc[df["node"] == CENTER_NODE].reset_index(drop=True)
+    raise ValueError(f"unknown sample: {sample!r}")
+
+
+# Single-partition NGBoost: between-seed (center node, all seeds) and
+# within-seed (one seed, all nodes). Design factors only — `node_z` is constant
+# in the between sample and would absorb the spatial mean profile (shrinking σ
+# below s_W) in the within sample.
+PARTITIONS = ("between", "within")
+PARTITION_SAMPLE: dict[str, Sample] = {
+    "between": "center_node_all_seeds",
+    "within": "one_seed_all_nodes",
+}
+PARTITION_LABELS = {
+    "between": "Between-seed (center node, all seeds)",
+    "within": "Within-seed, single realization (seed 1, all nodes)",
+}
+NGB_FEATURES = list(ZCOLS)
+# Within-seed holdout groups contiguous node blocks (one seed ⇒ no seed groups).
+NODE_BLOCK = 10
+
+
+def load_partition(partition: str) -> pd.DataFrame:
+    """Design columns on the full grid, then the single-partition sample."""
+    df = add_design_columns(load_ratios(), include_node_z=False)
+    return select_sample(df, PARTITION_SAMPLE[partition])
+
+
+def partition_groups(df: pd.DataFrame, partition: str) -> np.ndarray:
+    if partition == "between":
+        return df["seed"].to_numpy()
+    if partition == "within":
+        return df["node"].to_numpy() // NODE_BLOCK
+    raise ValueError(f"unknown partition: {partition!r}")
+
+
+def partition_split(df: pd.DataFrame, partition: str) -> tuple[np.ndarray, np.ndarray]:
+    """Holdout: held-out seeds (between) or held-out node blocks (within)."""
+    if partition == "between":
+        return load_or_make_split(df)
+    gss = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=SPLIT_SEED)
+    tr, te = next(gss.split(df, groups=partition_groups(df, partition)))
+    return tr, te
+
+
+# Spread models over all replicates: within-seed s_W per (cell, seed) with seeds
+# as replicates; between-seed s_B per (cell, node) with nodes as replicates.
+SpreadKind = Literal["within", "between"]
+SPREAD_KINDS: tuple[SpreadKind, ...] = ("within", "between")
+SPREAD_LABELS = {
+    "within": rf"Within-seed spread $s_W$ (all $N_s={N_SEEDS}$ seeds)",
+    "between": rf"Between-seed spread $s_B$ (all $N_x={N_NODES}$ nodes)",
+}
+SPREAD_COLUMN = {"within": "s_W", "between": "s_B"}
+SPREAD_REPLICATE = {"within": "seed", "between": "node"}
+# f0 s_W is either float noise (< 1e-15: every node has the same peak bin) or
+# >= 10**-3.5; nothing lies between.
+SPREAD_ZERO_TOL = 1e-10
+
+
+def load_spread(kind: SpreadKind, metric: str) -> pd.DataFrame:
+    """Per-replicate spread table for *metric* with design columns, ``Z = ln s``,
+    a ``zero`` flag (s < SPREAD_ZERO_TOL) and the holdout ``group``
+    (seed for within, node block for between)."""
+    path = WITHIN_PER_SEED_PATH if kind == "within" else BETWEEN_PER_NODE_PATH
+    raw = pd.read_csv(path)
+    raw = raw[raw["metric"] == metric].reset_index(drop=True)
+    df = add_design_columns(raw, include_node_z=False)
+    s = df[SPREAD_COLUMN[kind]].to_numpy(dtype=float)
+    df["spread"] = s
+    df["zero"] = s < SPREAD_ZERO_TOL
+    with np.errstate(divide="ignore", invalid="ignore"):
+        df["Z"] = np.where(df["zero"], np.nan, np.log(s))
+    rep = SPREAD_REPLICATE[kind]
+    df["replicate"] = df[rep].to_numpy()
+    df["group"] = df[rep].to_numpy() if kind == "within" else df[rep].to_numpy() // NODE_BLOCK
+    return df
+
+
+def spread_split(df: pd.DataFrame, kind: SpreadKind) -> tuple[np.ndarray, np.ndarray]:
+    """Held-out seeds (same lists as the Y models) or held-out node blocks."""
+    if kind == "within":
+        return load_or_make_split(df)
+    gss = GroupShuffleSplit(n_splits=1, test_size=TEST_SIZE, random_state=SPLIT_SEED)
+    tr, te = next(gss.split(df, groups=df["group"].to_numpy()))
+    return tr, te
+
 
 def fmt(x: float, digits: int = 4) -> str:
     if x is None or not np.isfinite(x):
@@ -64,8 +179,8 @@ def load_ratios(path: Path = DATA_PATH) -> pd.DataFrame:
     """Load joined ratio table; rename channel → node."""
     cols = ["Vs1", "Height", "CoV", "rH", "aHV", "channel", "seed", *METRICS]
     with h5py.File(path, "r") as f:
-        g = f["master"]
-        df = pd.DataFrame({c: g[c][:] for c in cols})
+        g = cast(h5py.Group, f["master"])
+        df = pd.DataFrame({c: cast(h5py.Dataset, g[c])[...] for c in cols})
     return df.rename(columns={"channel": "node"})
 
 

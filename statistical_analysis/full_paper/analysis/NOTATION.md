@@ -143,6 +143,8 @@ Interpretation: fraction of variance that lives *between* design cells. Within-c
 = \frac{R^2_{\mathrm{model}}}{R^2_{\mathrm{ceiling}}}.
 \]
 
+Scopes (`scope` column) keep the two variance partitions apart: **between** uses the center node with the \(N_s\) seeds as replicates (noise = between-seed variance); **within** uses one seed with the \(N_x\) nodes as replicates (noise = within-seed spatial variance). **full** pools node×seed draws; its noise mixes both partitions and is not \(\overline{s^2_W}/\sigma^2_{\mathrm{total}}\). Model efficiency is always taken against the ceiling of the same scope.
+
 Optional cross-checks (same as conference paper): noise-corrected signal \(\sigma^{2}_{\mathrm{signal,bc}}=\max\bigl(0,\sigma^{2}_{\mathrm{signal}}-\overline{s^2_k/n_k}\bigr)\) and between-cell SS fraction \(R^2_{\mathrm{ceiling,SS}}\).
 
 ## QBM (`chi_qbm`)
@@ -169,7 +171,7 @@ QBM models \(q_\tau(Y\mid \mathbf{x}_k, x_{\mathrm{node}})\) by gradient boostin
 | \(\phi_j\) | SHAP attribution for feature \(j\) (model-tagged) | `shap_*` CSVs |
 | \(\phi_{jk}\) | pairwise SHAP interaction | `shap_interactions_*` |
 
-NGBoost learns \(Y\mid\mathbf{x}\sim\mathcal{N}(\mu(\mathbf{x}),\sigma^2(\mathbf{x}))\) by natural-gradient boosting. Mean \(R^2\) for \(\mu\) is likewise reported relative to \(R^2_{\mathrm{ceiling}}\). SHAP decomposes \(\mu\) / \(\log\sigma\) (and QBM quantiles) for design and spatial drivers.
+NGBoost learns \(Y\mid\mathbf{x}\sim\mathcal{N}(\mu(\mathbf{x}),\sigma^2(\mathbf{x}))\) by natural-gradient boosting. Manuscript figures use two single-partition fits on the five design factors (no `node_z`): **between** (center node, all seeds; \(\sigma\) = between-seed dispersion) and **within** (one seed, all nodes; \(\sigma\) = within-seed dispersion around the cell mean). Mean \(R^2\) for \(\mu\) is reported relative to the same-scope \(R^2_{\mathrm{ceiling}}\). SHAP decomposes \(\mu\) / \(\log\sigma\) per partition. ALE is evaluated only at the three observed factor levels. A pooled node×seed fit with `node_z` remains for `chi_joint` / `chi_sr` / Sobol only.
 
 ## Intensity measures and design cells
 
@@ -200,6 +202,6 @@ Distinct from lag-ACF in `spatial_acf.py` (within-seed spatial structure of one 
 | PIT | calibration histogram of \(\Phi((Y-\mu)/\sigma)\) | same |
 | ALE | accumulated local effects (marginal) | `chi_shap/ale_effects.py` |
 | Friedman \(H\) | pairwise interaction strength | `chi_ngboost/exceedance_friedman.py` |
-| \(\Delta\)SHAP | QBM and NGBoost median vs lower/upper-tail attributions (\(\tau=0.05,0.95\) vs \(0.50\)) | `chi_shap/shap_median_vs_tail.py` |
+| \(\Delta\)SHAP | NGBoost (per partition) median vs lower/upper-tail attributions (\(\tau=0.05,0.95\) vs \(0.50\)) | `chi_shap/shap_median_vs_tail.py` |
 
 Optional symbolic regression of NGBoost surfaces: `chi_sr/` (not required for the main outline).

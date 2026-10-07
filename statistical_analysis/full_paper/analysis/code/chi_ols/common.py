@@ -25,7 +25,7 @@ from _shared import (  # noqa: E402,F401
     load_ratios,
     log_response,
 )
-from _shared import (
+from _shared import (  # noqa: E402
     add_design_columns as _add_design_columns,
 )
 from config import figure_dir  # noqa: E402

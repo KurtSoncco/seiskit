@@ -1,7 +1,13 @@
 """Reliability (signal-to-total) R² ceiling for χ ratios.
 
-Computes replicate-based ceilings on the full array and at the center node,
-plus efficiency vs Stage-1 in-sample R² when available.
+Ceilings are reported per variance partition so between-seed and within-seed
+noise are never pooled:
+
+- ``between`` — center node × all seeds (replicates = seeds; noise = between-seed).
+- ``within``  — first seed × all nodes (replicates = nodes; noise = within-seed).
+- ``full``    — every node×seed as a replicate (legacy pooled scope, kept for
+  the heatmap annotations and the pooled Stage-1 efficiency; not a within-seed
+  noise fraction).
 
 Writes CSV + summary.md under ``figure_dir("chi_ols", "r2_ceiling")``.
 """
@@ -16,7 +22,6 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (  # noqa: E402
-    CENTER_NODE,
     FACTORS,
     METRICS,
     N_CELLS,
@@ -28,6 +33,9 @@ from common import (  # noqa: E402
     log_response,
     out_dir,
 )
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _shared import CENTER_NODE, SAMPLE_LABELS, first_seed  # noqa: E402
 
 
 def reliability_ceiling(
@@ -76,7 +84,7 @@ def reliability_ceiling(
         sigma2_signal_bc=sigma2_signal_bc,
         reliability_ceiling_bc=reliability_bc,
         reliability_ceiling_ss=reliability_ss,
-        frac_within_noise=1.0 - reliability,
+        frac_noise=1.0 - reliability,
     )
 
 
@@ -96,11 +104,12 @@ def build_summary_md(ceil: pd.DataFrame) -> str:
         f"(`{'`, `'.join(METRICS)}`).",
         "",
         f"- Design cells: **{N_CELLS}** (`{'`, `'.join(FACTORS)}`)",
-        rf"- Scopes: **full** (\(N_x = {N_NODES}\) × \(N_s = {N_SEEDS}\) "
-        f"replicates per cell) and **center** (node {CENTER_NODE}, "
-        rf"\(N_s = {N_SEEDS}\) seeds)",
-        r"- Efficiency uses Stage-1 in-sample \(R^2\) from "
-        "`chi_ols/stage1_mean_ols/mean_fit_metrics.csv` when present",
+        rf"- **between**: {SAMPLE_LABELS['center_node_all_seeds']} — noise = between-seed variance",
+        rf"- **within**: {SAMPLE_LABELS['one_seed_all_nodes']} — noise = within-seed (spatial) variance",
+        rf"- **full** (legacy): \(N_x = {N_NODES}\) × \(N_s = {N_SEEDS}\) pooled replicates; "
+        "its noise mixes both partitions and is not \\(\\overline{s^2_W}/\\sigma^2_{total}\\)",
+        r"- Efficiency uses the pooled Stage-1 in-sample \(R^2\) "
+        "(`chi_ols/stage1_mean_ols/mean_fit_metrics.csv`) and is reported for **full** only",
         "",
         "## Output files",
         "",
@@ -112,7 +121,7 @@ def build_summary_md(ceil: pd.DataFrame) -> str:
         "",
         "## Notation",
         "",
-        "For design cell \\(k\\) and replicate \\(\\ell\\) (seed×node or seed):",
+        "For design cell \\(k\\) and replicate \\(\\ell\\) (seed, node, or node×seed by scope):",
         "",
         r"$$",
         r"Y_{k\ell} = \mu_k + \varepsilon_{k\ell}.",
@@ -155,29 +164,16 @@ def build_summary_md(ceil: pd.DataFrame) -> str:
         )
 
     lines.extend(["", "## Conclusions", ""])
-    full = ceil[ceil["scope"] == "full"]
-    for _, r in full.iterrows():
+    for metric in METRICS:
+        by = ceil[ceil["metric"] == metric].set_index("scope")
+        if not {"between", "within"}.issubset(by.index):
+            continue
+        b, w = by.loc["between"], by.loc["within"]
         lines.append(
-            f"- **{r['metric']}** (full array): ceiling "
-            f"{fmt(r['reliability_ceiling'])} "
-            f"(within-cell noise fraction {fmt(r['frac_within_noise'])}); "
-            f"Stage-1 efficiency {fmt(r['efficiency'])}."
+            f"- **{metric}**: between-seed ceiling {fmt(b['reliability_ceiling'])} "
+            f"(noise fraction {fmt(b['frac_noise'])}); within-seed ceiling "
+            f"{fmt(w['reliability_ceiling'])} (noise fraction {fmt(w['frac_noise'])})."
         )
-    center = ceil[ceil["scope"] == "center"]
-    if len(center):
-        lines.append("")
-        lines.append(
-            "Center-node ceilings are typically higher than full-array "
-            "ceilings when lateral spatial variability inflates within-cell "
-            "noise relative to design-mean signal."
-        )
-        for _, r in center.iterrows():
-            full_row = full[full["metric"] == r["metric"]]
-            full_c = float(full_row["reliability_ceiling"].iloc[0]) if len(full_row) else np.nan
-            lines.append(
-                f"- **{r['metric']}** center ceiling {fmt(r['reliability_ceiling'])} "
-                f"vs full {fmt(full_c)}."
-            )
     lines.extend(
         [
             "",
@@ -203,18 +199,19 @@ def main() -> None:
     rows: list[dict] = []
     for metric in METRICS:
         y = log_response(df, metric)
-        for scope, mask in (
-            ("full", np.ones(len(df), dtype=bool)),
-            ("center", (df["node"] == CENTER_NODE).to_numpy()),
-        ):
+        scopes = {
+            "between": (df["node"] == CENTER_NODE).to_numpy(),
+            "within": (df["seed"] == first_seed(df)).to_numpy(),
+            "full": np.ones(len(df), dtype=bool),
+        }
+        for scope in ("between", "within", "full"):
+            mask = scopes[scope]
             sub = df.loc[mask].reset_index(drop=True)
             ys = y[mask]
             print(f"Ceiling {metric} / {scope} …")
             res = reliability_ceiling(sub, ys, list(FACTORS))
-            r2_s1 = stage1_r2.get(metric, np.nan)
-            # Efficiency vs Stage-1 is meaningful for full-array Stage-1;
-            # still report for center as a reference.
             ceil = float(res["reliability_ceiling"])
+            r2_s1 = stage1_r2.get(metric, np.nan) if scope == "full" else np.nan
             eff = (r2_s1 / ceil) if np.isfinite(r2_s1) and ceil > 0 else np.nan
             rows.append(
                 dict(
