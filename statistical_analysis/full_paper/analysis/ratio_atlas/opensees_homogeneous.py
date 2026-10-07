@@ -34,9 +34,9 @@ for _lib_name in (
 ):
     ctypes.CDLL(str(_OSEES_LIB / _lib_name), mode=ctypes.RTLD_GLOBAL)
 
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.lines import Line2D
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
 
 _ATLAS = Path(__file__).resolve().parent
 _FULL_PAPER = _ATLAS.parents[1]

@@ -66,10 +66,7 @@ def viscous_rayleigh_tf(freq, vs1, H, vs2, alpha_s, beta_s, alpha_r, beta_r):
         vs_s, rho_s = rayleigh_complex_vs_rho(vs1, RHO, w, alpha_s, beta_s)
         k = w / vs_s
         kh = k * H
-        c, s = np.cos(kh), np.sin(kh)
-        gk = 1j * w * rho_s * vs_s
-        u_base = c  # u_surf=1, τ_surf=0 → u_base = cos
-        tau_base = -gk * s
+        u_base = np.cos(kh)  # u_surf=1, τ_surf=0 → u_base = cos
         af[i] = float(np.abs(1.0 / u_base))
     return af
 

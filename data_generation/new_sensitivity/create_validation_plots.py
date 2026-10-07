@@ -15,12 +15,18 @@ All figures follow the centralized publication-quality style from
 import csv
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Dict, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from compute_transfer_functions import (
+
+_DAMPING_F0 = Path(__file__).resolve().parents[1] / "damping_f0"
+if str(_DAMPING_F0) not in sys.path:
+    sys.path.insert(0, str(_DAMPING_F0))
+
+from compute_transfer_functions import (  # noqa: E402
     compute_coefficient_of_variation,
     compute_geometric_mean,
     compute_transfer_function,
@@ -29,7 +35,7 @@ from compute_transfer_functions import (
     load_tf_dict_from_pickle,
 )
 
-from seiskit.plot_config import (
+from seiskit.plot_config import (  # noqa: E402
     COLORBLIND_COLORS,
     add_subfigure_label,
     apply_style,
@@ -38,7 +44,7 @@ from seiskit.plot_config import (
     place_legend,
     to_title_case,
 )
-from seiskit.plot_config.labels import format_label
+from seiskit.plot_config.labels import format_label  # noqa: E402
 
 
 def parse_1D_folder(folder_name: str) -> Dict[str, float | str] | None:

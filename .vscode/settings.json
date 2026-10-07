@@ -9,7 +9,9 @@
     "python.analysis.extraPaths": [
         "statistical_analysis/full_paper",
         "statistical_analysis/full_paper/analysis/code",
-        "statistical_analysis/full_paper/analysis/code/chi_spatial"
+        "statistical_analysis/full_paper/analysis/code/chi_spatial",
+        "data_generation/damping_f0",
+        "neural-operator/data"
     ],
     "chat.tools.terminal.autoApprove": {
         "/home/kurt-/seiskit/.venv/bin/python": true

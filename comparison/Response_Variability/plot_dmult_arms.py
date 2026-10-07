@@ -103,7 +103,9 @@ def main() -> None:
     stats = (
         df.groupby("method")[[c for c, _, _ in METRICS]]
         .agg(
-            lambda v: f"{np.median(v):+.3f} [{np.percentile(v, 16):+.3f}, {np.percentile(v, 84):+.3f}]"
+            lambda v: (
+                f"{np.median(v):+.3f} [{np.percentile(v, 16):+.3f}, {np.percentile(v, 84):+.3f}]"
+            )
         )
         .reindex(arms)
     )
