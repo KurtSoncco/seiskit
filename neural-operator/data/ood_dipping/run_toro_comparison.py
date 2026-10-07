@@ -45,7 +45,6 @@ if str(REPO) not in sys.path:
 from seiskit.damping import compute_damping_from_Q, compute_quality_factor  # noqa: E402
 from seiskit.profile_randomization import (  # noqa: E402
     ProfileRandomizationConfig,
-    generate_toro_profile,
     hallal_profile_config,
 )
 from seiskit.theory.layered_1d_tf import (  # noqa: E402
@@ -216,21 +215,41 @@ def _toro_config(phys: PhysEntry, arm: str) -> ProfileRandomizationConfig:
     )
 
 
+def _one_layer_toro(cfg: ProfileRandomizationConfig, rng: np.random.Generator) -> tuple[float, float, float]:
+    """One soil Vs for the whole column. No thickness subdivision."""
+    from seiskit.profile_randomization.models import _GeoLayer
+    from seiskit.profile_randomization.nhpp import _sample_interface_depth
+    from seiskit.profile_randomization.toro import _toro_draw_layer_vs
+
+    interface = float(_sample_interface_depth(cfg, rng))
+    soil = _GeoLayer(interface, interface / 2.0, interface, float(cfg.vs_mean))
+    bed_h = float(cfg.bedrock_thickness)
+    bed = _GeoLayer(
+        bed_h,
+        interface + bed_h / 2.0,
+        interface + bed_h,
+        float(cfg.vs_bedrock),
+        is_bedrock=True,
+    )
+    vs = _toro_draw_layer_vs(
+        [soil, bed], cfg, rng, randomize_bedrock=False, reject_profile=False
+    )
+    return float(vs[0]), float(cfg.vs_bedrock), interface
+
+
 def ensemble_toro(
     phys: PhysEntry,
     arm: str,
     freq: np.ndarray,
     n_real: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return (geomean |TF|, σ_ln |TF|) over *n_real* Toro realizations."""
+    """Return (geomean |TF|, σ_ln |TF|) over *n_real* one-layer Toro realizations."""
     cfg = _toro_config(phys, arm)
     stack = np.empty((n_real, len(freq)), dtype=np.float64)
     for i in range(n_real):
         rng = np.random.default_rng(_rng_seed(phys.sobol_id, arm, i))
-        prof = generate_toro_profile(cfg, rng)
-        vs_s = float(prof.vs_depth[0])
-        vs_b = float(prof.vs_depth[-1])
-        H_use = float(phys.H) if arm == "fixed" else float(prof.interface_depth)
+        vs_s, vs_b, interface = _one_layer_toro(cfg, rng)
+        H_use = float(phys.H) if arm == "fixed" else interface
         stack[i] = two_layer_af(freq, vs_s, H_use, vs_b)
     log_tf = np.log(np.clip(stack, EPS, None))
     geo = np.exp(np.mean(log_tf, axis=0))

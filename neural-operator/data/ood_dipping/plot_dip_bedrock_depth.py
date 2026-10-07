@@ -14,11 +14,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from seiskit.profile_randomization import (
-    ProfileRandomizationConfig,
-    generate_passeri_profile,
-    generate_toro_profile,
-)
+from seiskit.profile_randomization import ProfileRandomizationConfig
 
 THIS_DIR = Path(__file__).resolve().parent
 FIG_DIR = THIS_DIR / "figures"
@@ -56,16 +52,52 @@ def _config(model: str) -> ProfileRandomizationConfig:
     return ProfileRandomizationConfig(bedrock_depth_model=model, **_base_kwargs())
 
 
+def _one_layer_column(cfg: ProfileRandomizationConfig, method: str, rng: np.random.Generator):
+    """Constant soil Vs down to the interface. No sublayers."""
+    from seiskit.profile_randomization.common import _total_column_depth
+    from seiskit.profile_randomization.models import _GeoLayer
+    from seiskit.profile_randomization.nhpp import _sample_interface_depth
+    from seiskit.profile_randomization.passeri import (
+        _passeri_joint_bedrock_draw,
+        _passeri_tts_layer_vs,
+    )
+    from seiskit.profile_randomization.toro import _toro_draw_layer_vs
+
+    if method == "toro":
+        interface = float(_sample_interface_depth(cfg, rng))
+        bed_vs = float(cfg.vs_bedrock)
+        soil = _GeoLayer(interface, interface / 2.0, interface, float(cfg.vs_mean))
+        bed_h = float(cfg.bedrock_thickness)
+        bed = _GeoLayer(
+            bed_h, interface + bed_h / 2.0, interface + bed_h, bed_vs, is_bedrock=True
+        )
+        vs_s = float(
+            _toro_draw_layer_vs(
+                [soil, bed], cfg, rng, randomize_bedrock=False, reject_profile=False
+            )[0]
+        )
+    else:
+        interface, bed_vs = _passeri_joint_bedrock_draw(cfg, rng)
+        interface = float(interface)
+        bed_vs = float(bed_vs)
+        soil = _GeoLayer(interface, interface / 2.0, interface, float(cfg.vs_mean))
+        vs_s = float(_passeri_tts_layer_vs([soil], cfg, rng)[0])
+    n = max(1, int(round(_total_column_depth(cfg) / cfg.dz)))
+    column = np.full(n, bed_vs)
+    n_soil = int(np.clip(round(interface / cfg.dz), 1, n))
+    column[:n_soil] = vs_s
+    return column, interface
+
+
 def _ensemble(model: str, method: str, n: int, seed: int):
     cfg = _config(model)
-    gen = generate_toro_profile if method == "toro" else generate_passeri_profile
     rng = np.random.default_rng(seed)
     profiles = []
     depths = []
     for _ in range(n):
-        prof = gen(cfg, rng)
-        profiles.append(prof.vs_depth)
-        depths.append(prof.interface_depth)
+        column, interface = _one_layer_column(cfg, method, rng)
+        profiles.append(column)
+        depths.append(interface)
     return np.asarray(profiles), np.asarray(depths), cfg
 
 

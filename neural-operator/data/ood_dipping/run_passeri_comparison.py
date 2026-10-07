@@ -41,7 +41,6 @@ if str(REPO) not in sys.path:
 from seiskit.damping import compute_damping_from_Q, compute_quality_factor  # noqa: E402
 from seiskit.profile_randomization import (  # noqa: E402
     ProfileRandomizationConfig,
-    generate_passeri_profile,
     hallal_profile_config,
 )
 from seiskit.theory.layered_1d_tf import (  # noqa: E402
@@ -212,21 +211,34 @@ def _passeri_config(phys: PhysEntry, arm: str) -> ProfileRandomizationConfig:
     )
 
 
+def _one_layer_passeri(cfg: ProfileRandomizationConfig, rng: np.random.Generator) -> tuple[float, float, float]:
+    """One soil Vs from Passeri travel time. No thickness subdivision."""
+    from seiskit.profile_randomization.models import _GeoLayer
+    from seiskit.profile_randomization.passeri import (
+        _passeri_joint_bedrock_draw,
+        _passeri_tts_layer_vs,
+    )
+
+    interface, bed_vs = _passeri_joint_bedrock_draw(cfg, rng)
+    interface = float(interface)
+    soil = _GeoLayer(interface, interface / 2.0, interface, float(cfg.vs_mean))
+    vs_s = float(_passeri_tts_layer_vs([soil], cfg, rng)[0])
+    return vs_s, float(bed_vs), interface
+
+
 def ensemble_passeri(
     phys: PhysEntry,
     arm: str,
     freq: np.ndarray,
     n_real: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return (geomean |TF|, σ_ln |TF|) over *n_real* Passeri realizations."""
+    """Return (geomean |TF|, σ_ln |TF|) over *n_real* one-layer Passeri realizations."""
     cfg = _passeri_config(phys, arm)
     stack = np.empty((n_real, len(freq)), dtype=np.float64)
     for i in range(n_real):
         rng = np.random.default_rng(_rng_seed(phys.sobol_id, arm, i))
-        prof = generate_passeri_profile(cfg, rng)
-        vs_s = float(prof.vs_depth[0])
-        vs_b = float(prof.vs_depth[-1])
-        H_use = float(phys.H) if arm == "fixed" else float(prof.interface_depth)
+        vs_s, vs_b, interface = _one_layer_passeri(cfg, rng)
+        H_use = float(phys.H) if arm == "fixed" else interface
         stack[i] = two_layer_af(freq, vs_s, H_use, vs_b)
     log_tf = np.log(np.clip(stack, EPS, None))
     geo = np.exp(np.mean(log_tf, axis=0))

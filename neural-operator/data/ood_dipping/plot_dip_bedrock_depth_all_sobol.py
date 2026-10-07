@@ -20,11 +20,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from seiskit.profile_randomization import (
-    ProfileRandomizationConfig,
-    generate_passeri_profile,
-    generate_toro_profile,
-)
+from seiskit.profile_randomization import ProfileRandomizationConfig
+from plot_dip_bedrock_depth import _one_layer_column
 from seiskit.profile_randomization.nhpp import _sample_interface_depth
 
 THIS_DIR = Path(__file__).resolve().parent
@@ -126,12 +123,14 @@ def main() -> None:
                 ("dip", toro_dip_prof, pass_dip_prof),
             ):
                 cfg = _cfg_for_point(phys, model)
-                pt = generate_toro_profile(cfg, np.random.default_rng(seed_k))
-                pp = generate_passeri_profile(cfg, np.random.default_rng(seed_k + 17))
-                z_t = (np.arange(len(pt.vs_depth)) + 0.5) * DZ
-                z_p = (np.arange(len(pp.vs_depth)) + 0.5) * DZ
-                store_t.append((pt.vs_depth, z_t, H))
-                store_p.append((pp.vs_depth, z_p, H))
+                col_t, _iface_t = _one_layer_column(cfg, "toro", np.random.default_rng(seed_k))
+                col_p, _iface_p = _one_layer_column(
+                    cfg, "passeri", np.random.default_rng(seed_k + 17)
+                )
+                z_t = (np.arange(len(col_t)) + 0.5) * float(cfg.dz)
+                z_p = (np.arange(len(col_p)) + 0.5) * float(cfg.dz)
+                store_t.append((col_t, z_t, H))
+                store_p.append((col_p, z_p, H))
 
     depths_ln = np.asarray(depths_ln)
     depths_dip = np.asarray(depths_dip)
