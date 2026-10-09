@@ -1,14 +1,14 @@
 """Compare Toro / Passeri under lognormal vs dip bedrock-depth laws.
 
-Default depth remains lognormal. For the dipping case, interface depth is
-sampled as H + x tan(θ) with θ ~ Unif[-3°, 3°] and x ~ Unif[-250, 250] m,
-matching Box ood_dipping geometry.
+The dip law is one Sobol point: θ is that point's dip angle, and interface
+depth is H + x tan(θ) with x ~ Unif[-250, 250] m. θ is not redrawn.
 
 Writes ``figures/toro_passeri_dip_depth.png``.
 """
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -19,6 +19,7 @@ from seiskit.profile_randomization import ProfileRandomizationConfig
 THIS_DIR = Path(__file__).resolve().parent
 FIG_DIR = THIS_DIR / "figures"
 OUT_PATH = FIG_DIR / "toro_passeri_dip_depth.png"
+MANIFEST_PATH = THIS_DIR / "manifest.csv"
 
 H = 40.0
 BEDROCK = 30.0
@@ -26,6 +27,9 @@ DZ = 0.5
 VS1 = 230.0
 VS2 = 1500.0
 COV = 0.20
+THETA = 0.0
+SOBOL_ID = -1
+DIP_HALF_SPAN = 250.0
 N_DEPTH = 8000
 N_PROFILE = 60
 SEED = 0
@@ -48,8 +52,49 @@ def _base_kwargs() -> dict:
     )
 
 
+def median_abs_theta_point(path: Path = MANIFEST_PATH) -> dict:
+    """Unique Sobol row whose |θ| is closest to the median |θ|."""
+    rows = list(csv.DictReader(path.open()))
+    by_id: dict[int, dict] = {}
+    for row in rows:
+        sid = int(row["sobol_id"])
+        if sid not in by_id:
+            by_id[sid] = row
+    phys = list(by_id.values())
+    abs_th = np.array([abs(float(p["dip_angle_deg"])) for p in phys])
+    med = float(np.median(abs_th))
+    row = phys[int(np.argmin(np.abs(abs_th - med)))]
+    return {
+        "sobol_id": int(row["sobol_id"]),
+        "Vs1": float(row["Vs1"]),
+        "Vs2": float(row["Vs2"]),
+        "H": float(row["H_discretized"]),
+        "CoV": float(row["CoV"]),
+        "dip_angle_deg": float(row["dip_angle_deg"]),
+        "bedrock_thickness": float(row["bedrock_thickness_discretized"]),
+    }
+
+
+def use_fixed_point(point: dict) -> None:
+    """Point the module-level case at one Sobol physics row."""
+    global H, BEDROCK, VS1, VS2, COV, THETA, SOBOL_ID
+    H = float(point["H"])
+    BEDROCK = float(point["bedrock_thickness"])
+    VS1 = float(point["Vs1"])
+    VS2 = float(point["Vs2"])
+    COV = float(point["CoV"])
+    THETA = float(point["dip_angle_deg"])
+    SOBOL_ID = int(point["sobol_id"])
+
+
 def _config(model: str) -> ProfileRandomizationConfig:
-    return ProfileRandomizationConfig(bedrock_depth_model=model, **_base_kwargs())
+    kwargs = _base_kwargs()
+    kwargs["bedrock_depth_model"] = model
+    if model == "dip":
+        kwargs["dip_angle_min_deg"] = float(THETA)
+        kwargs["dip_angle_max_deg"] = float(THETA)
+        kwargs["dip_half_span_m"] = DIP_HALF_SPAN
+    return ProfileRandomizationConfig(**kwargs)
 
 
 def _one_layer_column(cfg: ProfileRandomizationConfig, method: str, rng: np.random.Generator):
@@ -103,7 +148,8 @@ def _ensemble(model: str, method: str, n: int, seed: int):
 
 def main() -> None:
     FIG_DIR.mkdir(parents=True, exist_ok=True)
-    max_shift = 250.0 * np.tan(np.radians(3.0))
+    use_fixed_point(median_abs_theta_point())
+    half = DIP_HALF_SPAN * abs(np.tan(np.radians(THETA)))
 
     # Shared seeds across depth models so profile differences are depth-driven.
     toro_ln, d_toro_ln, cfg_ln = _ensemble("lognormal", "toro", N_PROFILE, SEED)
@@ -124,7 +170,8 @@ def main() -> None:
     fig, axes = plt.subplots(1, 3, figsize=(12.5, 5.2), constrained_layout=True)
 
     ax = axes[0]
-    bins = np.linspace(H - max_shift - 1.0, H + max_shift + 1.0, 41)
+    span = max(half, 0.25 * H) + 1.0
+    bins = np.linspace(H - span, H + span, 41)
     ax.hist(
         depths_ln,
         bins=bins,
@@ -143,6 +190,15 @@ def main() -> None:
         color="#D55E00",
         label=r"$H + x\tan\theta$",
     )
+    if half > 0:
+        height = 1.0 / (2.0 * half)
+        ax.plot(
+            [H - half, H - half, H + half, H + half],
+            [0.0, height, height, 0.0],
+            color="0.1",
+            lw=1.3,
+            label="uniform",
+        )
     ax.axvline(H, color="0.2", ls="--", lw=1.2, label=rf"$H={H:.0f}$ m")
     ax.set_xlabel("Interface depth (m)")
     ax.set_ylabel("Density")
@@ -169,7 +225,7 @@ def main() -> None:
                 lw=0.8,
             )
         ax.axhline(H, color="0.2", ls="--", lw=1.0)
-        ax.axhspan(H - max_shift, H + max_shift, color="#D55E00", alpha=0.08, zorder=0)
+        ax.axhspan(H - half, H + half, color="#D55E00", alpha=0.08, zorder=0)
         ax.set_xlabel(r"$V_s$ (m/s)")
         ax.set_title(title)
         ax.set_ylim(depth_axis[-1] + DZ, 0)
@@ -186,8 +242,8 @@ def main() -> None:
     _plot_profiles(axes[2], pass_ln, pass_dip, "Passeri (tts randomization)")
 
     fig.suptitle(
-        rf"Toro / Passeri with dip bedrock depth  "
-        rf"($H={H:.0f}$ m, $\theta\sim\mathrm{{Unif}}[-3^\circ,3^\circ]$, "
+        rf"Toro / Passeri, Sobol {SOBOL_ID}  "
+        rf"($H={H:.0f}$ m, $\theta={THETA:+.2f}^\circ$ fixed, "
         rf"$x\sim\mathrm{{Unif}}[-250,250]$ m)",
         fontsize=11,
     )
